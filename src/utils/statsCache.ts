@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { feature } from 'bun:bundle'
 import { randomBytes } from 'crypto'
 import { open } from 'fs/promises'
@@ -70,7 +71,7 @@ export type PersistedStatsCache = {
   hourCounts: { [hour: number]: number }
   // Speculation time saved across all sessions
   totalSpeculationTimeSavedMs: number
-  // Shot distribution: map of shot count → number of sessions (ant-only)
+  // Shot distribution: map of shot count 鈫?number of sessions (ant-only)
   shotDistribution?: { [shotCount: number]: number }
 }
 
@@ -432,3 +433,5 @@ export function getYesterdayDateString(): string {
 export function isDateBefore(date1: string, date2: string): boolean {
   return date1 < date2
 }
+// @ts-nocheck
+

@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { c as _c } from "react/compiler-runtime";
 import { randomUUID } from 'crypto';
 import figures from 'figures';
@@ -274,7 +275,7 @@ function TeamDetailView(t0) {
   }
   let t4;
   if ($[8] !== cycleModeShortcut) {
-    t4 = <Box marginLeft={1}><Text dimColor={true}>{figures.arrowUp}/{figures.arrowDown} select · Enter view · k kill · s shutdown · p prune idle{supportsHideShow && " \xB7 h hide/show \xB7 H hide/show all"}{" \xB7 "}{cycleModeShortcut} sync cycle modes for all · Esc close</Text></Box>;
+    t4 = <Box marginLeft={1}><Text dimColor={true}>{figures.arrowUp}/{figures.arrowDown} select 路 Enter view 路 k kill 路 s shutdown 路 p prune idle{supportsHideShow && " \xB7 h hide/show \xB7 H hide/show all"}{" \xB7 "}{cycleModeShortcut} sync cycle modes for all 路 Esc close</Text></Box>;
     $[8] = cycleModeShortcut;
     $[9] = t4;
   } else {
@@ -521,7 +522,7 @@ function TeammateDetailView(t0) {
   }
   let t12;
   if ($[34] !== cycleModeShortcut) {
-    t12 = <Box marginLeft={1}><Text dimColor={true}>{figures.arrowLeft} back · Esc close · k kill · s shutdown{getCachedBackend()?.supportsHideShow && " \xB7 h hide/show"}{" \xB7 "}{cycleModeShortcut} cycle mode</Text></Box>;
+    t12 = <Box marginLeft={1}><Text dimColor={true}>{figures.arrowLeft} back 路 Esc close 路 k kill 路 s shutdown{getCachedBackend()?.supportsHideShow && " \xB7 h hide/show"}{" \xB7 "}{cycleModeShortcut} cycle mode</Text></Box>;
     $[34] = cycleModeShortcut;
     $[35] = t12;
   } else {
@@ -547,10 +548,10 @@ function _temp(prev) {
 async function killTeammate(paneId: string, backendType: PaneBackendType | undefined, teamName: string, teammateId: string, teammateName: string, setAppState: (f: (prev: AppState) => AppState) => void): Promise<void> {
   // Kill the pane using the backend that created it (handles -s / -L flags correctly).
   // Wrapped in try/catch so cleanup (removeMemberFromTeam, unassignTeammateTasks,
-  // setAppState) always runs — matches useInboxPoller.ts error isolation.
+  // setAppState) always runs 鈥?matches useInboxPoller.ts error isolation.
   if (backendType) {
     try {
-      // Use ensureBackendsRegistered (not detectAndGetBackend) — this process may
+      // Use ensureBackendsRegistered (not detectAndGetBackend) 鈥?this process may
       // be a teammate that never ran detection, but we only need class imports
       // here, not subprocess probes that could throw in a different environment.
       await ensureBackendsRegistered();
@@ -560,7 +561,7 @@ async function killTeammate(paneId: string, backendType: PaneBackendType | undef
     }
   } else {
     // backendType undefined: old team files predating this field, or in-process.
-    // Old tmux-file case is a migration gap — the pane is orphaned. In-process
+    // Old tmux-file case is a migration gap 鈥?the pane is orphaned. In-process
     // teammates have no pane to kill, so this is correct for them.
     logForDebugging(`[TeamsDialog] Skipping pane kill for ${paneId}: no backendType recorded`);
   }
@@ -607,7 +608,7 @@ async function viewTeammateOutput(paneId: string, backendType: PaneBackendType |
     // -s is required to target a specific session (ITermBackend.ts:216-217)
     await execFileNoThrow(IT2_COMMAND, ['session', 'focus', '-s', paneId]);
   } else {
-    // External-tmux teammates live on the swarm socket — without -L, this
+    // External-tmux teammates live on the swarm socket 鈥?without -L, this
     // targets the default server and silently no-ops. Mirrors runTmuxInSwarm
     // in TmuxBackend.ts:85-89.
     const args = isInsideTmuxSync() ? ['select-pane', '-t', paneId] : ['-L', getSwarmSocketName(), 'select-pane', '-t', paneId];

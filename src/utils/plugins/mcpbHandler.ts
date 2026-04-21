@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type {
   McpbManifest,
   McpbUserConfigurationOption,
@@ -966,3 +967,4 @@ export async function loadMcpbFile(
     contentHash,
   }
 }
+// @ts-nocheck

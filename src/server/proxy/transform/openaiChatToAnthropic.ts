@@ -9,11 +9,19 @@ import type {
   AnthropicResponse,
   AnthropicContentBlock,
 } from './types.js'
+import {
+  restoreToolNameFromOpenAI,
+  type ToolNameMapping,
+} from './compatHelpers.js'
 
 /**
  * Convert OpenAI Chat Completions response to Anthropic Messages response.
  */
-export function openaiChatToAnthropic(response: OpenAIChatResponse, model: string): AnthropicResponse {
+export function openaiChatToAnthropic(
+  response: OpenAIChatResponse,
+  model: string,
+  toolNameMapping?: ToolNameMapping,
+): AnthropicResponse {
   const choice = response.choices?.[0]
   if (!choice) {
     return createEmptyResponse(response, model)
@@ -42,8 +50,17 @@ export function openaiChatToAnthropic(response: OpenAIChatResponse, model: strin
   }
 
   // Convert text content
-  if (choice.message.content) {
-    content.push({ type: 'text', text: choice.message.content })
+  const messageContent = (choice.message as Record<string, unknown>).content
+  if (typeof messageContent === 'string' && messageContent.length > 0) {
+    content.push({ type: 'text', text: messageContent })
+  } else if (Array.isArray(messageContent)) {
+    for (const part of messageContent as Array<Record<string, unknown>>) {
+      if (typeof part?.text === 'string' && part.text.length > 0) {
+        content.push({ type: 'text', text: part.text })
+      } else if (typeof part?.refusal === 'string' && part.refusal.length > 0) {
+        content.push({ type: 'text', text: part.refusal })
+      }
+    }
   }
 
   // Convert tool calls
@@ -58,7 +75,7 @@ export function openaiChatToAnthropic(response: OpenAIChatResponse, model: strin
       content.push({
         type: 'tool_use',
         id: tc.id,
-        name: tc.function.name,
+        name: restoreToolNameFromOpenAI(tc.function.name, toolNameMapping),
         input,
       })
     }

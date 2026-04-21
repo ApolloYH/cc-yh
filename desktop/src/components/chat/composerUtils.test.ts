@@ -1,3 +1,4 @@
+import '../../test/setupDom'
 import { describe, expect, it } from 'vitest'
 import {
   findSlashToken,

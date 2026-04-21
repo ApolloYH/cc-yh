@@ -143,6 +143,18 @@ export type OpenAIResponsesResponse = {
 export type AnthropicContentBlock =
   | { type: 'text'; text: string; cache_control?: unknown }
   | { type: 'image'; source: { type: 'base64'; media_type: string; data: string }; cache_control?: unknown }
+  | {
+      type: 'document'
+      title?: string
+      text?: string
+      source?: {
+        type?: string
+        media_type?: string
+        data?: string
+        text?: string
+      }
+      cache_control?: unknown
+    }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown>; cache_control?: unknown }
   | { type: 'tool_result'; tool_use_id: string; content: string | AnthropicContentBlock[]; is_error?: boolean; cache_control?: unknown }
   | { type: 'thinking'; thinking: string; signature?: string }

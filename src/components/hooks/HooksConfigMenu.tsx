@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { c as _c } from "react/compiler-runtime";
 /**
  * HooksConfigMenu is a read-only browser for configured hooks.
@@ -5,7 +6,7 @@ import { c as _c } from "react/compiler-runtime";
  * Users can drill into each hook event, see configured matchers and hooks
  * (of any type: command, prompt, agent, http), and view individual hook
  * details. To add or modify hooks, users should edit settings.json directly
- * or ask Claude — the menu directs them there.
+ * or ask Claude 鈥?the menu directs them there.
  *
  * The menu is read-only because the old editing UI only supported
  * command-type hooks and duplicating the settings.json editing surface
@@ -328,9 +329,9 @@ export function HooksConfigMenu(t0) {
     let t30;
     if ($[47] === Symbol.for("react.memo_cache_sentinel")) {
       t27 = <Box marginTop={1}><Text dimColor={true}>When hooks are disabled:</Text></Box>;
-      t28 = <Text dimColor={true}>· No hook commands will execute</Text>;
-      t29 = <Text dimColor={true}>· StatusLine will not be displayed</Text>;
-      t30 = <Text dimColor={true}>· Tool operations will proceed without hook validation</Text>;
+      t28 = <Text dimColor={true}>路 No hook commands will execute</Text>;
+      t29 = <Text dimColor={true}>路 StatusLine will not be displayed</Text>;
+      t30 = <Text dimColor={true}>路 Tool operations will proceed without hook validation</Text>;
       $[47] = t27;
       $[48] = t28;
       $[49] = t29;

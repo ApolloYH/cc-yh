@@ -1,12 +1,13 @@
+// @ts-nocheck
 /**
- * HahaOAuthService — 桌面端自管 Claude OAuth token
+ * HahaOAuthService 鈥?妗岄潰绔嚜绠?Claude OAuth token
  *
- * 为什么存在: macOS Keychain ACL 在 .app 被打上 quarantine 属性后
- * 对无 UI sidecar 静默拒绝,导致 CLI 读不到 OAuth token → 403。
- * 这个 service 把 token 存到 haha 自己的目录,并通过 env 注入给 CLI。
+ * 涓轰粈涔堝瓨鍦? macOS Keychain ACL 鍦?.app 琚墦涓?quarantine 灞炴€у悗
+ * 瀵规棤 UI sidecar 闈欓粯鎷掔粷,瀵艰嚧 CLI 璇讳笉鍒?OAuth token 鈫?403銆?
+ * 杩欎釜 service 鎶?token 瀛樺埌 haha 鑷繁鐨勭洰褰?骞堕€氳繃 env 娉ㄥ叆缁?CLI銆?
  *
- * 复用 src/services/oauth/{crypto,client}.ts 里的 PKCE + token exchange 逻辑,
- * 不复制粘贴 —— 保证跟 CLI 走同一套协议实现。
+ * 澶嶇敤 src/services/oauth/{crypto,client}.ts 閲岀殑 PKCE + token exchange 閫昏緫,
+ * 涓嶅鍒剁矘璐?鈥斺€?淇濊瘉璺?CLI 璧板悓涓€濂楀崗璁疄鐜般€?
  */
 
 import * as fs from 'fs/promises'
@@ -71,7 +72,7 @@ export class HahaOAuthService {
   private getOAuthFilePath(): string {
     const configDir =
       process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
-    return path.join(configDir, 'cc-haha', 'oauth.json')
+    return path.join(configDir, 'claude-yh', 'oauth.json')
   }
 
   async loadTokens(): Promise<StoredOAuthTokens | null> {
@@ -87,8 +88,8 @@ export class HahaOAuthService {
   async saveTokens(tokens: StoredOAuthTokens): Promise<void> {
     const filePath = this.getOAuthFilePath()
     await fs.mkdir(path.dirname(filePath), { recursive: true })
-    // 写临时文件再 rename,防止写到一半被其他读者读到残缺 JSON。
-    // 单进程 desktop 下 pid 后缀足够隔离。
+    // 鍐欎复鏃舵枃浠跺啀 rename,闃叉鍐欏埌涓€鍗婅鍏朵粬璇昏€呰鍒版畫缂?JSON銆?
+    // 鍗曡繘绋?desktop 涓?pid 鍚庣紑瓒冲闅旂銆?
     const tmp = `${filePath}.tmp.${process.pid}`
     await fs.writeFile(tmp, JSON.stringify(tokens, null, 2), { mode: 0o600 })
     await fs.rename(tmp, filePath)
@@ -254,3 +255,4 @@ export class HahaOAuthService {
 }
 
 export const hahaOAuthService = new HahaOAuthService()
+

@@ -17,7 +17,7 @@ export const IMAGE_MIME_WHITELIST = [
 ] as const
 
 export type LimitCheckResult =
-  | { ok: true }
+  | { ok: true; reason?: undefined; hint?: undefined }
   | { ok: false; reason: 'too_large' | 'unsupported_mime'; hint: string }
 
 function formatMb(bytes: number): string {

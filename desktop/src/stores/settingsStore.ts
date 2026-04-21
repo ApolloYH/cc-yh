@@ -4,7 +4,7 @@ import { modelsApi } from '../api/models'
 import type { PermissionMode, EffortLevel, ModelInfo } from '../types/settings'
 import type { Locale } from '../i18n'
 
-const LOCALE_STORAGE_KEY = 'cc-haha-locale'
+const LOCALE_STORAGE_KEY = 'claude-yh-locale'
 
 function getStoredLocale(): Locale {
   try {

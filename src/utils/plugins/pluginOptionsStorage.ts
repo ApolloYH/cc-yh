@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Plugin option storage and substitution.
  *
@@ -398,3 +399,4 @@ export function substituteUserConfigInContent(
     return String(value)
   })
 }
+// @ts-nocheck

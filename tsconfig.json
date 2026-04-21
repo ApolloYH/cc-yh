@@ -3,7 +3,9 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "allowJs": true,
+    "skipLibCheck": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
@@ -18,7 +20,10 @@
       ]
     },
     "types": [
-      "bun-types"
+      "bun-types",
+      "react",
+      "react-dom",
+      "vitest/globals"
     ]
   }
 }

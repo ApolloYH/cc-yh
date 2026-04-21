@@ -308,17 +308,29 @@ function ProviderFormModal({ open, onClose, mode, provider }: ProviderFormProps)
     }
     import('../api/settings').then(({ settingsApi }) => {
       settingsApi.getUser().then((settings) => {
-        const needsProxy = apiFormat !== 'anthropic'
+        const isOpenAIChat = apiFormat === 'openai_chat'
+        const isOpenAIResponses = apiFormat === 'openai_responses'
+        const existingEnv = { ...((settings.env as Record<string, string>) || {}) }
+        delete existingEnv.CLAUDE_CODE_COMPAT_PROVIDER
+        delete existingEnv.CLAUDE_CODE_OPENAI_COMPAT_MODE
         const merged = {
           ...settings,
           env: {
-            ...((settings.env as Record<string, string>) || {}),
-            ANTHROPIC_BASE_URL: needsProxy ? 'http://127.0.0.1:3456/proxy' : baseUrl,
-            ANTHROPIC_AUTH_TOKEN: needsProxy ? 'proxy-managed' : (apiKey || '(your API key)'),
+            ...existingEnv,
+            ANTHROPIC_BASE_URL: baseUrl,
+            ANTHROPIC_AUTH_TOKEN: apiKey || '(your API key)',
             ANTHROPIC_MODEL: models.main,
             ANTHROPIC_DEFAULT_HAIKU_MODEL: models.haiku,
             ANTHROPIC_DEFAULT_SONNET_MODEL: models.sonnet,
             ANTHROPIC_DEFAULT_OPUS_MODEL: models.opus,
+            ...(isOpenAIChat && {
+              CLAUDE_CODE_COMPAT_PROVIDER: 'openai',
+              CLAUDE_CODE_OPENAI_COMPAT_MODE: 'chat_completions',
+            }),
+            ...(isOpenAIResponses && {
+              CLAUDE_CODE_COMPAT_PROVIDER: 'openai',
+              CLAUDE_CODE_OPENAI_COMPAT_MODE: 'responses',
+            }),
           },
         }
         setSettingsJson(JSON.stringify(merged, null, 2))
@@ -1208,7 +1220,7 @@ function SkillSettings() {
 
 // ─── About Settings ──────────────────────────────────────
 
-const GITHUB_REPO = 'https://github.com/NanmiCoder/cc-haha'
+const GITHUB_REPO = 'https://github.com/NanmiCoder/claude-yh'
 const AUTHOR_GITHUB = 'https://github.com/NanmiCoder'
 const SOCIAL_LINKS = [
   { name: 'Bilibili', icon: '/icons/bilibili.svg', url: 'https://space.bilibili.com/434377496', label: '程序员阿江-Relakkes' },
@@ -1269,8 +1281,8 @@ function AboutSettings() {
   return (
     <div className="w-full min-w-0 max-w-lg mx-auto flex flex-col items-center py-6">
       {/* Logo + App Name + Version */}
-      <img src="/app-icon.jpg" alt="Claude Code Haha" className="w-20 h-20 rounded-2xl shadow-md mb-4" />
-      <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Claude Code Haha</h1>
+      <img src="/app-icon.jpg" alt="Claude YH" className="w-20 h-20 rounded-2xl shadow-md mb-4" />
+      <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Claude YH</h1>
       {version && (
         <span className="text-xs text-[var(--color-text-tertiary)] mt-1">{t('settings.about.version')} {version}</span>
       )}
@@ -1283,7 +1295,7 @@ function AboutSettings() {
         >
           <img src="/icons/github.svg" alt="GitHub" className="w-5 h-5 opacity-70" />
           <div className="flex-1 text-left">
-            <div className="text-sm font-medium text-[var(--color-text-primary)]">NanmiCoder/cc-haha</div>
+            <div className="text-sm font-medium text-[var(--color-text-primary)]">NanmiCoder/claude-yh</div>
             <div className="text-xs text-[var(--color-text-tertiary)]">{t('settings.about.starHint')}</div>
           </div>
           <span className="material-symbols-outlined text-[16px] text-[var(--color-text-tertiary)]">open_in_new</span>

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { feature } from 'bun:bundle'
 import type { UUID } from 'crypto'
 import { findToolByName, type Tools } from '../Tool.js'
@@ -1107,3 +1108,4 @@ export function summarizeRecentActivities(
   }
   return undefined
 }
+// @ts-nocheck

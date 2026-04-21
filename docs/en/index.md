@@ -2,19 +2,19 @@
 layout: home
 
 hero:
-  name: Claude Code Haha
+  name: Claude YH
   text: Locally Runnable Claude Code
   tagline: Repaired from leaked source, supports any Anthropic-compatible API endpoint (MiniMax, OpenRouter, etc.)
   image:
     src: /images/banner.jpg
-    alt: Claude Code Haha
+    alt: Claude YH
   actions:
     - theme: brand
       text: Quick Start
       link: /en/guide/quick-start
     - theme: alt
       text: GitHub
-      link: https://github.com/NanmiCoder/cc-haha
+      link: https://github.com/NanmiCoder/claude-yh
 
 features:
   - icon: "\U0001F5A5"

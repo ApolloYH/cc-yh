@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 /**
  * Thin launchers for one-off dialog JSX sites in main.tsx.
  * Each launcher dynamically imports its component and wires the `done` callback
@@ -65,7 +66,7 @@ export async function launchAssistantSessionChooser(root: Root, props: {
 }
 
 /**
- * `claude assistant` found zero sessions — show the same install wizard
+ * `claude assistant` found zero sessions 鈥?show the same install wizard
  * as `/assistant` when daemon.json is empty. Resolves to the installed dir on
  * success, null on cancel. Rejects on install failure so the caller can
  * distinguish errors from user cancellation.

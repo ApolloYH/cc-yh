@@ -1,5 +1,6 @@
+import '../../test/setupDom'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen } from '../../test/testingLibrary'
 import '@testing-library/jest-dom'
 
 vi.mock('../chat/CodeViewer', () => ({

@@ -1,5 +1,5 @@
 /**
- * Request transformation: Anthropic Messages → OpenAI Responses API
+ * Request transformation: Anthropic Messages -> OpenAI Responses API
  * Derived from cc-switch (https://github.com/farion1231/cc-switch)
  * Original work by Jason Young, MIT License
  */
@@ -13,16 +13,24 @@ import type {
   OpenAITool,
   OpenAIChatContentPart,
 } from './types.js'
+import {
+  anthropicBlockToDocumentText,
+  normalizeToolNameForOpenAI,
+  serializeAnthropicContentValue,
+  type ToolNameMapping,
+} from './compatHelpers.js'
 
 /**
  * Convert Anthropic Messages request to OpenAI Responses API request.
  */
-export function anthropicToOpenaiResponses(body: AnthropicRequest): OpenAIResponsesRequest {
+export function anthropicToOpenaiResponses(
+  body: AnthropicRequest,
+  toolNameMapping?: ToolNameMapping,
+): OpenAIResponsesRequest {
   const input: OpenAIResponsesInputItem[] = []
 
-  // Convert messages to input items
   for (const msg of body.messages) {
-    convertMessageToInputItems(msg, input)
+    convertMessageToInputItems(msg, input, toolNameMapping)
   }
 
   const result: OpenAIResponsesRequest = {
@@ -31,42 +39,36 @@ export function anthropicToOpenaiResponses(body: AnthropicRequest): OpenAIRespon
     stream: body.stream,
   }
 
-  // system → instructions
   if (body.system) {
     if (typeof body.system === 'string') {
       result.instructions = body.system
     } else if (Array.isArray(body.system)) {
-      result.instructions = body.system.map((b) => b.text).join('\n')
+      result.instructions = body.system.map(b => b.text).join('\n')
     }
   }
 
-  // max_tokens — omit to let upstream provider use its own default/max.
-  // Claude Code sends very large values that exceed many providers' limits.
-
-  // temperature & top_p
   if (body.temperature !== undefined) result.temperature = body.temperature
   if (body.top_p !== undefined) result.top_p = body.top_p
 
-  // tools
   if (body.tools && body.tools.length > 0) {
     result.tools = body.tools
-      .filter((t) => t.name !== 'BatchTool')
-      .map((t): OpenAITool => ({
-        type: 'function',
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.input_schema,
-        },
-      }))
+      .filter(t => t.name !== 'BatchTool')
+      .map(
+        (t): OpenAITool => ({
+          type: 'function',
+          function: {
+            name: normalizeToolNameForOpenAI(t.name, toolNameMapping),
+            description: t.description,
+            parameters: t.input_schema,
+          },
+        }),
+      )
   }
 
-  // tool_choice
   if (body.tool_choice !== undefined) {
-    result.tool_choice = convertToolChoice(body.tool_choice)
+    result.tool_choice = convertToolChoice(body.tool_choice, toolNameMapping)
   }
 
-  // thinking → reasoning
   if (body.thinking) {
     const budget = body.thinking.budget_tokens
     if (budget !== undefined) {
@@ -78,15 +80,16 @@ export function anthropicToOpenaiResponses(body: AnthropicRequest): OpenAIRespon
     }
   }
 
-  // stop_sequences not supported in Responses API, dropped
-
   return result
 }
 
-function convertMessageToInputItems(msg: AnthropicMessage, output: OpenAIResponsesInputItem[]): void {
+function convertMessageToInputItems(
+  msg: AnthropicMessage,
+  output: OpenAIResponsesInputItem[],
+  toolNameMapping?: ToolNameMapping,
+): void {
   const content = msg.content
 
-  // Simple string content
   if (typeof content === 'string') {
     output.push({ type: 'message', role: msg.role, content })
     return
@@ -97,63 +100,73 @@ function convertMessageToInputItems(msg: AnthropicMessage, output: OpenAIRespons
     return
   }
 
-  // Collect text/image parts and handle tool blocks separately
-  const contentParts: (string | OpenAIChatContentPart)[] = []
+  let contentParts: (string | OpenAIChatContentPart)[] = []
+
+  const flushContent = () => {
+    if (contentParts.length === 0) return
+    const value =
+      contentParts.length === 1 && typeof contentParts[0] === 'string'
+        ? contentParts[0]
+        : contentParts.map(part =>
+            typeof part === 'string' ? { type: 'text' as const, text: part } : part,
+          )
+    output.push({ type: 'message', role: msg.role, content: value })
+    contentParts = []
+  }
 
   for (const block of content) {
     if (block.type === 'text') {
       contentParts.push(block.text)
-    } else if (block.type === 'image') {
+      continue
+    }
+
+    if (block.type === 'image') {
       contentParts.push({
         type: 'image_url',
-        image_url: { url: `data:${block.source.media_type};base64,${block.source.data}` },
+        image_url: {
+          url: `data:${block.source.media_type};base64,${block.source.data}`,
+        },
       })
-    } else if (block.type === 'tool_use') {
-      // Flush any accumulated content first
-      if (contentParts.length > 0) {
-        const flatContent = contentParts.length === 1 && typeof contentParts[0] === 'string'
-          ? contentParts[0]
-          : contentParts.map((p) => typeof p === 'string' ? p : '').join('')
-        if (flatContent) {
-          output.push({ type: 'message', role: msg.role, content: flatContent })
-        }
-        contentParts.length = 0
-      }
-      // Lift to function_call item
+      continue
+    }
+
+    if (block.type === 'document') {
+      const text = anthropicBlockToDocumentText(block)
+      if (text) contentParts.push(text)
+      continue
+    }
+
+    if (block.type === 'tool_use') {
+      flushContent()
       output.push({
         type: 'function_call',
         call_id: block.id,
-        name: block.name,
-        arguments: typeof block.input === 'string' ? block.input : JSON.stringify(block.input),
+        name: normalizeToolNameForOpenAI(block.name, toolNameMapping),
+        arguments:
+          typeof block.input === 'string'
+            ? block.input
+            : JSON.stringify(block.input),
       })
-    } else if (block.type === 'tool_result') {
-      // Lift to function_call_output item
-      const resultContent = typeof block.content === 'string'
-        ? block.content
-        : Array.isArray(block.content)
-          ? block.content.filter((b): b is Extract<AnthropicContentBlock, { type: 'text' }> => b.type === 'text').map((b) => b.text).join('\n')
-          : ''
+      continue
+    }
+
+    if (block.type === 'tool_result') {
+      flushContent()
       output.push({
         type: 'function_call_output',
         call_id: block.tool_use_id,
-        output: resultContent,
+        output: serializeAnthropicContentValue(block.content),
       })
     }
-    // Skip thinking blocks
   }
 
-  // Flush remaining content
-  if (contentParts.length > 0) {
-    const flatContent = contentParts.length === 1 && typeof contentParts[0] === 'string'
-      ? contentParts[0]
-      : contentParts.map((p) => typeof p === 'string' ? p : '').join('')
-    if (flatContent) {
-      output.push({ type: 'message', role: msg.role, content: flatContent })
-    }
-  }
+  flushContent()
 }
 
-function convertToolChoice(choice: unknown): unknown {
+function convertToolChoice(
+  choice: unknown,
+  toolNameMapping?: ToolNameMapping,
+): unknown {
   if (typeof choice === 'string') return choice
   if (typeof choice === 'object' && choice !== null) {
     const c = choice as Record<string, unknown>
@@ -161,7 +174,12 @@ function convertToolChoice(choice: unknown): unknown {
     if (c.type === 'any') return 'required'
     if (c.type === 'none') return 'none'
     if (c.type === 'tool' && typeof c.name === 'string') {
-      return { type: 'function', function: { name: c.name } }
+      return {
+        type: 'function',
+        function: {
+          name: normalizeToolNameForOpenAI(c.name, toolNameMapping),
+        },
+      }
     }
   }
   return 'auto'

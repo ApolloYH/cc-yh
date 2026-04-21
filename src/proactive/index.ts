@@ -23,6 +23,10 @@ const __handler: ProxyHandler<any> = {
 const stub: any = new Proxy(__target, __handler)
 export default stub
 export const __stubMissing = true
+export const isProactiveActive = () => false
+export const isProactivePaused = () => false
+export const activateProactive = async () => {}
+export const deactivateProactive = async () => {}
 // 兼容常见的命名导出 —— 没列在这里的也会通过 default Proxy 兜底
 export const createCachedMCState = stub
 export const isCachedMicrocompactEnabled = stub

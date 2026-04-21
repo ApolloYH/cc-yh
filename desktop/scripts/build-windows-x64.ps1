@@ -187,7 +187,7 @@ $tauriBuildArgs = @(
 
 $tempConfigPath = $null
 if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
-  $tempConfigPath = Join-Path ([System.IO.Path]::GetTempPath()) 'cc-haha.tauri.local.windows.json'
+  $tempConfigPath = Join-Path ([System.IO.Path]::GetTempPath()) 'claude-yh.tauri.local.windows.json'
   $tempConfig = @{
     bundle = @{
       createUpdaterArtifacts = $false

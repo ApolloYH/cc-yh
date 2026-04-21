@@ -1,3 +1,4 @@
+import '../test/setupDom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const check = vi.fn()
@@ -12,12 +13,26 @@ vi.mock('@tauri-apps/plugin-process', () => ({
 }))
 
 describe('updateStore', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     check.mockReset()
     relaunch.mockReset()
-    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    const win = (globalThis.window ??= {} as Window & typeof globalThis)
+    Object.defineProperty(win, '__TAURI_INTERNALS__', {
       configurable: true,
       value: {},
+    })
+
+    const { useUpdateStore } = await import('./updateStore')
+    useUpdateStore.setState({
+      status: 'idle',
+      availableVersion: null,
+      releaseNotes: null,
+      progressPercent: 0,
+      downloadedBytes: 0,
+      totalBytes: null,
+      error: null,
+      checkedAt: null,
+      shouldPrompt: false,
     })
   })
 
@@ -29,7 +44,6 @@ describe('updateStore', () => {
     }
     check.mockResolvedValue(update)
 
-    vi.resetModules()
     const { useUpdateStore } = await import('./updateStore')
 
     const result = await useUpdateStore.getState().checkForUpdates()
@@ -57,7 +71,6 @@ describe('updateStore', () => {
     })
     relaunch.mockResolvedValue(undefined)
 
-    vi.resetModules()
     const { useUpdateStore } = await import('./updateStore')
 
     await useUpdateStore.getState().checkForUpdates()

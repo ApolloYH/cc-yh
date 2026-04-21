@@ -8,6 +8,7 @@ import { anthropicToOpenaiResponses } from '../proxy/transform/anthropicToOpenai
 import { openaiChatToAnthropic } from '../proxy/transform/openaiChatToAnthropic.js'
 import { openaiResponsesToAnthropic } from '../proxy/transform/openaiResponsesToAnthropic.js'
 import type { AnthropicRequest, OpenAIChatResponse, OpenAIResponsesResponse } from '../proxy/transform/types.js'
+import type { ToolNameMapping } from '../proxy/transform/compatHelpers.js'
 
 // ─── anthropicToOpenaiChat ──────────────────────────────────────
 
@@ -194,6 +195,46 @@ describe('anthropicToOpenaiChat', () => {
     expect(content[0].type).toBe('image_url')
     expect(content[0].image_url!.url).toBe('data:image/png;base64,abc123')
   })
+
+  test('preserves user/tool_result ordering', () => {
+    const req: AnthropicRequest = {
+      model: 'gpt-4',
+      max_tokens: 100,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'before' },
+          { type: 'tool_result', tool_use_id: 'tc_1', content: 'tool output' },
+          { type: 'text', text: 'after' },
+        ],
+      }],
+    }
+    const result = anthropicToOpenaiChat(req)
+    expect(result.messages).toEqual([
+      { role: 'user', content: 'before' },
+      { role: 'tool', tool_call_id: 'tc_1', content: 'tool output' },
+      { role: 'user', content: 'after' },
+    ])
+  })
+
+  test('normalizes long tool names and tool_choice', () => {
+    const longToolName =
+      'tool_name_that_is_far_longer_than_sixty_four_characters_and_needs_roundtrip_restoration'
+    const toolNameMapping: ToolNameMapping = {}
+    const req: AnthropicRequest = {
+      model: 'gpt-4',
+      max_tokens: 100,
+      messages: [{ role: 'user', content: 'Hi' }],
+      tools: [{ name: longToolName, input_schema: { type: 'object' } }],
+      tool_choice: { type: 'tool', name: longToolName },
+    }
+    const result = anthropicToOpenaiChat(req, toolNameMapping)
+    const providerToolName = result.tools?.[0].function.name
+    expect(providerToolName).toBeDefined()
+    expect(providerToolName!.length).toBeLessThanOrEqual(64)
+    expect(toolNameMapping[providerToolName!]).toBe(longToolName)
+    expect((result.tool_choice as { function: { name: string } }).function.name).toBe(providerToolName)
+  })
 })
 
 // ─── openaiChatToAnthropic ──────────────────────────────────────
@@ -369,6 +410,48 @@ describe('anthropicToOpenaiResponses', () => {
     const result = anthropicToOpenaiResponses(req)
     expect((result as Record<string, unknown>).stop).toBeUndefined()
     expect((result as Record<string, unknown>).stop_sequences).toBeUndefined()
+  })
+
+  test('preserves user/tool_result ordering', () => {
+    const req: AnthropicRequest = {
+      model: 'gpt-4o',
+      max_tokens: 100,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'before' },
+          { type: 'tool_result', tool_use_id: 'tc_1', content: 'tool output' },
+          { type: 'text', text: 'after' },
+        ],
+      }],
+    }
+    const result = anthropicToOpenaiResponses(req)
+    expect(result.input).toEqual([
+      { type: 'message', role: 'user', content: 'before' },
+      { type: 'function_call_output', call_id: 'tc_1', output: 'tool output' },
+      { type: 'message', role: 'user', content: 'after' },
+    ])
+  })
+
+  test('normalizes long tool names for responses', () => {
+    const longToolName =
+      'tool_name_that_is_far_longer_than_sixty_four_characters_and_needs_roundtrip_restoration'
+    const toolNameMapping: ToolNameMapping = {}
+    const req: AnthropicRequest = {
+      model: 'gpt-4o',
+      max_tokens: 100,
+      messages: [{
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'tc_1', name: longToolName, input: { q: 'x' } }],
+      }],
+      tool_choice: { type: 'tool', name: longToolName },
+    }
+    const result = anthropicToOpenaiResponses(req, toolNameMapping)
+    const providerName =
+      (result.input.find(i => i.type === 'function_call') as { name: string } | undefined)?.name
+    expect(providerName).toBeDefined()
+    expect(providerName!.length).toBeLessThanOrEqual(64)
+    expect(toolNameMapping[providerName!]).toBe(longToolName)
   })
 })
 

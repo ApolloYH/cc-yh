@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { c as _c } from "react/compiler-runtime";
 import { feature } from 'bun:bundle';
 import { APIUserAbortError } from '@anthropic-ai/sdk';
@@ -84,7 +85,7 @@ function useCanUseTool(setToolUseConfirmQueue, setToolPermissionContext) {
                 toolUseContext.addNotification?.({
                   key: "auto-mode-denied",
                   priority: "immediate",
-                  jsx: <><Text color="error">{tool.userFacingName(input).toLowerCase()} denied by auto mode</Text><Text dimColor={true}> · /permissions</Text></>
+                  jsx: <><Text color="error">{tool.userFacingName(input).toLowerCase()} denied by auto mode</Text><Text dimColor={true}> 路 /permissions</Text></>
                 });
               }
               resolve(result);

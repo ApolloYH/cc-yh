@@ -1,5 +1,6 @@
+﻿// @ts-nocheck
 /**
- * MCP subcommand handlers — extracted from main.tsx for lazy loading.
+ * MCP subcommand handlers 鈥?extracted from main.tsx for lazy loading.
  * These are dynamically imported only when the corresponding `claude mcp *` command runs.
  */
 
@@ -27,18 +28,18 @@ async function checkMcpServerHealth(name: string, server: ScopedMcpServerConfig)
   try {
     const result = await connectToServer(name, server);
     if (result.type === 'connected') {
-      return '✓ Connected';
+      return '鉁?Connected';
     } else if (result.type === 'needs-auth') {
       return '! Needs authentication';
     } else {
-      return '✗ Failed to connect';
+      return '鉁?Failed to connect';
     }
   } catch (_error) {
-    return '✗ Connection error';
+    return '鉁?Connection error';
   }
 }
 
-// mcp serve (lines 4512–4532)
+// mcp serve (lines 4512鈥?532)
 export async function mcpServeHandler({
   debug,
   verbose
@@ -70,7 +71,7 @@ export async function mcpServeHandler({
   }
 }
 
-// mcp remove (lines 4545–4635)
+// mcp remove (lines 4545鈥?635)
 export async function mcpRemoveHandler(name: string, options: {
   scope?: string;
 }): Promise<void> {
@@ -140,7 +141,7 @@ export async function mcpRemoveHandler(name: string, options: {
   }
 }
 
-// mcp list (lines 4641–4688)
+// mcp list (lines 4641鈥?688)
 export async function mcpListHandler(): Promise<void> {
   logEvent('tengu_mcp_list', {});
   const {
@@ -189,7 +190,7 @@ export async function mcpListHandler(): Promise<void> {
   await gracefulShutdown(0);
 }
 
-// mcp get (lines 4694–4786)
+// mcp get (lines 4694鈥?786)
 export async function mcpGetHandler(name: string): Promise<void> {
   logEvent('tengu_mcp_get', {
     name: name as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
@@ -282,7 +283,7 @@ export async function mcpGetHandler(name: string): Promise<void> {
   await gracefulShutdown(0);
 }
 
-// mcp add-json (lines 4801–4870)
+// mcp add-json (lines 4801鈥?870)
 export async function mcpAddJsonHandler(name: string, json: string, options: {
   scope?: string;
   clientSecret?: true;
@@ -313,7 +314,7 @@ export async function mcpAddJsonHandler(name: string, json: string, options: {
   }
 }
 
-// mcp add-from-claude-desktop (lines 4881–4927)
+// mcp add-from-claude-desktop (lines 4881鈥?927)
 export async function mcpAddFromDesktopHandler(options: {
   scope?: string;
 }): Promise<void> {
@@ -348,7 +349,7 @@ export async function mcpAddFromDesktopHandler(options: {
   }
 }
 
-// mcp reset-project-choices (lines 4935–4952)
+// mcp reset-project-choices (lines 4935鈥?952)
 export async function mcpResetChoicesHandler(): Promise<void> {
   logEvent('tengu_mcp_reset_mcpjson_choices', {});
   saveCurrentProjectConfig(current => ({

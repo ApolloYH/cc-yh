@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { feature } from 'bun:bundle';
 import * as React from 'react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -55,7 +56,7 @@ const WARMUP_THRESHOLD = 2;
 
 // Match a KeyboardEvent against a ParsedKeystroke. Replaces the legacy
 // matchesKeystroke(input, Key, ...) path which assumed useInput's raw
-// `input` arg — KeyboardEvent.key holds normalized names (e.g. 'space',
+// `input` arg 鈥?KeyboardEvent.key holds normalized names (e.g. 'space',
 // 'f9') that getKeyName() didn't handle, so modifier combos and f-keys
 // silently failed to match after the onKeyDown migration (#23524).
 function matchesKeyboardEvent(e: KeyboardEvent, target: ParsedKeystroke): boolean {
@@ -65,7 +66,7 @@ function matchesKeyboardEvent(e: KeyboardEvent, target: ParsedKeystroke): boolea
   if (key !== target.key) return false;
   if (e.ctrl !== target.ctrl) return false;
   if (e.shift !== target.shift) return false;
-  // KeyboardEvent.meta folds alt|option (terminal limitation — esc-prefix);
+  // KeyboardEvent.meta folds alt|option (terminal limitation 鈥?esc-prefix);
   // ParsedKeystroke has both alt and meta as aliases for the same thing.
   if (e.meta !== (target.alt || target.meta)) return false;
   if (e.superKey !== target.super) return false;
@@ -74,7 +75,7 @@ function matchesKeyboardEvent(e: KeyboardEvent, target: ParsedKeystroke): boolea
 
 // Hardcoded default for when there's no KeybindingProvider at all (e.g.
 // headless/test contexts). NOT used when the provider exists and the
-// lookup returns null — that means the user null-unbound or reassigned
+// lookup returns null 鈥?that means the user null-unbound or reassigned
 // space, and falling back to space would pick a dead or conflicting key.
 const DEFAULT_VOICE_KEYSTROKE: ParsedKeystroke = {
   key: ' ',
@@ -103,7 +104,7 @@ type StripOpts = {
   char?: string;
   // Capture the voice prefix/suffix anchor at the stripped position.
   anchor?: boolean;
-  // Minimum trailing count to leave behind — prevents stripping the
+  // Minimum trailing count to leave behind 鈥?prevents stripping the
   // intentional warmup chars when defensively cleaning up leaks.
   floor?: number;
 };
@@ -131,7 +132,7 @@ export function useVoiceIntegration({
   const voiceSuffixRef = useRef<string>('');
   // Tracks the last input value this hook wrote (via anchor, interim effect,
   // or handleVoiceTranscript). If inputValueRef.current diverges, the user
-  // submitted or edited — both write paths bail to avoid clobbering. This is
+  // submitted or edited 鈥?both write paths bail to avoid clobbering. This is
   // the only guard that correctly handles empty-prefix-empty-suffix: a
   // startsWith('')/endsWith('') check vacuously passes, and a length check
   // can't distinguish a cleared input from a never-set one.
@@ -139,7 +140,7 @@ export function useVoiceIntegration({
 
   // Strip trailing hold-key chars (and optionally capture the voice
   // anchor). Called during warmup (to clean up chars that leaked past
-  // stopImmediatePropagation — listener order is not guaranteed) and
+  // stopImmediatePropagation 鈥?listener order is not guaranteed) and
   // on activation (with anchor=true to capture the prefix/suffix around
   // the cursor for interim transcript placement). The caller passes the
   // exact count it expects to strip so pre-existing chars at the
@@ -174,7 +175,7 @@ export function useVoiceIntegration({
     // suffix letter. The interim transcript effect maintains this same
     // structure (prefix + leading + interim + trailing + suffix), so
     // the gap is seamless once transcript text arrives.
-    // Always overwrite on anchor — if a prior activation failed to start
+    // Always overwrite on anchor 鈥?if a prior activation failed to start
     // voice (voiceState stayed 'idle'), the cleanup effect didn't fire and
     // the old anchor is stale. anchor=true is only passed on the single
     // activation call, never during recording, so overwrite is safe.
@@ -200,7 +201,7 @@ export function useVoiceIntegration({
   // Undo the gap space inserted by stripTrailing(..., {anchor:true}) and
   // reset the voice prefix/suffix refs. Called when voice activation fails
   // (voiceState stays 'idle' after voiceHandleKeyEvent), so the cleanup
-  // effect (voiceState useEffect below) — which only fires on voiceState transitions — can't
+  // effect (voiceState useEffect below) 鈥?which only fires on voiceState transitions 鈥?can't
   // reach the stale anchor. Without this, the gap space and stale refs
   // persist in the input.
   const resetAnchor = useCallback(() => {
@@ -257,8 +258,8 @@ export function useVoiceIntegration({
     const suffix_0 = voiceSuffixRef.current;
     // Submit race: if the input isn't what this hook last set it to, the
     // user submitted (clearing it) or edited it. voicePrefixRef is only
-    // cleared on voiceState→idle, so it's still set during the 'processing'
-    // window between CloseStream and WS close — this catches refined
+    // cleared on voiceState鈫抜dle, so it's still set during the 'processing'
+    // window between CloseStream and WS close 鈥?this catches refined
     // TranscriptText arriving then and re-filling a cleared input.
     if (inputValueRef.current !== lastSetInputRef.current) return;
     const needsSpace = prefix_0.length > 0 && !/\s$/.test(prefix_0) && voiceInterimTranscript.length > 0;
@@ -281,13 +282,13 @@ export function useVoiceIntegration({
   const handleVoiceTranscript = useCallback((text: string) => {
     if (!feature('VOICE_MODE')) return;
     const prefix_1 = voicePrefixRef.current;
-    // No voice anchor — voice was reset (or never started). Nothing to do.
+    // No voice anchor 鈥?voice was reset (or never started). Nothing to do.
     if (prefix_1 === null) return;
     const suffix_1 = voiceSuffixRef.current;
-    // Submit race: finishRecording() → user presses Enter (input cleared)
-    // → WebSocket close → this callback fires with stale prefix/suffix.
+    // Submit race: finishRecording() 鈫?user presses Enter (input cleared)
+    // 鈫?WebSocket close 鈫?this callback fires with stale prefix/suffix.
     // If the input isn't what this hook last set (via the interim effect
-    // or anchor), the user submitted or edited — don't re-fill. Comparing
+    // or anchor), the user submitted or edited 鈥?don't re-fill. Comparing
     // against `text.length` would false-positive when the final is longer
     // than the interim (ASR routinely adds punctuation/corrections).
     if (inputValueRef.current !== lastSetInputRef.current) return;
@@ -354,7 +355,7 @@ export function useVoiceIntegration({
  * stream of events at 30-80ms intervals. Two binding types work:
  *
  * **Modifier + letter (meta+k, ctrl+x, alt+v):** Cleanest. Activates on
- * the first press — a modifier combo is unambiguous intent (can't be
+ * the first press 鈥?a modifier combo is unambiguous intent (can't be
  * typed accidentally), so no hold threshold applies. The letter part
  * auto-repeats while held, feeding release detection in useVoice.ts.
  * No flow-through, no stripping.
@@ -364,10 +365,10 @@ export function useVoiceIntegration({
  * WARMUP_THRESHOLD presses flow into the input so a single press types
  * normally. Past that, rapid presses are swallowed; on activation the
  * flow-through chars are stripped. Binding "v" doesn't make "v"
- * untypable — normal typing (>120ms between keystrokes) flows through;
+ * untypable 鈥?normal typing (>120ms between keystrokes) flows through;
  * only rapid auto-repeat from a held key triggers activation.
  *
- * Known broken: modifier+space (NUL → parsed as ctrl+backtick), chords
+ * Known broken: modifier+space (NUL 鈫?parsed as ctrl+backtick), chords
  * (discrete sequences, no hold). Validation warns on these.
  */
 export function useVoiceKeybindingHandler({
@@ -396,10 +397,10 @@ export function useVoiceKeybindingHandler({
   // Find the configured key for voice:pushToTalk from keybinding context.
   // Forward iteration with last-wins (matching the resolver): if a later
   // Chat binding overrides the same chord with null or a different
-  // action, the voice binding is discarded and null is returned — the
+  // action, the voice binding is discarded and null is returned 鈥?the
   // user explicitly disabled hold-to-talk via binding override, so
   // don't second-guess them with a fallback. The DEFAULT is only used
-  // when there's no provider at all. Context filter is required — space
+  // when there's no provider at all. Context filter is required 鈥?space
   // is also bound in Settings/Confirmation/Plugin (select:accept etc.);
   // without the filter those would null out the default.
   const voiceKeystroke = useMemo((): ParsedKeystroke | null => {
@@ -422,7 +423,7 @@ export function useVoiceKeybindingHandler({
 
   // If the binding is a bare (unmodified) single printable char, terminal
   // auto-repeat may batch N keystrokes into one input event (e.g. "vvv"),
-  // and the char flows into the text input — we need flow-through + strip.
+  // and the char flows into the text input 鈥?we need flow-through + strip.
   // Modifier combos (meta+k, ctrl+x) also auto-repeat (the letter part
   // repeats) but don't insert text, so they're swallowed from the first
   // press with no stripping needed. matchesKeyboardEvent handles those.
@@ -431,13 +432,13 @@ export function useVoiceKeybindingHandler({
   // How many rapid chars we intentionally let through to the text
   // input (the first WARMUP_THRESHOLD). The activation strip removes
   // up to this many + the activation event's potential leak. For the
-  // default (space) this is precise — pre-existing trailing spaces are
+  // default (space) this is precise 鈥?pre-existing trailing spaces are
   // rare. For letter bindings (validation warns) this may over-strip
   // one pre-existing char if the input already ended in the bound
-  // letter (e.g. "hav" + hold "v" → "ha"). We don't track that
-  // boundary — it's best-effort and the warning says so.
+  // letter (e.g. "hav" + hold "v" 鈫?"ha"). We don't track that
+  // boundary 鈥?it's best-effort and the warning says so.
   const charsInInputRef = useRef(0);
-  // Trailing-char count remaining after the activation strip — these
+  // Trailing-char count remaining after the activation strip 鈥?these
   // belong to the user's anchored prefix and must be preserved during
   // recording's defensive leak cleanup.
   const recordingFloorRef = useRef(0);
@@ -447,7 +448,7 @@ export function useVoiceKeybindingHandler({
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset hold state as soon as we leave 'recording'. The physical hold
-  // ends when key-repeat stops (state → 'processing'); keeping the ref
+  // ends when key-repeat stops (state 鈫?'processing'); keeping the ref
   // set through 'processing' swallows new space presses the user types
   // while the transcript finalizes.
   useEffect(() => {
@@ -468,17 +469,17 @@ export function useVoiceKeybindingHandler({
   const handleKeyDown = (e: KeyboardEvent): void => {
     if (!voiceEnabled) return;
 
-    // PromptInput is not a valid transcript target — let the hold key
+    // PromptInput is not a valid transcript target 鈥?let the hold key
     // flow through instead of swallowing it into stale refs (#33556).
     // Two distinct unmount/unfocus paths (both needed):
     //   - !isActive: local-jsx command hid PromptInput (shouldHidePromptInput)
-    //     without registering an overlay — e.g. /install-github-app,
+    //     without registering an overlay 鈥?e.g. /install-github-app,
     //     /plugin. Mirrors CommandKeybindingHandlers' isActive gate.
     //   - isModalOverlayActive: overlay (permission dialog, Select with
     //     onCancel) has focus; PromptInput is mounted but focus=false.
     if (!isActive || isModalOverlayActive) return;
 
-    // null means the user overrode the default (null-unbind/reassign) —
+    // null means the user overrode the default (null-unbind/reassign) 鈥?
     // hold-to-talk is disabled via binding. To toggle the feature
     // itself, use /voice.
     if (voiceKeystroke === null) return;
@@ -490,7 +491,7 @@ export function useVoiceKeybindingHandler({
     let repeatCount: number;
     if (bareChar !== null) {
       if (e.ctrl || e.meta || e.shift) return;
-      // When bound to space, also accept U+3000 (full-width space) —
+      // When bound to space, also accept U+3000 (full-width space) 鈥?
       // CJK IMEs emit it for the same physical key.
       const normalized = bareChar === ' ' ? normalizeFullWidthSpace(e.key) : e.key;
       // Fast-path: normal typing (any char that isn't the bound one)
@@ -513,7 +514,7 @@ export function useVoiceKeybindingHandler({
     // swallow keypresses.
     const currentVoiceState = getVoiceState().voiceState;
     if (isHoldActiveRef.current && currentVoiceState !== 'idle') {
-      // Already recording — swallow continued keypresses and forward
+      // Already recording 鈥?swallow continued keypresses and forward
       // to voice for release detection. For bare chars, defensively
       // strip in case the text input handler fired before this one
       // (listener order is not guaranteed). Modifier combos don't
@@ -534,7 +535,7 @@ export function useVoiceKeybindingHandler({
     // would overwrite voicePrefixRef with interim text and duplicate the
     // transcript on the next interim update. Pre-#22144, a single tap
     // hit the warmup else-branch (swallow only). Bare chars flow through
-    // unconditionally — user may be typing during focus-recording.
+    // unconditionally 鈥?user may be typing during focus-recording.
     if (currentVoiceState !== 'idle') {
       if (bareChar === null) e.stopImmediatePropagation();
       return;
@@ -542,11 +543,11 @@ export function useVoiceKeybindingHandler({
     const countBefore = rapidCountRef.current;
     rapidCountRef.current += repeatCount;
 
-    // ── Activation ────────────────────────────────────────────
+    // 鈹€鈹€ Activation 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     // Handled first so the warmup branch below does NOT also run
-    // on this event — two strip calls in the same tick would both
+    // on this event 鈥?two strip calls in the same tick would both
     // read the stale inputValueRef and the second would under-strip.
-    // Modifier combos activate on the first press — they can't be
+    // Modifier combos activate on the first press 鈥?they can't be
     // typed accidentally, so the hold threshold (which exists to
     // distinguish typing a space from holding space) doesn't apply.
     if (bareChar === null || rapidCountRef.current >= HOLD_THRESHOLD) {
@@ -590,7 +591,7 @@ export function useVoiceKeybindingHandler({
       // If voice failed to transition (module not loaded, stream
       // unavailable, stale enabled), clear the ref so a later
       // focus-mode recording doesn't inherit stale hold state
-      // and swallow keypresses. Store is synchronous — the check is
+      // and swallow keypresses. Store is synchronous 鈥?the check is
       // immediate. The anchor set by stripTrailing above will
       // be overwritten on retry (anchor always overwrites now).
       if (getVoiceState().voiceState === 'idle') {
@@ -600,12 +601,12 @@ export function useVoiceKeybindingHandler({
       return;
     }
 
-    // ── Warmup (bare-char only; modifier combos activated above) ──
+    // 鈹€鈹€ Warmup (bare-char only; modifier combos activated above) 鈹€鈹€
     // First WARMUP_THRESHOLD chars flow to the text input so normal
     // typing has zero latency (a single press types normally).
     // Subsequent rapid chars are swallowed so the input stays aligned
     // with the warmup UI. Strip defensively (listener order is not
-    // guaranteed — text input may have already added the char). The
+    // guaranteed 鈥?text input may have already added the char). The
     // floor preserves the intentional warmup chars; the strip is a
     // no-op when nothing leaked. Check countBefore so the event that
     // crosses the threshold still flows through (terminal batching).
@@ -647,14 +648,14 @@ export function useVoiceKeybindingHandler({
   };
 
   // Backward-compat bridge: REPL.tsx doesn't yet wire handleKeyDown to
-  // <Box onKeyDown>. Subscribe via useInput and adapt InputEvent →
+  // <Box onKeyDown>. Subscribe via useInput and adapt InputEvent 鈫?
   // KeyboardEvent until the consumer is migrated (separate PR).
   // TODO(onKeyDown-migration): remove once REPL passes handleKeyDown.
   useInput((_input, _key, event) => {
     const kbEvent = new KeyboardEvent(event.keypress);
     handleKeyDown(kbEvent);
     // handleKeyDown stopped the adapter event, not the InputEvent the
-    // emitter actually checks — forward it so the text input's useInput
+    // emitter actually checks 鈥?forward it so the text input's useInput
     // listener is skipped and held spaces don't leak into the prompt.
     if (kbEvent.didStopImmediatePropagation()) {
       event.stopImmediatePropagation();

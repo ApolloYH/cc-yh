@@ -114,11 +114,11 @@ export function Sidebar() {
         <div className="flex items-center gap-2.5">
           <img src="/app-icon.jpg" alt="" className="h-8 w-8 rounded-lg flex-shrink-0" />
           <span className="text-[13px] font-semibold tracking-tight text-[var(--color-text-primary)]" style={{ fontFamily: "'Manrope', sans-serif" }}>
-            Claude Code <span className="text-[#D97757]">Haha</span>
+            Claude <span className="text-[#D97757]">YH</span>
           </span>
         </div>
         <a
-          href="https://github.com/NanmiCoder/cc-haha"
+          href="https://github.com/NanmiCoder/claude-yh"
           target="_blank"
           rel="noopener noreferrer"
           className="rounded-md p-1 text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]"

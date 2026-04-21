@@ -154,3 +154,4 @@ function parseLauncherArgs(rawArgs: string[]): { appRoot: string; args: string[]
 
   return { appRoot, args: nextArgs }
 }
+export {}

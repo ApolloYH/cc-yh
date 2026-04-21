@@ -23,6 +23,30 @@ const __handler: ProxyHandler<any> = {
 const stub: any = new Proxy(__target, __handler)
 export default stub
 export const __stubMissing = true
+export type OAuthTokens = {
+  accessToken?: string
+  refreshToken?: string
+  expiresAt?: number
+  [key: string]: unknown
+}
+export type OAuthProfileResponse = {
+  account?: {
+    uuid?: string
+    emailAddress?: string
+    [key: string]: any
+  }
+  organization?: {
+    uuid?: string
+    organizationUuid?: string
+    [key: string]: any
+  }
+  [key: string]: any
+}
+export type ReferralRedemptionsResponse = Record<string, unknown>
+export type ReferrerRewardInfo = Record<string, unknown>
+export type SubscriptionType = string
+export type BillingType = string
+export type ReferralEligibilityResponse = Record<string, unknown>
 // 兼容常见的命名导出 —— 没列在这里的也会通过 default Proxy 兜底
 export const createCachedMCState = stub
 export const isCachedMicrocompactEnabled = stub

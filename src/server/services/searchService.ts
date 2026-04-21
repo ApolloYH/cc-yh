@@ -56,7 +56,16 @@ export class SearchService {
       }
     }
 
-    return this.searchWithGrep(query, cwd, maxResults, options)
+    const hasGrep = await this.commandExists('grep')
+    if (hasGrep) {
+      try {
+        return await this.searchWithGrep(query, cwd, maxResults, options)
+      } catch {
+        // grep 执行失败，继续降级到 Node 扫描
+      }
+    }
+
+    return this.searchWithNode(query, cwd, maxResults, options)
   }
 
   // ---------------------------------------------------------------------------
@@ -263,6 +272,69 @@ export class SearchService {
     return this.parseGrepOutput(output, maxResults)
   }
 
+  private async searchWithNode(
+    query: string,
+    cwd: string,
+    maxResults: number,
+    options?: {
+      glob?: string
+      caseSensitive?: boolean
+    },
+  ): Promise<SearchResult[]> {
+    const results: SearchResult[] = []
+    const needle = options?.caseSensitive === false ? query.toLowerCase() : query
+
+    const visit = async (dir: string): Promise<void> => {
+      if (results.length >= maxResults) return
+
+      let entries
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+
+      for (const entry of entries) {
+        if (results.length >= maxResults) return
+        const fullPath = path.join(dir, entry.name)
+
+        if (entry.isDirectory()) {
+          await visit(fullPath)
+          continue
+        }
+
+        if (!entry.isFile()) continue
+        if (options?.glob && !entry.name.endsWith(options.glob.replace('*', ''))) {
+          continue
+        }
+
+        let raw: string
+        try {
+          raw = await fs.readFile(fullPath, 'utf-8')
+        } catch {
+          continue
+        }
+
+        const lines = raw.split('\n')
+        for (let i = 0; i < lines.length && results.length < maxResults; i++) {
+          const line = lines[i] ?? ''
+          const haystack =
+            options?.caseSensitive === false ? line.toLowerCase() : line
+          if (haystack.includes(needle)) {
+            results.push({
+              file: fullPath,
+              line: i + 1,
+              text: line,
+            })
+          }
+        }
+      }
+    }
+
+    await visit(cwd)
+    return results
+  }
+
   /** 解析 grep 输出 (file:line:text) */
   private parseGrepOutput(output: string, maxResults: number): SearchResult[] {
     const results: SearchResult[] = []
@@ -318,7 +390,8 @@ export class SearchService {
   /** 检测命令是否存在 */
   private commandExists(cmd: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const proc = spawn('which', [cmd], { stdio: 'ignore' })
+      const checker = process.platform === 'win32' ? 'where' : 'which'
+      const proc = spawn(checker, [cmd], { stdio: 'ignore' })
       proc.on('close', (code) => resolve(code === 0))
       proc.on('error', () => resolve(false))
     })

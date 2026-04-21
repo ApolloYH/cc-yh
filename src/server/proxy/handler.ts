@@ -17,6 +17,7 @@ import { openaiResponsesToAnthropic } from './transform/openaiResponsesToAnthrop
 import { openaiChatStreamToAnthropic } from './streaming/openaiChatStreamToAnthropic.js'
 import { openaiResponsesStreamToAnthropic } from './streaming/openaiResponsesStreamToAnthropic.js'
 import type { AnthropicRequest } from './transform/types.js'
+import type { ToolNameMapping } from './transform/compatHelpers.js'
 
 const providerService = new ProviderService()
 
@@ -86,7 +87,8 @@ async function handleOpenaiChat(
   apiKey: string,
   isStream: boolean,
 ): Promise<Response> {
-  const transformed = anthropicToOpenaiChat(body)
+  const toolNameMapping: ToolNameMapping = {}
+  const transformed = anthropicToOpenaiChat(body, toolNameMapping)
   const url = `${baseUrl}/v1/chat/completions`
 
   const upstream = await fetch(url, {
@@ -133,7 +135,11 @@ async function handleOpenaiChat(
 
   // Non-streaming
   const responseBody = await upstream.json()
-  const anthropicResponse = openaiChatToAnthropic(responseBody, body.model)
+  const anthropicResponse = openaiChatToAnthropic(
+    responseBody,
+    body.model,
+    toolNameMapping,
+  )
   return Response.json(anthropicResponse)
 }
 
@@ -143,7 +149,8 @@ async function handleOpenaiResponses(
   apiKey: string,
   isStream: boolean,
 ): Promise<Response> {
-  const transformed = anthropicToOpenaiResponses(body)
+  const toolNameMapping: ToolNameMapping = {}
+  const transformed = anthropicToOpenaiResponses(body, toolNameMapping)
   const url = `${baseUrl}/v1/responses`
 
   const upstream = await fetch(url, {
@@ -190,6 +197,10 @@ async function handleOpenaiResponses(
 
   // Non-streaming
   const responseBody = await upstream.json()
-  const anthropicResponse = openaiResponsesToAnthropic(responseBody, body.model)
+  const anthropicResponse = openaiResponsesToAnthropic(
+    responseBody,
+    body.model,
+    toolNameMapping,
+  )
   return Response.json(anthropicResponse)
 }

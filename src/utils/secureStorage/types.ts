@@ -23,6 +23,21 @@ const __handler: ProxyHandler<any> = {
 const stub: any = new Proxy(__target, __handler)
 export default stub
 export const __stubMissing = true
+export type SecureStorageData = {
+  trustedDeviceToken?: string
+  pluginSecrets?: Record<string, any>
+  [key: string]: any
+}
+export interface SecureStorage {
+  name?: string
+  get?(): Promise<SecureStorageData | null> | SecureStorageData | null
+  set?(data: SecureStorageData): Promise<void> | void
+  clear?(): Promise<void> | void
+  read(): SecureStorageData
+  readAsync(): Promise<SecureStorageData>
+  update(data: SecureStorageData): { success: boolean; warning?: string }
+  delete(): boolean
+}
 // 兼容常见的命名导出 —— 没列在这里的也会通过 default Proxy 兜底
 export const createCachedMCState = stub
 export const isCachedMicrocompactEnabled = stub

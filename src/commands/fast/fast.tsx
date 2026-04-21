@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { c as _c } from "react/compiler-runtime";
 import * as React from 'react';
 import { useState } from 'react';
@@ -79,8 +80,8 @@ export function FastModePicker(t0) {
       });
       if (enableFastMode) {
         const fastIcon = getFastIconString(enableFastMode);
-        const modelUpdated = !isFastModeSupportedByModel(model) ? ` · model set to ${FAST_MODE_MODEL_DISPLAY}` : "";
-        onDone(`${fastIcon} Fast mode ON${modelUpdated} · ${pricing}`);
+        const modelUpdated = !isFastModeSupportedByModel(model) ? ` 路 model set to ${FAST_MODE_MODEL_DISPLAY}` : "";
+        onDone(`${fastIcon} Fast mode ON${modelUpdated} 路 ${pricing}`);
       } else {
         setAppState(_temp3);
         onDone("Fast mode OFF");
@@ -172,7 +173,7 @@ export function FastModePicker(t0) {
   const title = t8;
   let t9;
   if ($[20] !== isUnavailable) {
-    t9 = exitState => exitState.pending ? <Text>Press {exitState.keyName} again to exit</Text> : isUnavailable ? <Text>Esc to cancel</Text> : <Text>Tab to toggle · Enter to confirm · Esc to cancel</Text>;
+    t9 = exitState => exitState.pending ? <Text>Press {exitState.keyName} again to exit</Text> : isUnavailable ? <Text>Esc to cancel</Text> : <Text>Tab to toggle 路 Enter to confirm 路 Esc to cancel</Text>;
     $[20] = isUnavailable;
     $[21] = t9;
   } else {
@@ -238,9 +239,9 @@ async function handleFastModeShortcut(enable: boolean, getAppState: () => AppSta
   });
   if (enable) {
     const fastIcon = getFastIconString(true);
-    const modelUpdated = !isFastModeSupportedByModel(mainLoopModel) ? ` · model set to ${FAST_MODE_MODEL_DISPLAY}` : '';
+    const modelUpdated = !isFastModeSupportedByModel(mainLoopModel) ? ` 路 model set to ${FAST_MODE_MODEL_DISPLAY}` : '';
     const pricing = formatModelPricing(getOpus46CostTier(true));
-    return `${fastIcon} Fast mode ON${modelUpdated} · ${pricing}`;
+    return `${fastIcon} Fast mode ON${modelUpdated} 路 ${pricing}`;
   } else {
     return `Fast mode OFF`;
   }

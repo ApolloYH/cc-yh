@@ -1,3 +1,4 @@
+import '../test/setupDom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { startMock, statusMock, logoutMock } = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ describe('hahaOAuthStore', () => {
     vi.useFakeTimers()
     startMock.mockReset()
     statusMock.mockReset()
+    statusMock.mockResolvedValue({ loggedIn: false })
     logoutMock.mockReset()
     useHahaOAuthStore.setState({
       ...initialState,

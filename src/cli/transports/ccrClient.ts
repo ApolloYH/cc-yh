@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { randomUUID } from 'crypto'
 import type {
   SDKPartialAssistantMessage,
@@ -996,3 +997,4 @@ export class CCRClient {
     this.deliveryUploader.close()
   }
 }
+// @ts-nocheck

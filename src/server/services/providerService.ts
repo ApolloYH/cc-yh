@@ -1,8 +1,8 @@
 /**
  * Provider Service — preset-based provider configuration
  *
- * Storage: ~/.claude/cc-haha/providers.json (lightweight index)
- * Active provider env vars written to ~/.claude/cc-haha/settings.json
+ * Storage: ~/.claude/claude-yh/providers.json (lightweight index)
+ * Active provider env vars written to ~/.claude/claude-yh/settings.json
  * (isolated from the original Claude Code's ~/.claude/settings.json)
  */
 
@@ -33,6 +33,8 @@ const MANAGED_ENV_KEYS = [
   'ANTHROPIC_DEFAULT_HAIKU_MODEL',
   'ANTHROPIC_DEFAULT_SONNET_MODEL',
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'CLAUDE_CODE_COMPAT_PROVIDER',
+  'CLAUDE_CODE_OPENAI_COMPAT_MODE',
 ] as const
 
 const DEFAULT_INDEX: ProvidersIndex = { activeId: null, providers: [] }
@@ -51,16 +53,16 @@ export class ProviderService {
     return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
   }
 
-  private getCcHahaDir(): string {
-    return path.join(this.getConfigDir(), 'cc-haha')
+  private getClaudeYhDir(): string {
+    return path.join(this.getConfigDir(), 'claude-yh')
   }
 
   private getIndexPath(): string {
-    return path.join(this.getCcHahaDir(), 'providers.json')
+    return path.join(this.getClaudeYhDir(), 'providers.json')
   }
 
   private getSettingsPath(): string {
-    return path.join(this.getCcHahaDir(), 'settings.json')
+    return path.join(this.getClaudeYhDir(), 'settings.json')
   }
 
   private async readIndex(): Promise<ProvidersIndex> {
@@ -215,22 +217,31 @@ export class ProviderService {
 
   private async syncToSettings(provider: SavedProvider): Promise<void> {
     const settings = await this.readSettings()
-    const existingEnv = (settings.env as Record<string, string>) || {}
+    const existingEnv = { ...((settings.env as Record<string, string>) || {}) }
 
-    const needsProxy = provider.apiFormat != null && provider.apiFormat !== 'anthropic'
-    const baseUrl = needsProxy
-      ? `http://127.0.0.1:${ProviderService.serverPort}/proxy`
-      : provider.baseUrl
+    for (const key of MANAGED_ENV_KEYS) {
+      delete existingEnv[key]
+    }
 
-    settings.env = {
+    const nextEnv: Record<string, string> = {
       ...existingEnv,
-      ANTHROPIC_BASE_URL: baseUrl,
-      ANTHROPIC_AUTH_TOKEN: needsProxy ? 'proxy-managed' : provider.apiKey,
+      ANTHROPIC_BASE_URL: provider.baseUrl,
+      ANTHROPIC_AUTH_TOKEN: provider.apiKey,
       ANTHROPIC_MODEL: provider.models.main,
       ANTHROPIC_DEFAULT_HAIKU_MODEL: provider.models.haiku,
       ANTHROPIC_DEFAULT_SONNET_MODEL: provider.models.sonnet,
       ANTHROPIC_DEFAULT_OPUS_MODEL: provider.models.opus,
     }
+
+    if (provider.apiFormat === 'openai_chat') {
+      nextEnv.CLAUDE_CODE_COMPAT_PROVIDER = 'openai'
+      nextEnv.CLAUDE_CODE_OPENAI_COMPAT_MODE = 'chat_completions'
+    } else if (provider.apiFormat === 'openai_responses') {
+      nextEnv.CLAUDE_CODE_COMPAT_PROVIDER = 'openai'
+      nextEnv.CLAUDE_CODE_OPENAI_COMPAT_MODE = 'responses'
+    }
+
+    settings.env = nextEnv
 
     await this.writeSettings(settings)
   }
@@ -255,22 +266,22 @@ export class ProviderService {
 
   /**
    * Check whether any usable auth exists:
-   *  1. A cc-haha provider is active → has auth
+   *  1. A claude-yh provider is active → has auth
    *  2. Original ~/.claude/settings.json has ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY → has auth
    *  3. process.env already has ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN → has auth
    *  4. None of the above → needs setup
    */
   async checkAuthStatus(): Promise<{
     hasAuth: boolean
-    source: 'cc-haha-provider' | 'original-settings' | 'env' | 'none'
+    source: 'claude-yh-provider' | 'original-settings' | 'env' | 'none'
     activeProvider?: string
   }> {
-    // 1. Check cc-haha active provider
+    // 1. Check claude-yh active provider
     const index = await this.readIndex()
     if (index.activeId) {
       const provider = index.providers.find(p => p.id === index.activeId)
       if (provider?.apiKey) {
-        return { hasAuth: true, source: 'cc-haha-provider', activeProvider: provider.name }
+        return { hasAuth: true, source: 'claude-yh-provider', activeProvider: provider.name }
       }
     }
 
@@ -390,7 +401,7 @@ export class ProviderService {
 
       // Validate response structure
       const valid = validateResponseBody(resBody, format)
-      if (!valid.ok) {
+      if (valid.ok === false) {
         return { success: false, latencyMs, error: valid.error, modelUsed: modelId, httpStatus: response.status }
       }
 
@@ -425,10 +436,10 @@ export class ProviderService {
       let transformedBody: unknown
       if (format === 'openai_chat') {
         transformedBody = anthropicToOpenaiChat(anthropicReq)
-        upstreamUrl = `${base}/v1/chat/completions`
+        upstreamUrl = buildVersionedApiUrl(base, 'chat/completions')
       } else {
         transformedBody = anthropicToOpenaiResponses(anthropicReq)
-        upstreamUrl = `${base}/v1/responses`
+        upstreamUrl = buildVersionedApiUrl(base, 'responses')
       }
 
       // Call upstream with transformed request
@@ -483,24 +494,34 @@ function buildDirectTestRequest(
 
   if (format === 'openai_chat') {
     return {
-      url: `${base}/v1/chat/completions`,
+      url: buildVersionedApiUrl(base, 'chat/completions'),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: { model: modelId, max_tokens: 16, messages: [{ role: 'user', content: prompt }] },
     }
   }
   if (format === 'openai_responses') {
     return {
-      url: `${base}/v1/responses`,
+      url: buildVersionedApiUrl(base, 'responses'),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: { model: modelId, max_output_tokens: 16, input: [{ type: 'message', role: 'user', content: prompt }] },
     }
   }
   // anthropic
   return {
-    url: `${base}/v1/messages`,
+    url: buildVersionedApiUrl(base, 'messages'),
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
     body: { model: modelId, max_tokens: 16, messages: [{ role: 'user', content: prompt }] },
   }
+}
+
+function buildVersionedApiUrl(base: string, endpoint: string): string {
+  const normalizedBase = base.replace(/\/+$/, '')
+  const normalizedEndpoint = endpoint.replace(/^\/+/, '')
+
+  if (/\/v1$/i.test(normalizedBase)) {
+    return `${normalizedBase}/${normalizedEndpoint}`
+  }
+  return `${normalizedBase}/v1/${normalizedEndpoint}`
 }
 
 function validateResponseBody(

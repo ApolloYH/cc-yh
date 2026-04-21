@@ -65,7 +65,7 @@ async function detectHostTriple() {
   return hostLine.replace('host: ', '')
 }
 
-function mapTargetTripleToBun(triple: string) {
+function mapTargetTripleToBun(triple: string): string {
   switch (triple) {
     case 'aarch64-apple-darwin':
       return 'bun-darwin-arm64'
@@ -137,7 +137,7 @@ async function compileExecutable({
       'react-devtools-core',
     ],
     compile: {
-      target: bunTarget,
+      target: bunTarget as never,
       outfile: outfileBase,
       autoloadTsconfig: true,
       autoloadPackageJson: true,

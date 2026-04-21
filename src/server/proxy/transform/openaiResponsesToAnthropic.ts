@@ -10,16 +10,24 @@ import type {
   AnthropicResponse,
   AnthropicContentBlock,
 } from './types.js'
+import {
+  restoreToolNameFromOpenAI,
+  type ToolNameMapping,
+} from './compatHelpers.js'
 
 /**
  * Convert OpenAI Responses API response to Anthropic Messages response.
  */
-export function openaiResponsesToAnthropic(response: OpenAIResponsesResponse, model: string): AnthropicResponse {
+export function openaiResponsesToAnthropic(
+  response: OpenAIResponsesResponse,
+  model: string,
+  toolNameMapping?: ToolNameMapping,
+): AnthropicResponse {
   const content: AnthropicContentBlock[] = []
   let hasToolUse = false
 
   for (const item of response.output || []) {
-    convertOutputItem(item, content)
+    convertOutputItem(item, content, toolNameMapping)
     if (item.type === 'function_call') hasToolUse = true
   }
 
@@ -43,7 +51,11 @@ export function openaiResponsesToAnthropic(response: OpenAIResponsesResponse, mo
   }
 }
 
-function convertOutputItem(item: OpenAIResponsesOutputItem, content: AnthropicContentBlock[]): void {
+function convertOutputItem(
+  item: OpenAIResponsesOutputItem,
+  content: AnthropicContentBlock[],
+  toolNameMapping?: ToolNameMapping,
+): void {
   switch (item.type) {
     case 'message': {
       for (const part of item.content || []) {
@@ -65,7 +77,7 @@ function convertOutputItem(item: OpenAIResponsesOutputItem, content: AnthropicCo
       content.push({
         type: 'tool_use',
         id: item.call_id,
-        name: item.name,
+        name: restoreToolNameFromOpenAI(item.name, toolNameMapping),
         input,
       })
       break

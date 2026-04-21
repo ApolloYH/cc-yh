@@ -1,5 +1,6 @@
+import '../../test/setupDom'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '../../test/testingLibrary'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallBlock } from './ToolCallBlock'
 import { PermissionDialog } from './PermissionDialog'

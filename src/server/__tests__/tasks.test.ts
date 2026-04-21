@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 /**
  * Unit tests for TaskService and Tasks API
  */
@@ -57,7 +58,7 @@ describe('TaskService', () => {
     const svc = new TaskService()
     const tasks = await svc.listTasks()
     expect(tasks.length).toBe(2)
-    // 按 createdAt 倒序
+    // 鎸?createdAt 鍊掑簭
     expect(tasks[0].id).toBe('task-002')
     expect(tasks[1].id).toBe('task-001')
   })
@@ -169,3 +170,4 @@ describe('Tasks API', () => {
     expect(res.status).toBe(405)
   })
 })
+

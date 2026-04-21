@@ -23,6 +23,21 @@ const __handler: ProxyHandler<any> = {
 const stub: any = new Proxy(__target, __handler)
 export default stub
 export const __stubMissing = true
+type LooseControlMessage = {
+  type?: string
+  [key: string]: any
+}
+
+export type SDKControlRequest = LooseControlMessage
+export type SDKControlResponse = LooseControlMessage
+export type SDKControlInitializeRequest = LooseControlMessage
+export type SDKControlInitializeResponse = LooseControlMessage
+export type SDKControlPermissionRequest = LooseControlMessage
+export type SDKControlMcpSetServersResponse = LooseControlMessage
+export type SDKControlReloadPluginsResponse = LooseControlMessage
+export type SDKPartialAssistantMessage = LooseControlMessage
+export type StdinMessage = LooseControlMessage
+export type StdoutMessage = LooseControlMessage
 // 兼容常见的命名导出 —— 没列在这里的也会通过 default Proxy 兜底
 export const createCachedMCState = stub
 export const isCachedMicrocompactEnabled = stub

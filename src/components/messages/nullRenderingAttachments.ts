@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import type { Attachment } from 'src/utils/attachments.js'
 import type { Message, NormalizedMessage } from '../../types/message.js'
 
@@ -68,3 +69,4 @@ export function isNullRenderingAttachment(
     NULL_RENDERING_ATTACHMENT_TYPES.has(msg.attachment.type)
   )
 }
+

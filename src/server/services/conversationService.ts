@@ -474,7 +474,7 @@ export class ConversationService {
   private async buildChildEnv(workDir: string): Promise<Record<string, string>> {
     // Provider isolation: when Desktop has its own provider config/index,
     // strip inherited provider env vars so the child CLI reads fresh values
-    // from ~/.claude/cc-haha/settings.json instead of stale process.env.
+    // from ~/.claude/claude-yh/settings.json instead of stale process.env.
     //
     // If the user never configured a Desktop provider and only launched the
     // app/server with ANTHROPIC_* env vars, keep those env vars so Windows
@@ -505,8 +505,8 @@ export class ConversationService {
       // Tell the CLI entrypoint to skip project .env loading. Provider env
       // should come from Desktop-managed config or inherited launch env, not
       // be reintroduced from the repo's .env file.
-      CC_HAHA_SKIP_DOTENV: '1',
-      // "官方" 模式 (cc-haha/settings.json 没 provider env) 下,把 CLI 标记为
+      CLAUDE_YH_SKIP_DOTENV: '1',
+      // "官方" 模式 (claude-yh/settings.json 没 provider env) 下,把 CLI 标记为
       // managed-OAuth,让它忽略外部 ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN
       // 残留、只走用户 /login 的 OAuth token。自定义 provider 模式绝不能设,
       // 否则 CLI 会忽略 provider 的 AUTH_TOKEN、错误地走 OAuth 打到第三方
@@ -548,7 +548,7 @@ export class ConversationService {
   private shouldStripInheritedProviderEnv(): boolean {
     const configDir =
       process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
-    const ccHahaDir = path.join(configDir, 'cc-haha')
+    const ccHahaDir = path.join(configDir, 'claude-yh')
     const providersIndexPath = path.join(ccHahaDir, 'providers.json')
     const settingsPath = path.join(ccHahaDir, 'settings.json')
 
@@ -580,13 +580,13 @@ export class ConversationService {
    * 这种情况下 CLI 必须按 token 路径走第三方 endpoint,不能被 managed 规则
    * 强制切 OAuth。
    *
-   * 默认 (读不到 settings.json) 按"官方"处理 — 即使用户从未用过 cc-haha
+   * 默认 (读不到 settings.json) 按"官方"处理 — 即使用户从未用过 claude-yh
    * provider 管理,也希望官方 OAuth 能正常工作。
    */
   private shouldMarkManagedOAuth(): boolean {
     const configDir =
       process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
-    const settingsPath = path.join(configDir, 'cc-haha', 'settings.json')
+    const settingsPath = path.join(configDir, 'claude-yh', 'settings.json')
     try {
       const raw = fs.readFileSync(settingsPath, 'utf-8')
       const parsed = JSON.parse(raw) as { env?: Record<string, string> }
@@ -609,7 +609,7 @@ export class ConversationService {
     // 桌面端 P0+P2 之后只有一个合并的 sidecar 二进制 —— `claude-sidecar`，
     // 它通过第一个 positional 参数 (server / cli) 选模式。当前进程要么
     // 已经是这个 sidecar 自己（spawn 子 CLI 时复用同一个文件），要么是
-    // 旧 dev 模式下走 bin/claude-haha。这里支持两种命名：
+    // 旧 dev 模式下走 bin/claude-yh。这里支持两种命名：
     //   - 桌面端 prod build：进程名 claude-sidecar*
     //   - 旧 server-only 二进制（向后兼容）：claude-server*
     const execPath = process.execPath
@@ -633,19 +633,22 @@ export class ConversationService {
 
   private resolveCliArgs(baseArgs: string[]): string[] {
     const cliCommand = process.env.CLAUDE_CLI_PATH || this.resolveBundledCliPath()
+    const preloadPath = path.resolve(import.meta.dir, '../../../preload.ts')
     if (!cliCommand) {
       if (process.platform === 'win32') {
         return [
           process.execPath,
+          '--preload',
+          preloadPath,
           path.resolve(import.meta.dir, '../../entrypoints/cli.tsx'),
           ...baseArgs,
         ]
       }
-      return [path.resolve(import.meta.dir, '../../../bin/claude-haha'), ...baseArgs]
+      return [path.resolve(import.meta.dir, '../../../bin/claude-yh'), ...baseArgs]
     }
 
     if (/\.(?:[cm]?[jt]s|tsx?)$/i.test(cliCommand)) {
-      return ['bun', cliCommand, ...baseArgs]
+      return ['bun', '--preload', preloadPath, cliCommand, ...baseArgs]
     }
 
     const cliBaseName = path.basename(cliCommand)
@@ -717,7 +720,7 @@ export class ConversationService {
       )
     ) {
       return new ConversationStartupError(
-        'Desktop chat could not start because Claude CLI is not authenticated. Run `./bin/claude-haha /login` or provide valid API credentials, then retry.',
+        'Desktop chat could not start because Claude CLI is not authenticated. Run `./bin/claude-yh /login` or provide valid API credentials, then retry.',
         'CLI_AUTH_REQUIRED',
       )
     }

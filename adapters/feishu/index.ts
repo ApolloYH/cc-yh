@@ -489,11 +489,12 @@ function summarizeToolCall(toolName: string, input: unknown): ToolCallSummary {
 /** True if `filePath` resolves to a location outside of `workDir`.
  *  Relative paths are resolved against workDir first. */
 function isOutsideWorkDir(filePath: string, workDir: string): boolean {
-  const abs = path.isAbsolute(filePath)
-    ? path.normalize(filePath)
-    : path.resolve(workDir, filePath)
-  const normWork = path.normalize(workDir).replace(/\/+$/, '')
-  return abs !== normWork && !abs.startsWith(normWork + path.sep)
+  const normWork = workDir.replace(/\\/g, '/').replace(/\/+$/, '')
+  const looksAbsolute = /^(?:[A-Za-z]:[\\/]|\/)/.test(filePath)
+  const abs = looksAbsolute
+    ? filePath.replace(/\\/g, '/')
+    : path.posix.resolve(normWork, filePath.replace(/\\/g, '/'))
+  return abs !== normWork && !abs.startsWith(normWork + '/')
 }
 
 /** Truncate a single-line target preview (e.g. shell command) to maxLen. */

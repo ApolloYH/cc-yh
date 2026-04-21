@@ -32,3 +32,4 @@ export const markToolsSentToAPI = stub
 export const resetCachedMCState = stub
 export const checkProtectedNamespace = stub
 export const getCoordinatorUserContext = stub
+export const VERIFY_PLAN_EXECUTION_TOOL_NAME = 'verify_plan_execution'

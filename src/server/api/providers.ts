@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Providers REST API
  *

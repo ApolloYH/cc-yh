@@ -1,5 +1,6 @@
+import '../../test/setupDom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '../../test/testingLibrary'
 import '@testing-library/jest-dom'
 
 const { initializeMock, renderMock } = vi.hoisted(() => ({

@@ -49,9 +49,11 @@ describe('HahaOAuthService — file storage', () => {
     }
     await service.saveTokens(tokens)
 
-    const oauthPath = path.join(tmpDir, 'cc-haha', 'oauth.json')
+    const oauthPath = path.join(tmpDir, 'claude-yh', 'oauth.json')
     const stat = await fs.stat(oauthPath)
-    expect(stat.mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') {
+      expect(stat.mode & 0o777).toBe(0o600)
+    }
 
     const loaded = await service.loadTokens()
     expect(loaded).toEqual(tokens)

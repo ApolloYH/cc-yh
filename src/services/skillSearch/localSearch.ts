@@ -23,6 +23,7 @@ const __handler: ProxyHandler<any> = {
 const stub: any = new Proxy(__target, __handler)
 export default stub
 export const __stubMissing = true
+export const clearSkillIndexCache = () => {}
 // 兼容常见的命名导出 —— 没列在这里的也会通过 default Proxy 兜底
 export const createCachedMCState = stub
 export const isCachedMicrocompactEnabled = stub

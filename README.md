@@ -1,16 +1,16 @@
-# Claude Code Haha
+# Claude YH
 
 <p align="center">
-  <img src="docs/images/logo-horizontal.jpg" alt="Claude Code Haha" width="480">
+  <img src="docs/images/logo-horizontal.jpg" alt="Claude YH" width="480">
 </p>
 
 <div align="center">
 
-[![GitHub Stars](https://img.shields.io/github/stars/NanmiCoder/cc-haha?style=social)](https://github.com/NanmiCoder/cc-haha/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/NanmiCoder/cc-haha?style=social)](https://github.com/NanmiCoder/cc-haha/network/members)
-[![GitHub Issues](https://img.shields.io/github/issues/NanmiCoder/cc-haha)](https://github.com/NanmiCoder/cc-haha/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/NanmiCoder/cc-haha)](https://github.com/NanmiCoder/cc-haha/pulls)
-[![License](https://img.shields.io/github/license/NanmiCoder/cc-haha)](https://github.com/NanmiCoder/cc-haha/blob/main/LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/NanmiCoder/claude-yh?style=social)](https://github.com/NanmiCoder/claude-yh/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/NanmiCoder/claude-yh?style=social)](https://github.com/NanmiCoder/claude-yh/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/NanmiCoder/claude-yh)](https://github.com/NanmiCoder/claude-yh/issues)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/NanmiCoder/claude-yh)](https://github.com/NanmiCoder/claude-yh/pulls)
+[![License](https://img.shields.io/github/license/NanmiCoder/claude-yh)](https://github.com/NanmiCoder/claude-yh/blob/main/LICENSE)
 [![中文](https://img.shields.io/badge/🇨🇳_中文-当前-blue)](README.md)
 [![English](https://img.shields.io/badge/🇺🇸_English-Available-green)](README.en.md)
 [![Docs](https://img.shields.io/badge/📖_文档站点-Visit-D97757)](https://claudecode-haha.relakkesyang.org)
@@ -22,6 +22,23 @@
 <p align="center">
   <a href="#功能">功能</a> · <a href="#桌面端预览">桌面端</a> · <a href="#架构概览">架构概览</a> · <a href="#快速开始">快速开始</a> · <a href="docs/guide/env-vars.md">环境变量</a> · <a href="docs/guide/faq.md">FAQ</a> · <a href="docs/guide/global-usage.md">全局使用</a> · <a href="#更多文档">更多文档</a>
 </p>
+
+---
+
+## OpenAI 兼容接口说明
+
+现在接入 OpenAI 兼容模型不再必须依赖 LiteLLM。
+
+如果上游提供的是真正 OpenAI 兼容 HTTP API，通常可以直接在 `Settings -> Providers` 里配置：
+
+- `API Format`: `OpenAI Chat` 或 `OpenAI Responses`
+- `Base URL`: 例如 `https://api.openai.com/v1`
+- `API Key`: 标准 Bearer API key
+- `Model`: 上游模型 ID
+
+大多数真正实现了 `/v1/chat/completions` 或 `/v1/responses` 的 OpenAI 兼容接口都可以直接使用。LiteLLM 现在是可选项，主要用于路由、回退、统一治理，或者补某些兼容性不够的上游。
+
+网页登录 cookie、session token、ChatGPT 网页登录态这类不属于这里支持的 API 凭证。详细说明见 [第三方模型指南](docs/guide/third-party-models.md)。
 
 ---
 
@@ -37,7 +54,7 @@
 - **Channel 系统**（通过 Telegram/飞书/Discord 等 IM 远程控制 Agent）— [架构解析](docs/channel/01-channel-system.md)
 - **Computer Use 桌面控制** — [功能指南](docs/features/computer-use.md) | [架构解析](docs/features/computer-use-architecture.md)
 - **桌面端**（Tauri 2 + React 图形化客户端，多标签多会话）— [文档](docs/desktop/)
-- 降级 Recovery CLI 模式（`CLAUDE_CODE_FORCE_RECOVERY_CLI=1 ./bin/claude-haha`）
+- 降级 Recovery CLI 模式（`CLAUDE_CODE_FORCE_RECOVERY_CLI=1 ./bin/claude-yh`）
 
 ---
 
@@ -63,7 +80,7 @@
 ## 桌面端预览
 
 <p align="center">
-  <a href="https://github.com/NanmiCoder/cc-haha/releases"><img src="https://img.shields.io/badge/⬇_下载桌面端-macOS_%7C_Windows-D97757?style=for-the-badge" alt="下载桌面端"></a>
+  <a href="https://github.com/NanmiCoder/claude-yh/releases"><img src="https://img.shields.io/badge/⬇_下载桌面端-macOS_%7C_Windows-D97757?style=for-the-badge" alt="下载桌面端"></a>
    
   <a href="docs/desktop/04-installation.md"><img src="https://img.shields.io/badge/📖_安装指南-Guide-gray?style=for-the-badge" alt="安装指南"></a>
 </p>
@@ -113,9 +130,9 @@ cp .env.example .env
 #### macOS / Linux
 
 ```bash
-./bin/claude-haha                          # 交互 TUI 模式
-./bin/claude-haha -p "your prompt here"    # 无头模式
-./bin/claude-haha --help                   # 查看所有选项
+./bin/claude-yh                          # 交互 TUI 模式
+./bin/claude-yh -p "your prompt here"    # 无头模式
+./bin/claude-yh --help                   # 查看所有选项
 ```
 
 #### Windows
@@ -127,7 +144,7 @@ cp .env.example .env
 bun --env-file=.env ./src/entrypoints/cli.tsx
 
 # 或在 Git Bash 中运行
-./bin/claude-haha
+./bin/claude-yh
 ```
 
 ### 4. 全局使用（可选）
@@ -135,7 +152,7 @@ bun --env-file=.env ./src/entrypoints/cli.tsx
 将 `bin/` 加入 PATH 后可在任意目录启动，详见 [全局使用指南](docs/guide/global-usage.md)：
 
 ```bash
-export PATH="$HOME/path/to/claude-code-haha/bin:$PATH"
+export PATH="$HOME/path/to/claude-yh/bin:$PATH"
 ```
 
 ### 5. 桌面端联调（Desktop）
@@ -145,7 +162,7 @@ export PATH="$HOME/path/to/claude-code-haha/bin:$PATH"
 #### 5.1 启动服务端
 
 ```bash
-cd /Users/nanmi/workspace/myself_code/claude-code-haha
+cd /Users/nanmi/workspace/myself_code/claude-yh
 SERVER_PORT=3456 bun run src/server/index.ts
 ```
 
@@ -158,7 +175,7 @@ curl http://127.0.0.1:3456/health
 #### 5.2 启动桌面前端
 
 ```bash
-cd /Users/nanmi/workspace/myself_code/claude-code-haha/desktop
+cd /Users/nanmi/workspace/myself_code/claude-yh/desktop
 bun run dev --host 127.0.0.1 --port 2024
 ```
 
@@ -201,7 +218,7 @@ http://127.0.0.1:2024
 | [Channel 系统](docs/channel/01-channel-system.md) | 通过 Telegram/飞书/Discord 等 IM 平台远程控制 Agent                                                                                                            |
 | [Computer Use](docs/features/computer-use.md)     | 桌面控制功能（截屏、鼠标、键盘）—[架构解析](docs/features/computer-use-architecture.md)                                                                          |
 | [桌面端](docs/desktop/)                           | Tauri 2 + React 图形化客户端 —[快速上手](docs/desktop/01-quick-start.md) \| [架构设计](docs/desktop/02-architecture.md) \| [安装指南](docs/desktop/04-installation.md) |
-| [全局使用](docs/guide/global-usage.md)            | 在任意目录启动 claude-haha                                                                                                                                     |
+| [全局使用](docs/guide/global-usage.md)            | 在任意目录启动 claude-yh                                                                                                                                     |
 | [常见问题](docs/guide/faq.md)                     | 常见错误排查                                                                                                                                                   |
 | [源码修复记录](docs/reference/fixes.md)           | 相对于原始泄露源码的修复内容                                                                                                                                   |
 | [项目结构](docs/reference/project-structure.md)   | 代码目录结构说明                                                                                                                                               |

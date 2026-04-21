@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { type ReactNode, useState } from 'react'
 import { Box, Text } from '../../../ink.js'
 import { useKeybinding } from '../../../hooks/useKeybinding.js'

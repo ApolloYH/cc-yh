@@ -210,11 +210,12 @@ function summarizeToolCall(toolName: string, input: unknown): ToolCallSummary {
 }
 
 function isOutsideWorkDir(filePath: string, workDir: string): boolean {
-  const abs = path.isAbsolute(filePath)
-    ? path.normalize(filePath)
-    : path.resolve(workDir, filePath)
-  const normWork = path.normalize(workDir).replace(/\/+$/, '')
-  return abs !== normWork && !abs.startsWith(normWork + path.sep)
+  const normWork = workDir.replace(/\\/g, '/').replace(/\/+$/, '')
+  const looksAbsolute = /^(?:[A-Za-z]:[\\/]|\/)/.test(filePath)
+  const abs = looksAbsolute
+    ? filePath.replace(/\\/g, '/')
+    : path.posix.resolve(normWork, filePath.replace(/\\/g, '/'))
+  return abs !== normWork && !abs.startsWith(normWork + '/')
 }
 
 function truncateTarget(s: string, maxLen = 160): string {
@@ -686,11 +687,11 @@ describe('Feishu: isOutsideWorkDir', () => {
 describe('Feishu: project picker card', () => {
   const sampleProjects: RecentProject[] = [
     {
-      projectPath: '/Users/dev/claude-code-haha',
-      realPath: '/Users/dev/claude-code-haha',
-      projectName: 'claude-code-haha',
+      projectPath: '/Users/dev/claude-yh',
+      realPath: '/Users/dev/claude-yh',
+      projectName: 'claude-yh',
       isGit: true,
-      repoName: 'claude-code-haha',
+      repoName: 'claude-yh',
       branch: 'main',
       modifiedAt: '2026-04-11T00:00:00Z',
       sessionCount: 3,
@@ -779,12 +780,12 @@ describe('Feishu: project picker card', () => {
     expect(info.length).toBe(2)
     // Title markdown
     expect(info[0].tag).toBe('markdown')
-    expect(info[0].content).toContain('**claude-code-haha**')
+    expect(info[0].content).toContain('**claude-yh**')
     expect(info[0].content).toContain('*main*')
     // Path markdown (notation = small grey)
     expect(info[1].tag).toBe('markdown')
     expect(info[1].text_size).toBe('notation')
-    expect(info[1].content).toContain('claude-code-haha')
+    expect(info[1].content).toContain('claude-yh')
   })
 
   it('row without branch has no separator dot in title', () => {
@@ -803,8 +804,8 @@ describe('Feishu: project picker card', () => {
     expect(btn1.text.content).toBe('选择')
     expect(btn1.size).toBe('small')
     expect(btn1.value.action).toBe('pick_project')
-    expect(btn1.value.realPath).toBe('/Users/dev/claude-code-haha')
-    expect(btn1.value.projectName).toBe('claude-code-haha')
+    expect(btn1.value.realPath).toBe('/Users/dev/claude-yh')
+    expect(btn1.value.projectName).toBe('claude-yh')
 
     const btn2 = getRowButton(rows[1])
     expect(btn2.value.realPath).toBe('/Users/dev/desktop')
@@ -886,16 +887,16 @@ describe('Feishu: card.action.trigger parsing', () => {
       action: {
         value: {
           action: 'pick_project',
-          realPath: '/Users/dev/claude-code-haha',
-          projectName: 'claude-code-haha',
+          realPath: '/Users/dev/claude-yh',
+          projectName: 'claude-yh',
         },
       },
       context: { open_chat_id: 'oc_chat_123' },
     }
 
     expect(event.action.value.action).toBe('pick_project')
-    expect(event.action.value.realPath).toBe('/Users/dev/claude-code-haha')
-    expect(event.action.value.projectName).toBe('claude-code-haha')
+    expect(event.action.value.realPath).toBe('/Users/dev/claude-yh')
+    expect(event.action.value.projectName).toBe('claude-yh')
   })
 
   it('ignores non-handled actions', () => {

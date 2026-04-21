@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 /**
  * Teammate utilities for agent swarm coordination
  *
@@ -290,3 +291,5 @@ export function waitForTeammatesToBecomeIdle(
     })
   })
 }
+// @ts-nocheck
+

@@ -1,34 +1,65 @@
 # FAQ
 
-
 ## Q: `undefined is not an object (evaluating 'usage.input_tokens')`
 
-**Cause**: `ANTHROPIC_BASE_URL` is misconfigured. The API endpoint is returning HTML or another non-JSON format instead of a valid Anthropic protocol response.
+**Cause**: Your upstream endpoint is not returning the protocol shape that this project expects.
 
-This project uses the **Anthropic Messages API protocol**. `ANTHROPIC_BASE_URL` must point to an endpoint compatible with Anthropic's `/v1/messages` interface. The Anthropic SDK automatically appends `/v1/messages` to the base URL, so:
+There are now two supported direct paths:
 
-- MiniMax: `ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic` ✅
-- OpenRouter: `ANTHROPIC_BASE_URL=https://openrouter.ai/api` ✅
-- OpenRouter (wrong): `ANTHROPIC_BASE_URL=https://openrouter.ai/anthropic` ❌ (returns HTML)
+- Anthropic-compatible Messages APIs
+- OpenAI-compatible APIs with `CLAUDE_CODE_COMPAT_PROVIDER=openai`
 
-If your model provider only supports the OpenAI protocol, you need a proxy like LiteLLM for protocol translation. See the [Third-Party Models Guide](./third-party-models.md).
+If you are using an Anthropic-compatible provider, `ANTHROPIC_BASE_URL` must point to the provider's Anthropic API root. The Anthropic SDK appends `/v1/messages` automatically.
+
+Examples:
+
+- MiniMax: `ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic`
+- OpenRouter: `ANTHROPIC_BASE_URL=https://openrouter.ai/api`
+
+If you are using an OpenAI-compatible provider directly, configure:
+
+```env
+CLAUDE_CODE_COMPAT_PROVIDER=openai
+CLAUDE_CODE_OPENAI_COMPAT_MODE=chat_completions
+ANTHROPIC_BASE_URL=https://api.openai.com/v1
+ANTHROPIC_AUTH_TOKEN=sk-xxx
+```
+
+Or use the desktop provider settings with `OpenAI Chat` or `OpenAI Responses`.
+
+If the upstream still does not behave compatibly enough, use a proxy such as LiteLLM. See the [Third-Party Models Guide](./third-party-models.md).
 
 ## Q: `Cannot find package 'bundle'`
 
-```
-error: Cannot find package 'bundle' from '.../claude-code-haha/src/entrypoints/cli.tsx'
+```text
+error: Cannot find package 'bundle' from '.../claude-yh/src/entrypoints/cli.tsx'
 ```
 
-**Cause**: Your Bun version is too old and doesn't support the required `bun:bundle` built-in module.
+**Cause**: Your Bun version is too old and does not support the required `bun:bundle` built-in module.
 
-**Fix**: Upgrade Bun to the latest version:
+**Fix**:
 
 ```bash
 bun upgrade
 ```
 
-## Q: How to use OpenAI / DeepSeek / Ollama or other non-Anthropic models?
+## Q: How do I use OpenAI / DeepSeek / Ollama or other non-Anthropic models?
 
-This project only supports the Anthropic protocol. If your model provider doesn't natively support the Anthropic protocol, you need a proxy like [LiteLLM](https://github.com/BerriAI/litellm) for protocol translation (OpenAI → Anthropic).
+You have two main options now:
 
-See the [Third-Party Models Guide](./third-party-models.md) for detailed setup instructions.
+- Direct OpenAI-compatible access via `OpenAI Chat` or `OpenAI Responses`
+- A proxy layer such as LiteLLM when the upstream is not compatible enough or when you want routing/fallback features
+
+See the [Third-Party Models Guide](./third-party-models.md).
+
+## Q: Does "OpenAI-compatible" mean any OpenAI-looking document will work?
+
+No.
+
+In practice, it usually works when the upstream really implements:
+
+- `Authorization: Bearer <apiKey>`
+- `/v1/chat/completions` or `/v1/responses`
+- Usable streaming and tool-calling behavior
+
+Website login cookies, browser session tokens, and ChatGPT web auth do not count as supported API credentials here.

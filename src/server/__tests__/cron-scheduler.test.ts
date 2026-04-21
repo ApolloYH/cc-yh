@@ -345,23 +345,22 @@ describe('CronScheduler', () => {
   })
 
   it('getRecentRuns should respect limit parameter', async () => {
-    const task = await cronService.createTask({
-      cron: '* * * * *',
-      prompt: 'limit test',
-      recurring: true,
-    })
-
-    // Execute 3 times
-    for (let i = 0; i < 3; i++) {
-      try {
-        await scheduler.executeTask(task)
-      } catch {
-        /* ignore */
-      }
-    }
+    const logPath = path.join(tmpDir, 'scheduled_tasks_log.json')
+    const seededRuns: TaskRun[] = Array.from({ length: 3 }, (_, index) => ({
+      id: `run-${index}`,
+      taskId: `task-${index}`,
+      taskName: `Task ${index}`,
+      startedAt: new Date(Date.now() - index * 1000).toISOString(),
+      completedAt: new Date(Date.now() - index * 1000 + 100).toISOString(),
+      status: 'completed',
+      prompt: `limit test ${index}`,
+      exitCode: 0,
+      durationMs: 100,
+    }))
+    await fs.writeFile(logPath, JSON.stringify({ runs: seededRuns }, null, 2), 'utf-8')
 
     const runs = await scheduler.getRecentRuns(2)
-    expect(runs.length).toBeLessThanOrEqual(2)
+    expect(runs).toHaveLength(2)
   })
 })
 

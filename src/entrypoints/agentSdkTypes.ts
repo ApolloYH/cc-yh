@@ -40,6 +40,9 @@ import type {
   SDKSessionInfo,
   SDKUserMessage,
 } from './sdk/coreTypes.js'
+
+const HOOK_EVENTS = [] as const
+const EXIT_REASONS = [] as const
 // Import types needed for function signatures
 import type {
   AnyZodRawShape,
@@ -60,6 +63,52 @@ import type {
   SessionMessage,
   SessionMutationOptions,
 } from './sdk/runtimeTypes.js'
+
+export type HookEvent = (typeof HOOK_EVENTS)[number] | (string & {})
+export type ExitReason = (typeof EXIT_REASONS)[number] | (string & {})
+export type ModelUsage = Record<string, unknown>
+export type PermissionResult = Record<string, unknown>
+export type PermissionMode = string
+export type ApiKeySource = string
+export type SDKStatus = string
+export type ModelInfo = Record<string, unknown>
+export type HookInput = Record<string, unknown>
+export type HookJSONOutput = Record<string, unknown>
+export type SyncHookJSONOutput = Record<string, unknown>
+export type AsyncHookJSONOutput = Record<string, unknown>
+export type PermissionUpdate = Record<string, unknown>
+export type SDKAssistantMessage = SDKMessage
+export type SDKAssistantMessageError = SDKMessage
+export type SDKUserMessageReplay = SDKUserMessage
+export type McpServerConfigForProcessTransport = Record<string, unknown>
+export type McpServerStatus = Record<string, unknown>
+export type RewindFilesResult = Record<string, unknown>
+
+export type PreToolUseHookInput = Record<string, unknown>
+export type PostToolUseHookInput = Record<string, unknown>
+export type PostToolUseFailureHookInput = Record<string, unknown>
+export type NotificationHookInput = Record<string, unknown>
+export type UserPromptSubmitHookInput = Record<string, unknown>
+export type SessionStartHookInput = Record<string, unknown>
+export type SessionEndHookInput = Record<string, unknown>
+export type StopHookInput = Record<string, unknown>
+export type StopFailureHookInput = Record<string, unknown>
+export type SubagentStartHookInput = Record<string, unknown>
+export type SubagentStopHookInput = Record<string, unknown>
+export type PreCompactHookInput = Record<string, unknown>
+export type PostCompactHookInput = Record<string, unknown>
+export type PermissionRequestHookInput = Record<string, unknown>
+export type PermissionDeniedHookInput = Record<string, unknown>
+export type SetupHookInput = Record<string, unknown>
+export type TeammateIdleHookInput = Record<string, unknown>
+export type TaskCreatedHookInput = Record<string, unknown>
+export type TaskCompletedHookInput = Record<string, unknown>
+export type ElicitationHookInput = Record<string, unknown>
+export type ElicitationResultHookInput = Record<string, unknown>
+export type ConfigChangeHookInput = Record<string, unknown>
+export type InstructionsLoadedHookInput = Record<string, unknown>
+export type CwdChangedHookInput = Record<string, unknown>
+export type FileChangedHookInput = Record<string, unknown>
 
 export type {
   ListSessionsOptions,

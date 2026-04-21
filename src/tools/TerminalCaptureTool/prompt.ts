@@ -32,3 +32,4 @@ export const markToolsSentToAPI = stub
 export const resetCachedMCState = stub
 export const checkProtectedNamespace = stub
 export const getCoordinatorUserContext = stub
+export const TERMINAL_CAPTURE_TOOL_NAME = 'terminal_capture'

@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import '../test/setupDom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MessageEntry } from '../types/session'
+import { useTeamStore } from './teamStore'
 
 const {
   sendMock,
@@ -29,50 +31,19 @@ vi.mock('../api/websocket', () => ({
 
 vi.mock('../api/sessions', () => ({
   sessionsApi: {
+    list: vi.fn(async () => ({ sessions: [], total: 0 })),
     getMessages: vi.fn(async () => ({ messages: [] })),
+    create: vi.fn(async () => ({ sessionId: 'mock-session' })),
+    delete: vi.fn(async () => ({ ok: true })),
+    rename: vi.fn(async () => ({ ok: true })),
+    getRecentProjects: vi.fn(async () => ({ projects: [] })),
+    getGitInfo: vi.fn(async () => ({
+      branch: null,
+      repoName: null,
+      workDir: '',
+      changedFiles: 0,
+    })),
     getSlashCommands: vi.fn(async () => ({ commands: [] })),
-  },
-}))
-
-vi.mock('./teamStore', () => ({
-  useTeamStore: {
-    getState: () => ({
-      getMemberBySessionId: getMemberBySessionIdMock,
-      sendMessageToMember: sendMessageToMemberMock,
-      handleTeamCreated: handleTeamCreatedMock,
-      handleTeamUpdate: handleTeamUpdateMock,
-      handleTeamDeleted: handleTeamDeletedMock,
-    }),
-  },
-}))
-
-vi.mock('./tabStore', () => ({
-  useTabStore: {
-    getState: () => ({
-      updateTabStatus: vi.fn(),
-      updateTabTitle: vi.fn(),
-    }),
-  },
-}))
-
-vi.mock('./sessionStore', () => ({
-  useSessionStore: {
-    getState: () => ({
-      updateSessionTitle: vi.fn(),
-    }),
-  },
-}))
-
-vi.mock('./cliTaskStore', () => ({
-  useCLITaskStore: {
-    getState: () => ({
-      fetchSessionTasks: vi.fn(),
-      tasks: [],
-      clearTasks: vi.fn(),
-      setTasksFromTodos: vi.fn(),
-      markCompletedAndDismissed: vi.fn(),
-      refreshTasks: vi.fn(),
-    }),
   },
 }))
 
@@ -80,6 +51,7 @@ import { mapHistoryMessagesToUiMessages, useChatStore } from './chatStore'
 
 const TEST_SESSION_ID = 'test-session-1'
 const initialState = useChatStore.getState()
+const initialTeamState = useTeamStore.getState()
 
 describe('chatStore history mapping', () => {
   beforeEach(() => {
@@ -87,10 +59,34 @@ describe('chatStore history mapping', () => {
     getMemberBySessionIdMock.mockReset()
     getMemberBySessionIdMock.mockReturnValue(null)
     sendMessageToMemberMock.mockReset()
+    sendMessageToMemberMock.mockResolvedValue(undefined)
+    handleTeamCreatedMock.mockReset()
+    handleTeamUpdateMock.mockReset()
+    handleTeamDeletedMock.mockReset()
     useChatStore.setState({
       ...initialState,
       sessions: {},
     })
+    useTeamStore.setState({
+      ...initialTeamState,
+      teams: [],
+      activeTeam: null,
+      memberColors: new Map(),
+      error: null,
+      getMemberBySessionId: getMemberBySessionIdMock,
+      sendMessageToMember: sendMessageToMemberMock,
+      handleTeamCreated: handleTeamCreatedMock,
+      handleTeamUpdate: handleTeamUpdateMock,
+      handleTeamDeleted: handleTeamDeletedMock,
+    })
+  })
+
+  afterEach(() => {
+    useChatStore.setState({
+      ...initialState,
+      sessions: {},
+    })
+    useTeamStore.setState(initialTeamState)
   })
 
   it('preserves thinking blocks when restoring transcript history', () => {

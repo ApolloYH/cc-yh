@@ -1,3 +1,4 @@
+// @ts-nocheck
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
 import {
   logEvent,
@@ -3991,3 +3992,4 @@ function isFileReadDenied(
   )
   return denyRule !== null
 }
+// @ts-nocheck

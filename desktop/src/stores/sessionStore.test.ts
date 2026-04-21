@@ -1,3 +1,4 @@
+import '../test/setupDom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { createMock, listMock } = vi.hoisted(() => ({
@@ -9,8 +10,17 @@ vi.mock('../api/sessions', () => ({
   sessionsApi: {
     create: createMock,
     list: listMock,
-    delete: vi.fn(),
-    rename: vi.fn(),
+    getMessages: vi.fn(async () => ({ messages: [] })),
+    delete: vi.fn(async () => ({ ok: true })),
+    rename: vi.fn(async () => ({ ok: true })),
+    getRecentProjects: vi.fn(async () => ({ projects: [] })),
+    getGitInfo: vi.fn(async () => ({
+      branch: null,
+      repoName: null,
+      workDir: '',
+      changedFiles: 0,
+    })),
+    getSlashCommands: vi.fn(async () => ({ commands: [] })),
   },
 }))
 
@@ -46,7 +56,7 @@ describe('sessionStore', () => {
     listMock.mockImplementation(() => new Promise(() => {}))
 
     const result = await Promise.race([
-      useSessionStore.getState().createSession('D:/workspace/code/myself_code/cc-haha'),
+      useSessionStore.getState().createSession('D:/workspace/code/myself_code/claude-yh'),
       delay(100).then(() => 'timed-out'),
     ])
 
@@ -55,7 +65,7 @@ describe('sessionStore', () => {
     expect(useSessionStore.getState().sessions[0]).toMatchObject({
       id: 'session-optimistic-1',
       title: 'New Session',
-      workDir: 'D:/workspace/code/myself_code/cc-haha',
+      workDir: 'D:/workspace/code/myself_code/claude-yh',
       workDirExists: true,
     })
     expect(listMock).toHaveBeenCalledOnce()

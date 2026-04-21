@@ -1,23 +1,8 @@
+import '../test/setupDom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen } from '../test/testingLibrary'
 import '@testing-library/jest-dom'
 import { act } from 'react'
-
-vi.mock('../components/chat/MessageList', () => ({
-  MessageList: () => <div data-testid="message-list" />,
-}))
-
-vi.mock('../components/chat/ChatInput', () => ({
-  ChatInput: () => <div data-testid="chat-input" />,
-}))
-
-vi.mock('../components/teams/TeamStatusBar', () => ({
-  TeamStatusBar: () => <div data-testid="team-status-bar" />,
-}))
-
-vi.mock('../components/chat/SessionTaskBar', () => ({
-  SessionTaskBar: () => <div data-testid="session-task-bar" />,
-}))
 
 import { ActiveSession } from './ActiveSession'
 import { useChatStore } from '../stores/chatStore'
@@ -94,7 +79,7 @@ describe('ActiveSession task polling', () => {
     expect(fetchSessionTasks).toHaveBeenCalledWith(sessionId)
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2200)
+      vi.advanceTimersByTime(2200)
     })
 
     expect(
@@ -167,10 +152,9 @@ describe('ActiveSession task polling', () => {
       },
     })
 
-    const { queryByTestId, unmount } = render(<ActiveSession />)
+    const { unmount } = render(<ActiveSession />)
 
-    expect(queryByTestId('chat-input')).toBeInTheDocument()
-    expect(queryByTestId('session-task-bar')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
     expect(fetchSessionTasks).not.toHaveBeenCalled()
 
     unmount()

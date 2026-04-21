@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * XAA IdP Login — acquires an OIDC id_token from an enterprise IdP via the
  * standard authorization_code + PKCE flow, then caches it by IdP issuer.
@@ -485,3 +486,4 @@ export async function acquireIdpIdToken(
 
   return tokens.id_token
 }
+// @ts-nocheck

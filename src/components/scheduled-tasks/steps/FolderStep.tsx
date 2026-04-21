@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { type ReactNode, useMemo, useState } from 'react'
 import { Box, Text } from '../../../ink.js'
 import { getProjectRoot } from '../../../bootstrap/state.js'

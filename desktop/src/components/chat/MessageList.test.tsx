@@ -1,5 +1,6 @@
+import '../../test/setupDom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '../../test/testingLibrary'
 import { MessageList, buildRenderItems } from './MessageList'
 import { useChatStore } from '../../stores/chatStore'
 import { useTabStore } from '../../stores/tabStore'

@@ -12,6 +12,7 @@ import { Status, buildDiagnostics } from './Status.js';
 import { Config } from './Config.js';
 import { Usage } from './Usage.js';
 import type { LocalJSXCommandContext, CommandResultDisplay } from '../../commands.js';
+const Gates = (_props: any) => null;
 type Props = {
   onClose: (result?: string, options?: {
     display?: CommandResultDisplay;

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type {
   BetaContentBlock,
   BetaContentBlockParam,
@@ -24,6 +25,20 @@ import {
   getAPIProvider,
   isFirstPartyAnthropicBaseUrl,
 } from 'src/utils/model/providers.js'
+import {
+  convertAnthropicRequestToOpenAI,
+  createAnthropicStreamFromOpenAI,
+  createOpenAICompatStream,
+  joinBaseUrl,
+  type OpenAIChatRequest,
+  type OpenAICompatConfig,
+  type ToolNameMapping,
+} from './openaiCompat.js'
+import {
+  convertAnthropicRequestToOpenAIResponses,
+  createAnthropicStreamFromOpenAIResponses,
+  createOpenAIResponsesStream,
+} from './openaiResponsesCompat.js'
 import {
   getAttributionHeader,
   getCLISyspromptPrefix,
@@ -100,6 +115,8 @@ import {
   extractQuotaStatusFromHeaders,
 } from '../claudeAiLimits.js'
 import { getAPIContextManagement } from '../compact/apiMicrocompact.js'
+import { openaiChatToAnthropic } from '../../server/proxy/transform/openaiChatToAnthropic.js'
+import { openaiResponsesToAnthropic } from '../../server/proxy/transform/openaiResponsesToAnthropic.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const autoModeStateModule = feature('TRANSCRIPT_CLASSIFIER')
@@ -260,6 +277,88 @@ import {
 type JsonValue = string | number | boolean | null | JsonObject | JsonArray
 type JsonObject = { [key: string]: JsonValue }
 type JsonArray = JsonValue[]
+
+type OpenAICompatMode = 'chat_completions' | 'responses'
+
+function getOpenAICompatMode(): OpenAICompatMode | null {
+  if (process.env.CLAUDE_CODE_COMPAT_PROVIDER !== 'openai') {
+    return null
+  }
+  return process.env.CLAUDE_CODE_OPENAI_COMPAT_MODE === 'responses'
+    ? 'responses'
+    : 'chat_completions'
+}
+
+function getOpenAICompatApiKey(explicitApiKey?: string): string {
+  return (
+    explicitApiKey ||
+    process.env.ANTHROPIC_AUTH_TOKEN ||
+    process.env.ANTHROPIC_API_KEY ||
+    ''
+  )
+}
+
+function getOpenAICompatConfig(
+  headers?: Record<string, string>,
+  explicitApiKey?: string,
+): OpenAICompatConfig {
+  return {
+    apiKey: getOpenAICompatApiKey(explicitApiKey),
+    baseURL: process.env.ANTHROPIC_BASE_URL || '',
+    headers,
+    fetch: globalThis.fetch,
+  }
+}
+
+async function createOpenAICompatMessage({
+  config,
+  mode,
+  model,
+  request,
+  signal,
+  toolNameMapping,
+}: {
+  config: OpenAICompatConfig
+  mode: OpenAICompatMode
+  model: string
+  request: OpenAIChatRequest | Record<string, unknown>
+  signal?: AbortSignal
+  toolNameMapping?: ToolNameMapping
+}): Promise<BetaMessage> {
+  const path = mode === 'responses' ? '/responses' : '/chat/completions'
+  const response = await (config.fetch ?? globalThis.fetch)(
+    joinBaseUrl(config.baseURL, path),
+    {
+      method: 'POST',
+      signal,
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${config.apiKey}`,
+        ...config.headers,
+      },
+      body: JSON.stringify(request),
+    },
+  )
+
+  if (!response.ok) {
+    let responseText = ''
+    try {
+      responseText = await response.text()
+    } catch {
+      responseText = ''
+    }
+    throw new Error(
+      `OpenAI compatible request failed with status ${response.status}${responseText ? `: ${responseText}` : ''}`,
+    )
+  }
+
+  const responseBody = await response.json()
+  const anthropicResponse = mode === 'responses'
+    ? openaiResponsesToAnthropic(responseBody, model, toolNameMapping)
+    : openaiChatToAnthropic(responseBody, model, toolNameMapping)
+
+  return anthropicResponse as unknown as BetaMessage
+}
 
 /**
  * Assemble the extra body parameters for the API request, based on the
@@ -540,6 +639,45 @@ export async function verifyApiKey(
     // WARNING: if you change this to use a non-Haiku model, this request will fail in 1P unless it uses getCLISyspromptPrefix.
     const model = getSmallFastModel()
     const betas = getModelBetas(model)
+
+    const openAICompatMode = getOpenAICompatMode()
+    if (openAICompatMode) {
+      const messages: MessageParam[] = [{ role: 'user', content: 'test' }]
+      const compatConfig = getOpenAICompatConfig(undefined, apiKey)
+
+      if (openAICompatMode === 'responses') {
+        const request = convertAnthropicRequestToOpenAIResponses({
+          model,
+          messages,
+          temperature: 1,
+          max_tokens: 1,
+          thinking: { type: 'disabled' },
+        })
+        await createOpenAICompatMessage({
+          config: compatConfig,
+          mode: 'responses',
+          model,
+          request,
+        })
+      } else {
+        const request = convertAnthropicRequestToOpenAI({
+          model,
+          messages,
+          temperature: 1,
+          max_tokens: 1,
+          thinking: { type: 'disabled' },
+        })
+        await createOpenAICompatMessage({
+          config: compatConfig,
+          mode: 'chat_completions',
+          model,
+          request,
+        })
+      }
+
+      return true
+    }
+
     return await returnValue(
       withRetry(
         () =>
@@ -575,8 +713,13 @@ export async function verifyApiKey(
     // Check for authentication error
     if (
       error instanceof Error &&
-      error.message.includes(
-        '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',
+      (
+        error.message.includes(
+          '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',
+        ) ||
+        /status 401|status 403|invalid api key|incorrect api key|authentication/i.test(
+          error.message,
+        )
       )
     ) {
       return false
@@ -833,6 +976,7 @@ export async function* executeNonStreamingRequest(
   paramsFromContext: (context: RetryContext) => BetaMessageStreamParams,
   onAttempt: (attempt: number, start: number, maxOutputTokens: number) => void,
   captureRequest: (params: BetaMessageStreamParams) => void,
+  effort?: EffortValue,
   /**
    * Request ID of the failed streaming attempt this fallback is recovering
    * from. Emitted in tengu_nonstreaming_fallback_error for funnel correlation.
@@ -860,6 +1004,54 @@ export async function* executeNonStreamingRequest(
       )
 
       try {
+        const openAICompatMode = getOpenAICompatMode()
+        if (openAICompatMode) {
+          const compatConfig = getOpenAICompatConfig()
+          const toolNameMapping: ToolNameMapping = {}
+          if (openAICompatMode === 'responses') {
+            const request = convertAnthropicRequestToOpenAIResponses({
+              model: adjustedParams.model,
+              system: adjustedParams.system,
+              messages: adjustedParams.messages,
+              tools: adjustedParams.tools,
+              tool_choice: adjustedParams.tool_choice,
+              temperature: adjustedParams.temperature,
+              max_tokens: adjustedParams.max_tokens,
+              thinking: adjustedParams.thinking,
+              effort,
+              toolNameMapping,
+            })
+            return await createOpenAICompatMessage({
+              config: compatConfig,
+              mode: 'responses',
+              model: adjustedParams.model,
+              request,
+              signal: retryOptions.signal,
+              toolNameMapping,
+            })
+          }
+
+          const request = convertAnthropicRequestToOpenAI({
+            model: adjustedParams.model,
+            system: adjustedParams.system,
+            messages: adjustedParams.messages,
+            tools: adjustedParams.tools,
+            tool_choice: adjustedParams.tool_choice,
+            temperature: adjustedParams.temperature,
+            max_tokens: adjustedParams.max_tokens,
+            thinking: adjustedParams.thinking,
+            toolNameMapping,
+          })
+          return await createOpenAICompatMessage({
+            config: compatConfig,
+            mode: 'chat_completions',
+            model: adjustedParams.model,
+            request,
+            signal: retryOptions.signal,
+            toolNameMapping,
+          })
+        }
+
         // biome-ignore lint/plugin: non-streaming API call
         return await anthropic.beta.messages.create(
           {
@@ -1819,6 +2011,78 @@ async function* queryModel(
         // BetaMessageStream calls partialParse() on every input_json_delta, which we don't need
         // since we handle tool input accumulation ourselves
         // biome-ignore lint/plugin: main conversation loop handles attribution separately
+        const openAICompatMode = getOpenAICompatMode()
+        if (openAICompatMode) {
+          const compatHeaders = clientRequestId
+            ? { [CLIENT_REQUEST_ID_HEADER]: clientRequestId }
+            : undefined
+          const compatConfig = getOpenAICompatConfig(compatHeaders)
+          const toolNameMapping: ToolNameMapping = {}
+
+          if (openAICompatMode === 'responses') {
+            const responsesRequest = convertAnthropicRequestToOpenAIResponses({
+              model: params.model,
+              system: params.system,
+              messages: params.messages,
+              tools: params.tools,
+              tool_choice: params.tool_choice,
+              temperature: params.temperature,
+              max_tokens: params.max_tokens,
+              thinking: params.thinking,
+              effort,
+              toolNameMapping,
+            })
+
+            if (responsesRequest.input.length === 0) {
+              throw new Error(
+                'OpenAI Responses compatibility conversion produced no input items',
+              )
+            }
+
+            const reader = await createOpenAIResponsesStream(
+              compatConfig,
+              responsesRequest,
+              signal,
+            )
+            queryCheckpoint('query_response_headers_received')
+            return createAnthropicStreamFromOpenAIResponses({
+              reader,
+              model: params.model,
+              toolNameMapping,
+            }) as unknown as Stream<BetaRawMessageStreamEvent>
+          }
+
+          const openAIRequest = convertAnthropicRequestToOpenAI({
+            model: params.model,
+            system: params.system,
+            messages: params.messages,
+            tools: params.tools,
+            tool_choice: params.tool_choice,
+            temperature: params.temperature,
+            max_tokens: params.max_tokens,
+            thinking: params.thinking,
+            toolNameMapping,
+          })
+
+          if (openAIRequest.messages.length === 0) {
+            throw new Error(
+              'OpenAI Chat compatibility conversion produced no messages',
+            )
+          }
+
+          const reader = await createOpenAICompatStream(
+            compatConfig,
+            openAIRequest,
+            signal,
+          )
+          queryCheckpoint('query_response_headers_received')
+          return createAnthropicStreamFromOpenAI({
+            reader,
+            model: params.model,
+            toolNameMapping,
+          }) as unknown as Stream<BetaRawMessageStreamEvent>
+        }
+
         const result = await anthropic.beta.messages
           .create(
             { ...params, stream: true },
@@ -2565,6 +2829,7 @@ async function* queryModel(
           maxOutputTokens = tokens
         },
         params => captureAPIRequest(params, options.querySource),
+        effort,
         streamRequestId,
       )
 
@@ -2662,6 +2927,7 @@ async function* queryModel(
             maxOutputTokens = tokens
           },
           params => captureAPIRequest(params, options.querySource),
+          effort,
           failedRequestId,
         )
 

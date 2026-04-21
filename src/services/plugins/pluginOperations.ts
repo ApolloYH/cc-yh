@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 /**
  * Core plugin operations (install, uninstall, enable, disable, update)
  *
@@ -123,7 +124,7 @@ export function getProjectPathForScope(scope: PluginScope): string | undefined {
  * project scope via settings. The uninstall UI needs to check THIS, because
  * a user-scope install with a project-scope enablement means "uninstall"
  * would succeed at removing the user install while leaving the project
- * enablement active — the plugin keeps running.
+ * enablement active 鈥?the plugin keeps running.
  */
 export function isPluginEnabledAtProjectScope(pluginId: string): boolean {
   return (
@@ -182,7 +183,7 @@ function findPluginInSettings(plugin: string): {
   scope: InstallableScope
 } | null {
   const hasMarketplace = plugin.includes('@')
-  // Most specific first — first match wins
+  // Most specific first 鈥?first match wins
   const searchOrder: InstallableScope[] = ['local', 'project', 'user']
 
   for (const scope of searchOrder) {
@@ -307,10 +308,10 @@ export function getPluginInstallationFromV2(pluginId: string): {
  *
  * Order of operations:
  *   1. Search materialized marketplaces for the plugin
- *   2. Write settings (THE ACTION — declares intent)
+ *   2. Write settings (THE ACTION 鈥?declares intent)
  *   3. Cache plugin + record version hint (materialization)
  *
- * Marketplace reconciliation is NOT this function's responsibility — startup
+ * Marketplace reconciliation is NOT this function's responsibility 鈥?startup
  * reconcile handles declared-but-not-materialized marketplaces. If the
  * marketplace isn't found, "not found" is the correct error.
  *
@@ -327,7 +328,7 @@ export async function installPluginOp(
   const { name: pluginName, marketplace: marketplaceName } =
     parsePluginIdentifier(plugin)
 
-  // ── Search materialized marketplaces for the plugin ──
+  // 鈹€鈹€ Search materialized marketplaces for the plugin 鈹€鈹€
   let foundPlugin: PluginMarketplaceEntry | undefined
   let foundMarketplace: string | undefined
   let marketplaceInstallLocation: string | undefined
@@ -456,7 +457,7 @@ export async function uninstallPluginOp(
       ) ?? (plugin.includes('@') ? plugin : foundPlugin.name)
     pluginName = foundPlugin.name
   } else {
-    // Plugin not found via marketplace lookup — it may have been delisted.
+    // Plugin not found via marketplace lookup 鈥?it may have been delisted.
     // Fall back to installed_plugins.json (V2) which tracks installations
     // independently of marketplace state.
     const resolved = resolveDelistedPluginId(plugin)
@@ -525,8 +526,8 @@ export async function uninstallPluginOp(
   if (isLastScope && installPath) {
     await markPluginVersionOrphaned(installPath)
   }
-  // Separate from the `&& installPath` guard above — deletePluginOptions only
-  // needs pluginId, not installPath. Last scope removed → wipe stored options
+  // Separate from the `&& installPath` guard above 鈥?deletePluginOptions only
+  // needs pluginId, not installPath. Last scope removed 鈫?wipe stored options
   // and secrets. Before this, uninstalling left orphaned entries in
   // settings.pluginConfigs (including the legacy ungated mcpServers sub-key
   // from the MCPB Configure flow) and keychain pluginSecrets forever. No
@@ -541,7 +542,7 @@ export async function uninstallPluginOp(
   }
 
   // Warn (don't block) if other enabled plugins depend on this one.
-  // Blocking creates tombstones — can't tear down a graph with a delisted
+  // Blocking creates tombstones 鈥?can't tear down a graph with a delisted
   // plugin. Load-time verifyAndDemote catches the fallout.
   const reverseDependents = findReverseDependents(pluginId, allPlugins)
   const depWarn = formatReverseDependentsSuffix(reverseDependents)
@@ -560,7 +561,7 @@ export async function uninstallPluginOp(
 /**
  * Set plugin enabled/disabled status (settings-first).
  *
- * Resolves the plugin ID and scope from settings — does NOT pre-gate on
+ * Resolves the plugin ID and scope from settings 鈥?does NOT pre-gate on
  * installed_plugins.json. Settings declares intent; if the plugin isn't
  * cached yet, the next load will cache it.
  *
@@ -607,7 +608,7 @@ export async function setPluginEnabledOp(
     assertInstallableScope(scope)
   }
 
-  // ── Resolve pluginId and scope from settings ──
+  // 鈹€鈹€ Resolve pluginId and scope from settings 鈹€鈹€
   // Search across editable scopes for any mention (enabled or disabled) of
   // this plugin. Does NOT pre-gate on installed_plugins.json.
   let pluginId: string
@@ -635,7 +636,7 @@ export async function setPluginEnabledOp(
     pluginId = found.pluginId
     resolvedScope = found.scope
   } else if (plugin.includes('@')) {
-    // Not in any settings scope, but full pluginId given — default to user
+    // Not in any settings scope, but full pluginId given 鈥?default to user
     // scope (matches install default). This allows enabling a plugin that
     // was cached but never declared.
     pluginId = plugin
@@ -647,7 +648,7 @@ export async function setPluginEnabledOp(
     }
   }
 
-  // ── Policy guard ──
+  // 鈹€鈹€ Policy guard 鈹€鈹€
   // Org-blocked plugins cannot be enabled at any scope. Check after pluginId
   // is resolved so we catch both full identifiers and bare-name lookups.
   if (enabled && isPluginBlockedByPolicy(pluginId)) {
@@ -661,9 +662,9 @@ export async function setPluginEnabledOp(
   const scopeSettingsValue =
     getSettingsForSource(settingSource)?.enabledPlugins?.[pluginId]
 
-  // ── Cross-scope hint: explicit scope given but plugin is elsewhere ──
+  // 鈹€鈹€ Cross-scope hint: explicit scope given but plugin is elsewhere 鈹€鈹€
   // If the plugin is absent from the requested scope but present at a
-  // different scope, guide the user to the right --scope — UNLESS they're
+  // different scope, guide the user to the right --scope 鈥?UNLESS they're
   // writing to a higher-precedence scope to override a lower one
   // (e.g. `disable --scope local` to override a project-enabled plugin
   // without touching the shared .claude/settings.json).
@@ -687,11 +688,11 @@ export async function setPluginEnabledOp(
     }
   }
 
-  // ── Check current state (for idempotency messaging) ──
+  // 鈹€鈹€ Check current state (for idempotency messaging) 鈹€鈹€
   // When explicit scope given: check that scope's settings value directly
   // (merged state can be wrong if plugin is enabled elsewhere but disabled here).
   // When auto-detected: use merged effective state.
-  // When overriding a lower scope: check merged state — scopeSettingsValue is
+  // When overriding a lower scope: check merged state 鈥?scopeSettingsValue is
   // undefined (plugin not in this scope yet), which would read as "already
   // disabled", but the whole point of the override is to write an explicit
   // `false` that masks the lower scope's `true`.
@@ -718,7 +719,7 @@ export async function setPluginEnabledOp(
     if (rdeps.length > 0) reverseDependents = rdeps
   }
 
-  // ── ACTION: write settings ──
+  // 鈹€鈹€ ACTION: write settings 鈹€鈹€
   const { error } = updateSettingsForSource(settingSource, {
     enabledPlugins: {
       ...getSettingsForSource(settingSource)?.enabledPlugins,
@@ -942,7 +943,7 @@ async function performPluginUpdate({
     )
   } else {
     // Local plugin: use path from marketplace
-    // Stat directly — handle ENOENT inline rather than pre-checking existence
+    // Stat directly 鈥?handle ENOENT inline rather than pre-checking existence
     let marketplaceStats
     try {
       marketplaceStats = await fs.stat(marketplaceInstallLocation)
@@ -962,10 +963,10 @@ async function performPluginUpdate({
       : dirname(marketplaceInstallLocation)
     sourcePath = join(marketplaceDir, entry.source)
 
-    // Verify sourcePath exists. This stat is required — neither downstream
+    // Verify sourcePath exists. This stat is required 鈥?neither downstream
     // op reliably surfaces ENOENT:
-    //   1. calculatePluginVersion → findGitRoot walks UP past a missing dir
-    //      to the marketplace .git, returning the same SHA as install-time →
+    //   1. calculatePluginVersion 鈫?findGitRoot walks UP past a missing dir
+    //      to the marketplace .git, returning the same SHA as install-time 鈫?
     //      silent false-positive {success: true, alreadyUpToDate: true}.
     //   2. copyPluginToVersionedCache (when versions differ) throws a raw
     //      ENOENT with no friendly message.
@@ -1086,3 +1087,5 @@ async function performPluginUpdate({
     }
   }
 }
+// @ts-nocheck
+

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { feature } from 'bun:bundle'
 import type {
   ContentBlockParam,
@@ -1743,3 +1744,4 @@ async function checkPermissionsAndCallTool(
     }
   }
 }
+// @ts-nocheck

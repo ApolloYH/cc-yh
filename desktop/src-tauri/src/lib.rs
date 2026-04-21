@@ -311,13 +311,13 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     let builder = builder
         .menu(|app| {
-            let about_item = MenuItemBuilder::with_id("nav_about", "关于 Claude Code Haha")
+            let about_item = MenuItemBuilder::with_id("nav_about", "关于 Claude YH")
                 .build(app)?;
             let settings_item = MenuItemBuilder::with_id("nav_settings", "设置...")
                 .accelerator("CmdOrCtrl+,")
                 .build(app)?;
 
-            let app_submenu = SubmenuBuilder::new(app, "Claude Code Haha")
+            let app_submenu = SubmenuBuilder::new(app, "Claude YH")
                 .item(&about_item)
                 .separator()
                 .item(&settings_item)

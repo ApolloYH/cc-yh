@@ -1,5 +1,6 @@
+import '../../test/setupDom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '../../test/testingLibrary'
 import '@testing-library/jest-dom'
 
 const minimize = vi.fn().mockResolvedValue(undefined)
@@ -36,7 +37,6 @@ describe('WindowControls', () => {
       configurable: true,
       value: 'Win32',
     })
-    vi.resetModules()
   })
 
   afterEach(() => {

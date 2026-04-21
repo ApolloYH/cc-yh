@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import '../test/setupDom'
+import { beforeEach, describe, it, expect } from 'vitest'
+import { fireEvent, render, screen } from '../test/testingLibrary'
 import '@testing-library/jest-dom'
 
 // Import all pages
@@ -14,6 +15,13 @@ import { Sidebar } from '../components/layout/Sidebar'
 import { UserMessage } from '../components/chat/UserMessage'
 import { useChatStore } from '../stores/chatStore'
 import { useTabStore } from '../stores/tabStore'
+import { useTeamStore } from '../stores/teamStore'
+
+beforeEach(() => {
+  useTabStore.setState({ tabs: [], activeTabId: null })
+  useChatStore.setState({ sessions: {} })
+  useTeamStore.setState({ teams: [], activeTeam: null, memberColors: new Map(), error: null })
+})
 
 /**
  * Core rendering tests: content-only pages must render without crashing
