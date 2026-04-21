@@ -2,7 +2,7 @@
 /**
  * 用真实的 Provider 配置测试 ProviderService
  * 验证添加、激活、claude-yh/settings.json 同步是否正确
- * (provider env 写到 ~/.claude/claude-yh/settings.json，不污染原版 settings.json)
+ * (provider env 写到 ~/.claude-yh/settings.json，不污染原版 settings.json)
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'

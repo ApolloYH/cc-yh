@@ -14,9 +14,39 @@ let server: ReturnType<typeof Bun.serve>
 let baseUrl: string
 let wsUrl: string
 let tmpDir: string
+const ISOLATED_ENV_KEYS = [
+  'CLAUDE_CONFIG_DIR',
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'CLAUDE_CODE_COMPAT_PROVIDER',
+  'CLAUDE_CODE_OPENAI_COMPAT_MODE',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_API_KEY',
+] as const
+let originalEnv: Partial<Record<(typeof ISOLATED_ENV_KEYS)[number], string | undefined>> = {}
+
+function applyIsolatedEnv() {
+  originalEnv = {}
+  for (const key of ISOLATED_ENV_KEYS) {
+    originalEnv[key] = process.env[key]
+    delete process.env[key]
+  }
+}
+
+function restoreEnv() {
+  for (const key of ISOLATED_ENV_KEYS) {
+    const value = originalEnv[key]
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+}
 
 async function startTestServer() {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-biz-'))
+  applyIsolatedEnv()
   process.env.CLAUDE_CONFIG_DIR = tmpDir
   await fs.mkdir(path.join(tmpDir, 'projects'), { recursive: true })
   await fs.mkdir(path.join(tmpDir, 'agents'), { recursive: true })
@@ -44,6 +74,7 @@ describe('Business Flow: Scheduled Tasks', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   // ==========================================================================
@@ -164,6 +195,7 @@ describe('Business Flow: Permission Modes', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   const VALID_MODES = ['default', 'acceptEdits', 'plan', 'bypassPermissions', 'dontAsk']
@@ -210,6 +242,7 @@ describe('Business Flow: Agent Management', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   it('should start with shared active/all agent payload', async () => {
@@ -318,6 +351,7 @@ describe('Business Flow: Models & Effort', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   it('should return available models', async () => {
@@ -405,6 +439,7 @@ describe('Business Flow: Sessions & CLI Interop', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   let sessionId: string
@@ -530,6 +565,7 @@ describe('Business Flow: Search', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   it('should find matches in workspace files', async () => {
@@ -573,6 +609,7 @@ describe('Business Flow: WebSocket Chat', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   it('should establish WebSocket connection and receive connected event', async () => {
@@ -706,6 +743,7 @@ describe('Business Flow: Settings Persistence', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   it('should write and read complex settings', async () => {
@@ -742,7 +780,7 @@ describe('Business Flow: Settings Persistence', () => {
 
   it('should support project-level settings', async () => {
     const projectRoot = path.join(tmpDir, 'test-project')
-    await fs.mkdir(path.join(projectRoot, '.claude'), { recursive: true })
+    await fs.mkdir(path.join(projectRoot, '.claude-yh'), { recursive: true })
 
     await api('PUT', `/api/settings/project?projectRoot=${encodeURIComponent(projectRoot)}`, {
       permissions: { allow: ['Bash(make)'] },
@@ -766,6 +804,7 @@ describe('Business Flow: Status & Diagnostics', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   it('should return health with uptime', async () => {

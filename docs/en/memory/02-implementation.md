@@ -75,7 +75,7 @@ export const getAutoMemPath = memoize(
 | `\\server\share` | UNC network path |
 | Contains `\0` | Null byte, can truncate in system calls |
 
-**Security restriction**: Project-level `.claude/settings.json` is **not allowed** to set `autoMemoryDirectory`, preventing malicious repositories from gaining write access to sensitive directories like `~/.ssh`.
+**Security restriction**: Project-level `.claude-yh/settings.json` is **not allowed** to set `autoMemoryDirectory`, preventing malicious repositories from gaining write access to sensitive directories like `~/.ssh`.
 
 ### Enable Conditions
 
@@ -340,9 +340,9 @@ Sub-agents (launched via the Agent tool) have an independent three-level memory 
 
 | Scope | Path | Description |
 |-------|------|-------------|
-| **user** | `~/.claude/agent-memory/{agentType}/` | Global user-level |
-| **project** | `.claude/agent-memory/{agentType}/` | Project-level (committed to VCS) |
-| **local** | `.claude/agent-memory-local/{agentType}/` | Local-level (not committed) |
+| **user** | `~/.claude-yh/agent-memory/{agentType}/` | Global user-level |
+| **project** | `.claude-yh/agent-memory/{agentType}/` | Project-level (committed to VCS) |
+| **local** | `.claude-yh/agent-memory-local/{agentType}/` | Local-level (not committed) |
 
 Differences from main memory:
 - No MEMORY.md index step (`skipIndex = true`)
@@ -358,7 +358,7 @@ When the `TEAMMEM` feature flag is enabled:
 ### Directory Structure
 
 ```
-~/.claude/projects/{hash}/memory/
+~/.claude-yh/projects/{hash}/memory/
 ├── MEMORY.md           <- Personal memory index
 ├── user_*.md           <- Personal memories
 └── team/               <- Team shared directory
@@ -478,3 +478,4 @@ Max 5 relevant memories returned
 │  See 03-autodream.md for details                     │
 └─────────────────────────────────────────────────────┘
 ```
+

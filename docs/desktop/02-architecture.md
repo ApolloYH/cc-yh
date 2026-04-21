@@ -269,9 +269,9 @@ ws://127.0.0.1:{port}/ws/{sessionId}
 |------|------|
 | 标签页状态 | `localStorage` |
 | 语言偏好 | `localStorage` |
-| 会话数据 | Server JSONL (`~/.claude/sessions/`) |
+| 会话数据 | Server JSONL (`~/.claude-yh/sessions/`) |
 | 设置 | Server API |
-| 适配器配置 | `~/.claude/adapters.json` |
+| 适配器配置 | `~/.claude-yh/adapters.json` |
 
 ---
 
@@ -377,3 +377,4 @@ adapters/                             # IM 适配器
 ├── telegram/                        #   Telegram Bot
 └── feishu/                          #   飞书 Bot
 ```
+

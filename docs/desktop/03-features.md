@@ -276,3 +276,4 @@ Key 命名空间：`common.*`、`sidebar.*`、`chat.*`、`settings.*`、`status.
 | `Shift + Enter` | 换行 |
 | `/` | 斜杠命令 |
 | `@` | 文件搜索 |
+

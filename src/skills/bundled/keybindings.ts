@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { DEFAULT_BINDINGS } from '../../keybindings/defaultBindings.js'
 import { isKeybindingCustomizationEnabled } from '../../keybindings/loadUserBindings.js'
 import {
@@ -150,11 +150,11 @@ const CHORD_EXAMPLE: KeybindingsSchemaType['bindings'][number] = {
 const SECTION_INTRO = [
   '# Keybindings Skill',
   '',
-  'Create or modify `~/.claude/keybindings.json` to customize keyboard shortcuts.',
+  'Create or modify `~/.claude-yh/keybindings.json` to customize keyboard shortcuts.',
   '',
   '## CRITICAL: Read Before Write',
   '',
-  '**Always read `~/.claude/keybindings.json` first** (it may not exist yet). Merge changes with existing bindings 鈥?never replace the entire file.',
+  '**Always read `~/.claude-yh/keybindings.json` first** (it may not exist yet). Merge changes with existing bindings 鈥?never replace the entire file.',
   '',
   '- Use **Edit** tool for modifications to existing files',
   '- Use **Write** tool only if the file does not exist yet',
@@ -232,7 +232,7 @@ const SECTION_BEHAVIORAL_RULES = [
 const SECTION_DOCTOR = [
   '## Validation with /doctor',
   '',
-  'The `/doctor` command includes a "Keybinding Configuration Issues" section that validates `~/.claude/keybindings.json`.',
+  'The `/doctor` command includes a "Keybinding Configuration Issues" section that validates `~/.claude-yh/keybindings.json`.',
   '',
   '### Common Issues and Fixes',
   '',
@@ -281,7 +281,7 @@ const SECTION_DOCTOR = [
   '',
   '```',
   'Keybinding Configuration Issues',
-  'Location: ~/.claude/keybindings.json',
+  'Location: ~/.claude-yh/keybindings.json',
   '  鈹?[Error] Unknown context "chat"',
   '    鈫?Valid contexts: Global, Chat, Autocomplete, ...',
   '  鈹?[Warning] "ctrl+c" may not work: Terminal interrupt (SIGINT)',
@@ -294,7 +294,7 @@ export function registerKeybindingsSkill(): void {
   registerBundledSkill({
     name: 'keybindings-help',
     description:
-      'Use when the user wants to customize keyboard shortcuts, rebind keys, add chord bindings, or modify ~/.claude/keybindings.json. Examples: "rebind ctrl+s", "add a chord shortcut", "change the submit key", "customize keybindings".',
+      'Use when the user wants to customize keyboard shortcuts, rebind keys, add chord bindings, or modify ~/.claude-yh/keybindings.json. Examples: "rebind ctrl+s", "add a chord shortcut", "change the submit key", "customize keybindings".',
     allowedTools: ['Read'],
     userInvocable: false,
     isEnabled: isKeybindingCustomizationEnabled,

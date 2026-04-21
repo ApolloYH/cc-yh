@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { useCallback, useRef, useState } from 'react'
 import type { FeedbackSurveyResponse } from '../components/FeedbackSurvey/utils.js'
 import {

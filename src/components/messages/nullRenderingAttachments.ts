@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import type { Attachment } from 'src/utils/attachments.js'
 import type { Message, NormalizedMessage } from '../../types/message.js'
 

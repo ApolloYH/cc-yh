@@ -1,9 +1,9 @@
 /**
  * Provider Service — preset-based provider configuration
  *
- * Storage: ~/.claude/claude-yh/providers.json (lightweight index)
- * Active provider env vars written to ~/.claude/claude-yh/settings.json
- * (isolated from the original Claude Code's ~/.claude/settings.json)
+ * Storage: ~/.claude-yh/providers.json (lightweight index)
+ * Active provider env vars written to ~/.claude-yh/settings.json
+ * (isolated from the original Claude Code's ~/.claude-yh/settings.json)
  */
 
 import * as fs from 'fs/promises'
@@ -50,7 +50,7 @@ export class ProviderService {
     return ProviderService.serverPort
   }
   private getConfigDir(): string {
-    return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+    return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   }
 
   private getClaudeYhDir(): string {
@@ -267,7 +267,7 @@ export class ProviderService {
   /**
    * Check whether any usable auth exists:
    *  1. A claude-yh provider is active → has auth
-   *  2. Original ~/.claude/settings.json has ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY → has auth
+   *  2. Original ~/.claude-yh/settings.json has ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY → has auth
    *  3. process.env already has ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN → has auth
    *  4. None of the above → needs setup
    */
@@ -290,7 +290,7 @@ export class ProviderService {
       return { hasAuth: true, source: 'env' }
     }
 
-    // 3. Check original ~/.claude/settings.json
+    // 3. Check original ~/.claude-yh/settings.json
     try {
       const originalPath = path.join(this.getConfigDir(), 'settings.json')
       const raw = await fs.readFile(originalPath, 'utf-8')

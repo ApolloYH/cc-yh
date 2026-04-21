@@ -79,7 +79,7 @@ export class SearchService {
     }
 
     const configDir =
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
     const projectsDir = path.join(configDir, 'projects')
 
     const results: SessionSearchResult[] = []

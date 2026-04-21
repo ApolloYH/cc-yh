@@ -46,7 +46,7 @@ DISABLE_TELEMETRY=1
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ```
 
-### Option 2: `~/.claude/settings.json`
+### Option 2: `~/.claude-yh/settings.json`
 
 ```json
 {
@@ -58,4 +58,5 @@ CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 }
 ```
 
-> Priority: Environment variables > `.env` file > `~/.claude/settings.json`
+> Priority: Environment variables > `.env` file > `~/.claude-yh/settings.json`
+

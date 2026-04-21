@@ -194,11 +194,11 @@ CLAUDE.md is the custom instruction system, loaded by **priority from low to hig
 ```
 /etc/claude-code/CLAUDE.md          ← Global managed config (lowest priority)
   ↓
-~/.claude/CLAUDE.md                 ← User-level global instructions
+~/.claude-yh/CLAUDE.md                 ← User-level global instructions
   ↓
 project-root/CLAUDE.md              ← Project-level instructions
-project-root/.claude/CLAUDE.md
-project-root/.claude/rules/*.md
+project-root/.claude-yh/CLAUDE.md
+project-root/.claude-yh/rules/*.md
   ↓
 project-root/CLAUDE.local.md        ← Local private instructions (highest priority)
 ```
@@ -404,9 +404,9 @@ Bundled skills (bundled)          ← Compiled into CLI, 15+
   ↓
 Plugin skills (plugin)            ← Plugin-registered
   ↓
-User skills (~/.claude/skills/)   ← User-global
+User skills (~/.claude-yh/skills/)   ← User-global
   ↓
-Project skills (.claude/skills/)  ← Project-level
+Project skills (.claude-yh/skills/)  ← Project-level
   ↓
 Policy skills (policy)            ← Organization-managed
 ```
@@ -788,3 +788,4 @@ query() async generator loop (src/query.ts)
 - [Implementation Details](./02-implementation.md) — Technical deep dive into multi-agent orchestration
 - [Anthropic API Docs](https://docs.anthropic.com/) — Native API capabilities
 - [MCP Protocol Spec](https://modelcontextprotocol.io/) — Model Context Protocol
+

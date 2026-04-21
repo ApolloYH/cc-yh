@@ -12,10 +12,40 @@ import * as os from 'os'
 let server: ReturnType<typeof Bun.serve>
 let baseUrl: string
 let tmpDir: string
+const ISOLATED_ENV_KEYS = [
+  'CLAUDE_CONFIG_DIR',
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'CLAUDE_CODE_COMPAT_PROVIDER',
+  'CLAUDE_CODE_OPENAI_COMPAT_MODE',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_API_KEY',
+] as const
+let originalEnv: Partial<Record<(typeof ISOLATED_ENV_KEYS)[number], string | undefined>> = {}
+
+function applyIsolatedEnv() {
+  originalEnv = {}
+  for (const key of ISOLATED_ENV_KEYS) {
+    originalEnv[key] = process.env[key]
+    delete process.env[key]
+  }
+}
+
+function restoreEnv() {
+  for (const key of ISOLATED_ENV_KEYS) {
+    const value = originalEnv[key]
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+}
 
 // Use dynamic import to avoid bundling issues
 async function startTestServer() {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-e2e-'))
+  applyIsolatedEnv()
   process.env.CLAUDE_CONFIG_DIR = tmpDir
 
   // Create required directories
@@ -45,6 +75,7 @@ describe('E2E: Full Flow', () => {
   afterAll(async () => {
     server?.stop()
     await fs.rm(tmpDir, { recursive: true, force: true })
+    restoreEnv()
   })
 
   // =============================================

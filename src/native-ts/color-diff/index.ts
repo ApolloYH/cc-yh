@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 /**
  * Pure TypeScript port of vendor/color-diff-src.
  *

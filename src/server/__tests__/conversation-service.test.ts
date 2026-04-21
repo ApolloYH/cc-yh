@@ -61,14 +61,22 @@ describe('ConversationService', () => {
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('test-token')
     expect(env.ANTHROPIC_BASE_URL).toBe('https://example.invalid/anthropic')
     expect(env.ANTHROPIC_MODEL).toBe('test-model')
+    expect(env.CLAUDE_CODE_ENTRYPOINT).toBeUndefined()
+    expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined()
   })
 
-  test('strips inherited provider env when desktop provider config exists', async () => {
+  test('strips inherited provider env when desktop provider settings contain provider env', async () => {
     const ccHahaDir = path.join(tmpDir, 'claude-yh')
     await fs.mkdir(ccHahaDir, { recursive: true })
     await fs.writeFile(
-      path.join(ccHahaDir, 'providers.json'),
-      JSON.stringify({ activeId: null, providers: [] }),
+      path.join(ccHahaDir, 'settings.json'),
+      JSON.stringify({
+        env: {
+          ANTHROPIC_AUTH_TOKEN: 'desktop-provider-token',
+          ANTHROPIC_BASE_URL: 'https://desktop-provider.invalid',
+          ANTHROPIC_MODEL: 'desktop-provider-model',
+        },
+      }),
       'utf-8',
     )
 
@@ -99,6 +107,9 @@ describe('ConversationService', () => {
     })
 
     const service = new ConversationService() as any
+    delete process.env.ANTHROPIC_AUTH_TOKEN
+    delete process.env.ANTHROPIC_BASE_URL
+    delete process.env.ANTHROPIC_MODEL
     const env = (await service.buildChildEnv('/tmp')) as Record<string, string>
 
     expect(env.CLAUDE_CODE_ENTRYPOINT).toBe('claude-desktop')
@@ -140,9 +151,30 @@ describe('ConversationService', () => {
     )
 
     const service = new ConversationService() as any
+    delete process.env.ANTHROPIC_AUTH_TOKEN
+    delete process.env.ANTHROPIC_BASE_URL
+    delete process.env.ANTHROPIC_MODEL
     const env = (await service.buildChildEnv('/tmp')) as Record<string, string>
 
     expect(env.CLAUDE_CODE_ENTRYPOINT).toBe('claude-desktop')
+    expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined()
+  })
+
+  test('does not mark managed OAuth when desktop settings are empty but inherited env auth exists', async () => {
+    const ccHahaDir = path.join(tmpDir, 'claude-yh')
+    await fs.mkdir(ccHahaDir, { recursive: true })
+    await fs.writeFile(
+      path.join(ccHahaDir, 'settings.json'),
+      JSON.stringify({ env: {} }),
+      'utf-8',
+    )
+
+    const service = new ConversationService() as any
+    const env = (await service.buildChildEnv('/tmp')) as Record<string, string>
+
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBe('test-token')
+    expect(env.ANTHROPIC_BASE_URL).toBe('https://example.invalid/anthropic')
+    expect(env.CLAUDE_CODE_ENTRYPOINT).toBeUndefined()
     expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined()
   })
 

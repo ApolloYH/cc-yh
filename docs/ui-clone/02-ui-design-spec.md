@@ -963,3 +963,4 @@
 | Agent Completed | ● | 6px 实心绿点 |
 | Agent Failed | ● | 6px 实心红点 |
 | Back to Leader | ← | 左箭头 + 文本 |
+

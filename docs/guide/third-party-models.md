@@ -160,3 +160,4 @@ ANTHROPIC_DEFAULT_OPUS_MODEL=gpt-4o
 - 工具调用已经尽量补齐，但不同提供商在边角行为上仍可能不一致
 - reasoning / thinking 字段会做归一化处理，不保证各家完全同义
 - 如果某家“OpenAI 兼容”只是部分兼容，最容易出错的通常还是流式、工具调用和 schema 细节
+

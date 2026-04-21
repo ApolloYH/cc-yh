@@ -11,3 +11,4 @@
 | `--print` 卡死 | `ultraplan/prompt.txt` 缺失 | 创建资源桩文件 |
 | **Enter 键无响应** | `modifiers-napi` native 包缺失，`isModifierPressed()` 抛异常导致 `handleEnter` 中断，`onSubmit` 永远不执行 | 加 try-catch 容错 |
 | setup 被跳过 | `preload.ts` 自动设置 `LOCAL_RECOVERY=1` 跳过全部初始化 | 移除默认设置 |
+

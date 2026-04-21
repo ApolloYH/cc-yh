@@ -4,7 +4,7 @@
  * Periodically checks all scheduled tasks and executes those whose cron
  * expression matches the current time. Tasks are run by spawning a CLI
  * subprocess with the task's prompt. Execution history is persisted to
- * ~/.claude/scheduled_tasks_log.json.
+ * ~/.claude-yh/scheduled_tasks_log.json.
  */
 
 import * as fs from 'fs/promises'
@@ -45,7 +45,7 @@ export type TaskRun = {
  * By extracting server-side we avoid the 10K naive truncation problem where
  * the useful content sits well past the first 10K characters.
  */
-function extractAssistantText(raw: string): string {
+export function extractAssistantText(raw: string): string {
   if (!raw) return ''
   const lines = raw.split('\n')
   const parts: string[] = []
@@ -82,7 +82,14 @@ function extractAssistantText(raw: string): string {
     }
   }
 
-  return parts.join('\n\n')
+  const deduped: string[] = []
+  for (const part of parts) {
+    if (deduped[deduped.length - 1] !== part) {
+      deduped.push(part)
+    }
+  }
+
+  return deduped.join('\n\n')
 }
 
 // ─── Cron expression matching ──────────────────────────────────────────────────
@@ -166,7 +173,7 @@ type RunsFile = { runs: TaskRun[] }
 
 function getLogFilePath(): string {
   const configDir =
-    process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+    process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   return path.join(configDir, 'scheduled_tasks_log.json')
 }
 

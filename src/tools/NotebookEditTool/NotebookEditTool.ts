@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { feature } from 'bun:bundle'
 import { extname, isAbsolute, resolve } from 'path'
 import {

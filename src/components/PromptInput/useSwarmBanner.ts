@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import * as React from 'react'
 import { useAppState, useAppStateStore } from '../../state/AppState.js'
 import {

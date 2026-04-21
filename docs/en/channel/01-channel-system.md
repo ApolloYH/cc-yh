@@ -232,7 +232,7 @@ if (!isChannelsEnabled()) {
 ```typescript
 if (!getClaudeAIOAuthTokens()?.accessToken) {
   return { action: 'skip', kind: 'auth',
-    reason: 'channels requires claude.ai authentication (run /login)' }
+    reason: 'channels requires claude-yh.ai authentication (run /login)' }
 }
 ```
 
@@ -546,7 +546,7 @@ After enabling a plugin, if a Channel has unconfigured `userConfig` fields:
 1. `getUnconfiguredChannels()` detects fields that haven't passed validation
 2. `PluginOptionsFlow` component prompts the user for each field
 3. Sensitive values (like bot_token) stored in Keychain
-4. Regular values stored in `~/.claude/plugins/options/{pluginId}.json`
+4. Regular values stored in `~/.claude-yh/plugins/options/{pluginId}.json`
 
 ```typescript
 // mcpPluginIntegration.ts:290-318
@@ -663,13 +663,13 @@ The `dev` flag from `--dangerously-load-development-channels` is **per-entry**, 
 
 ```bash
 # Use approved Channel plugins
-claude --channels plugin:telegram@anthropic plugin:feishu@anthropic
+claude-yh --channels plugin:telegram@anthropic plugin:feishu@anthropic
 
 # Local development mode (bypass allowlist)
-claude --dangerously-load-development-channels plugin:my-channel@local
+claude-yh --dangerously-load-development-channels plugin:my-channel@local
 
 # Both can be used simultaneously
-claude --channels plugin:telegram@anthropic \
+claude-yh --channels plugin:telegram@anthropic \
        --dangerously-load-development-channels plugin:dev-channel@local
 ```
 
@@ -783,3 +783,6 @@ Through declarative Channel configuration in `plugin.json`, automatic user confi
 | `src/utils/plugins/schemas.ts` | ~700 | Plugin manifest schema (incl. Channel declarations) |
 | `src/bootstrap/state.ts` | — | Global Channel allowlist state |
 | `src/main.tsx` | ~3850 | CLI argument registration and parsing |
+
+
+

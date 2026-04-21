@@ -1,5 +1,5 @@
 /**
- * TeamWatcher -- monitors ~/.claude/teams/ for changes and pushes
+ * TeamWatcher -- monitors ~/.claude-yh/teams/ for changes and pushes
  * real-time updates to all connected WebSocket clients.
  *
  * Uses polling (setInterval) rather than fs.watch for cross-platform reliability.
@@ -18,7 +18,7 @@ import type { ServerMessage, TeamMemberStatus } from '../ws/events.js'
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 function getTeamsDir(): string {
-  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   return path.join(configDir, 'teams')
 }
 

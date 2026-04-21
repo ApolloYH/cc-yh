@@ -1,21 +1,31 @@
 # Progress
 
-## 2026-04-20
-- Resumed from prior work on direct OpenAI compat port.
-- Created lightweight planning files to track remaining phases and verification.
-- Patched `src/services/api/claude.ts` so OpenAI providers can stream and non-stream directly to `/chat/completions` or `/responses` without the local proxy.
-- Patched provider env sync and desktop preview to write upstream `ANTHROPIC_BASE_URL` and real `ANTHROPIC_AUTH_TOKEN`, plus compat mode env vars for OpenAI formats.
-- Added `src/server/__tests__/provider-openai-direct.test.ts` and passed 3 targeted tests.
-- Verified Bun can import `src/services/api/claude.ts`; full `tsc --noEmit` is blocked by missing `bun-types`.
-- Hardened the direct compat transforms for:
-  - interleaved `tool_result` ordering
-  - long tool name truncation + reverse restoration
-  - document/text fallback handling
-  - delayed streamed tool-call start until function names are available
-  - Responses API `system -> instructions`
-- Added `src/services/api/__tests__/openai-compat.test.ts` and passed 3 targeted transform tests.
-- Re-ran `src/server/__tests__/proxy-transform.test.ts` to confirm the broader transform layer still passes.
-- Installed `bun-types` with `bun add -d bun-types`.
-- Reworked `src/server/proxy/transform/anthropicToOpenaiChat.ts` and `anthropicToOpenaiResponses.ts` to match the hardened direct compat behavior.
-- Added proxy transform tests for ordering preservation and long tool-name normalization.
-- Verified targeted type-check for the modified proxy transform files and handler passes.
+## 2026-04-21
+- Switched task tracking from the previous OpenAI transport work to the new QA/remediation request.
+- Confirmed the active repo is `C:\Users\y1513\Desktop\cc\cc-yh`; the path `C:\Users\y1513\Desktop\cc-haha` from the session context does not exist.
+- Reviewed `docs/handoff-2026-04-21-ai-transfer.md` and confirmed it only covers `src/utils/messages.ts` / `src/utils/__tests__/messages.test.ts`.
+- Expanded `messages` regression coverage to malformed nested content and malformed nested `agent_progress` payloads.
+- Hardened `src/utils/messages.ts` so malformed known message shapes no longer throw during normalization.
+- Replaced the default local config directory naming from `.claude` / `~/.claude` to `.claude-yh` / `~/.claude-yh` across the tested paths, and renamed the repo-local `.claude` directory to `.claude-yh`.
+- Fixed the `claude --resume` output path so resume hints now emit `claude-yh --resume`.
+- Updated high-signal CLI/help/Remote Control copy to `claude-yh` / `claude-yh.ai`.
+- Fixed Bun desktop test compatibility centrally in `desktop/src/test/setupDom.ts` by shimming `vi.hoisted` and `vi.advanceTimersByTimeAsync`.
+- Fixed the remaining desktop React namespace type mismatches in:
+  - `desktop/src/components/layout/Sidebar.tsx`
+  - `desktop/src/components/layout/TitleBar.tsx`
+- Verified targeted regressions:
+  - `bun test src/utils/__tests__/messages.test.ts`
+  - `bun test src/utils/__tests__/cronTasks.test.ts`
+  - `bun test desktop\\src\\stores\\chatStore.test.ts desktop\\src\\stores\\hahaOAuthStore.test.ts desktop\\src\\stores\\sessionStore.test.ts desktop\\src\\components\\chat\\MermaidRenderer.test.tsx`
+  - `bun --env-file=.env .\\src\\entrypoints\\cli.tsx --help`
+- Verified full project health:
+  - `bun x tsc --noEmit -p desktop\\tsconfig.json`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `bun test`
+- Final result:
+  - `bun test`: `820 pass / 0 fail`
+  - both TypeScript checks pass
+
+## 2026-04-21 Manual QA Follow-up
+- Switched from code-level verification to manual functional validation at the user's request.
+- Added a new plan focused on isolated runtime testing of CLI, config storage, API/server flows, WebSocket chat, and real model-path validation where possible.

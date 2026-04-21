@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { useCallback, useRef } from 'react'
 import { useTerminalFocus } from '../ink/hooks/use-terminal-focus.js'
 import {

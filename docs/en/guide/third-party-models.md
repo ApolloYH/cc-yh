@@ -160,3 +160,4 @@ Only when the upstream is not compatible enough by itself, or when you want prox
 - Tool calling is much better than before, but some providers still diverge on edge cases
 - Reasoning/thinking fields are normalized, not guaranteed to be identical across vendors
 - If a provider's "OpenAI-compatible" API is only partial, failures usually happen around streaming, tools, or schema details
+

@@ -1,10 +1,10 @@
 /**
- * TaskService - read CLI task files from ~/.claude/tasks.
+ * TaskService - read CLI task files from ~/.claude-yh/tasks.
  *
  * Supports both the current task-list layout:
- *   ~/.claude/tasks/<task_list_id>/*.json
+ *   ~/.claude-yh/tasks/<task_list_id>/*.json
  * and older flat layouts that stored JSON files directly under:
- *   ~/.claude/tasks/*.json
+ *   ~/.claude-yh/tasks/*.json
  */
 
 import * as fs from 'fs/promises'
@@ -48,7 +48,7 @@ const ROOT_TASK_LIST_ID = 'default'
 
 export class TaskService {
   private getConfigDir(): string {
-    return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+    return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   }
 
   private getTasksDir(): string {

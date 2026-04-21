@@ -238,3 +238,4 @@ Replaced all native module calls with Python subprocess calls via `callPythonHel
 | [mss](https://github.com/BoboTiG/python-mss) | Screenshot capture |
 | [Pillow](https://github.com/python-pillow/Pillow) | Image processing and compression |
 | [pyobjc](https://github.com/ronaldoussoren/pyobjc) | macOS Cocoa/Quartz framework bindings |
+

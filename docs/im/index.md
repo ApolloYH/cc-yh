@@ -14,13 +14,13 @@ flowchart TD
     A["Desktop Webapp<br/>Settings -> IM 接入"] --> B["GET / PUT /api/adapters"]
     B --> C["Desktop Server<br/>配置接口"]
     C --> D["本地配置持久化"]
-    D --> E["~/.claude/adapters.json"]
+    D --> E["~/.claude-yh/adapters.json"]
 
     E --> F["Telegram / 飞书 Adapter 进程"]
     F --> G["加载平台配置"]
     F --> H["校验配对与授权"]
     F --> I["读取 / 写入会话映射"]
-    I --> J["~/.claude/adapter-sessions.json"]
+    I --> J["~/.claude-yh/adapter-sessions.json"]
 
     F --> K{"当前 chatId<br/>是否已有 session?"}
     K -->|有历史映射| L["复用已有 sessionId"]
@@ -47,7 +47,7 @@ flowchart TD
 可以把这条链路理解成四层：
 
 - 配置层：桌面端 webapp 负责填写平台凭据、默认项目和配对码管理
-- 存储层：本地服务端把配置写入 `~/.claude/adapters.json`
+- 存储层：本地服务端把配置写入 `~/.claude-yh/adapters.json`
 - 适配层：Telegram / 飞书 adapter 进程负责接 IM 平台、做授权检查、恢复或创建会话
 - 会话层：adapter 通过 HTTP 创建 session，再通过 WebSocket 把 IM 消息桥接到 Claude Code 会话
 
@@ -62,7 +62,7 @@ flowchart TD
 - Telegram 或飞书各自的凭据
 - 可选 `allowedUsers`
 
-这里的配置会通过 `GET /api/adapters` 和 `PUT /api/adapters` 读写到 `~/.claude/adapters.json`。
+这里的配置会通过 `GET /api/adapters` 和 `PUT /api/adapters` 读写到 `~/.claude-yh/adapters.json`。
 
 ### 2. 生成配对码
 
@@ -96,7 +96,7 @@ bun run feishu
 
 ## 配置和状态分别存哪
 
-### `~/.claude/adapters.json`
+### `~/.claude-yh/adapters.json`
 
 保存平台配置和授权状态，包括：
 
@@ -111,7 +111,7 @@ bun run feishu
 - 敏感字段会在 API 返回时被脱敏
 - 配对码也会被 `/api/adapters` 返回值掩码为 `******`
 
-### `~/.claude/adapter-sessions.json`
+### `~/.claude-yh/adapter-sessions.json`
 
 保存 IM chat 到 Claude session 的映射：
 
@@ -164,3 +164,4 @@ Adapter 不是直接把消息丢给一个全局 Claude 进程，而是：
 
 如果你是要“把 bot 真跑起来”，看本目录。  
 如果你是要研究 Claude Code 原始 Channel 设计，再去看 `docs/channel/`。
+

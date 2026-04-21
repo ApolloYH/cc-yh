@@ -314,3 +314,4 @@ AutoDream records its operational state through the following events:
 | `tengu_auto_dream_fired` | Dream started | `hours_since`, `sessions_since` |
 | `tengu_auto_dream_completed` | Dream completed | `cache_read`, `cache_created`, `output`, `sessions_reviewed` |
 | `tengu_auto_dream_failed` | Dream failed | -- |
+

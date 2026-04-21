@@ -1,7 +1,7 @@
 /**
  * Adapter Service — 读写 IM Adapter 配置文件
  *
- * 配置文件：~/.claude/adapters.json
+ * 配置文件：~/.claude-yh/adapters.json
  * 原子写入：先写临时文件，再 rename
  */
 
@@ -45,7 +45,7 @@ export type AdapterFileConfig = {
 }
 
 function getConfigPath(): string {
-  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   return path.join(configDir, 'adapters.json')
 }
 

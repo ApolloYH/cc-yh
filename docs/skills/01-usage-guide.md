@@ -56,14 +56,14 @@ Claude Code 从 6 个不同来源加载 Skills，按优先级从高到低：
 
 ### 2. Managed（策略管理 Skills）
 
-由组织策略控制，存放在 `<managed-path>/.claude/skills/`，适用于企业部署。
+由组织策略控制，存放在 `<managed-path>/.claude-yh/skills/`，适用于企业部署。
 
 ### 3. User（用户 Skills）
 
-用户个人定义，存放在 `~/.claude/skills/`。
+用户个人定义，存放在 `~/.claude-yh/skills/`。
 
 ```
-~/.claude/skills/
+~/.claude-yh/skills/
 ├── my-review/
 │   └── SKILL.md          ← 主 Skill 文件
 ├── deploy-check/
@@ -73,11 +73,11 @@ Claude Code 从 6 个不同来源加载 Skills，按优先级从高到低：
 
 ### 4. Project（项目 Skills）
 
-项目级别定义，存放在 `.claude/skills/`，可提交到版本控制。
+项目级别定义，存放在 `.claude-yh/skills/`，可提交到版本控制。
 
 ```
 your-project/
-└── .claude/
+└── .claude-yh/
     └── skills/
         ├── lint-fix/
         │   └── SKILL.md
@@ -311,7 +311,7 @@ paths: "src/**/*.ts, test/**/*.ts"
 ```
 1. 用户操作某个深层目录中的文件
 2. discoverSkillDirsForPaths() 从文件路径向上遍历
-3. 寻找 .claude/skills/ 目录（不超过 cwd）
+3. 寻找 .claude-yh/skills/ 目录（不超过 cwd）
 4. 跳过 .gitignore 忽略的目录
 5. 发现新目录 → addSkillDirectories() → 加载并注册
 ```
@@ -352,10 +352,10 @@ Allow? (y)es / (n)o / (a)lways allow / (d)eny
 
 ```bash
 # 1. 创建目录
-mkdir -p ~/.claude/skills/my-skill
+mkdir -p ~/.claude-yh/skills/my-skill
 
 # 2. 创建 SKILL.md
-cat > ~/.claude/skills/my-skill/SKILL.md << 'EOF'
+cat > ~/.claude-yh/skills/my-skill/SKILL.md << 'EOF'
 ---
 name: 我的技能
 description: 一个示例 Skill
@@ -372,8 +372,8 @@ EOF
 
 | 操作 | 方法 |
 |------|------|
-| 创建 Skill | `~/.claude/skills/<name>/SKILL.md` |
-| 项目级 Skill | `.claude/skills/<name>/SKILL.md` |
+| 创建 Skill | `~/.claude-yh/skills/<name>/SKILL.md` |
+| 项目级 Skill | `.claude-yh/skills/<name>/SKILL.md` |
 | 调用 Skill | 终端输入 `/skill-name` |
 | 查看可用 Skills | 终端输入 `/skills` |
 | 用 AI 创建 Skill | `/skillify` |
@@ -391,3 +391,4 @@ EOF
 | Project | 是（默认） | 是 | 是 | 是 |
 | Plugin | 依配置 | 依配置 | 是 | 是 |
 | MCP | 依配置 | 依配置 | 是 | 否（安全限制） |
+

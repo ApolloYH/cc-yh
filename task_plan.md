@@ -1,22 +1,26 @@
 # Task Plan
 
 ## Goal
-Port `doge-code`'s direct OpenAI-compatible transport into `claude-yh` so OpenAI providers work without LiteLLM or the local proxy bridge.
+Act as a manual QA engineer for `claude-yh` by validating the current branch through real user-facing functional testing, not only unit tests and type checks.
 
 ## Phases
-- [completed] Wire direct OpenAI compat into `src/services/api/claude.ts`
-- [completed] Switch provider env sync away from local proxy
-- [completed] Update desktop preview/config display
-- [completed] Add focused regression tests
-- [completed] Run targeted verification
+- [in_progress] Define the manual test matrix and isolate runtime state from the user's real config
+- [pending] Execute CLI and local-config functional tests
+- [pending] Execute server/API/WebSocket functional tests
+- [pending] Execute one real model-path end-to-end validation if credentials/environment allow
+- [pending] Summarize validated flows, failures, and residual risk
 
-## Notes
-- Keep Anthropic path unchanged.
-- OpenAI providers should use upstream `baseUrl` and real `apiKey`.
+## Constraints
+- Do not touch the user's separate original Claude config unless explicitly asked.
+- Keep protocol names, model IDs, and external auth endpoints stable when renaming would break functionality.
+- Focus renames on user-visible commands, comments, docs, local config directory names, and safe branding text.
+- Prefer temporary `HOME` / `USERPROFILE` sandboxes for any runtime verification that writes settings or session data.
 
-## Verification
-- `bun test src/server/__tests__/provider-openai-direct.test.ts`
-- `bun -e "await import('./src/services/api/claude.ts'); console.log('claude-import-ok')"`
-- Installed `bun-types` and confirmed `bun x tsc --noEmit -p tsconfig.json` now starts.
-- Targeted type-check for the changed proxy transform files passes.
-- Full repo type-check still reports many unrelated historical errors and missing optional dependencies outside this change set.
+## Verification Targets
+- `bun --env-file=.env .\\src\\entrypoints\\cli.tsx --help`
+- `bun --env-file=.env .\\src\\entrypoints\\cli.tsx -p "..."` in an isolated temp home
+- `src/server/index.ts` boot in an isolated temp home
+- `/health`, `/api/status`, `/api/settings`, `/api/sessions`, `/api/scheduled-tasks`, `/api/providers` manual API checks
+- WebSocket chat handshake and at least one message flow
+- `bun test`
+- `bun x tsc --noEmit -p tsconfig.json`

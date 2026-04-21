@@ -91,7 +91,7 @@ Claude 保存：grafana.internal/d/api-latency 是 oncall 延迟仪表板 — �
 
 终端会显示通知：
 ```
-Memory updated in ~/.claude/projects/.../memory/feedback_testing.md · /memory to edit
+Memory updated in ~/.claude-yh/projects/.../memory/feedback_testing.md · /memory to edit
 ```
 
 ### 方式二：显式要求
@@ -128,7 +128,7 @@ Claude：[立即保存为 feedback 类型记忆]
 ### 目录结构
 
 ```
-~/.claude/
+~/.claude-yh/
 └── projects/
     └── {项目路径哈希}/
         └── memory/                    ← 自动记忆目录
@@ -193,7 +193,7 @@ Claude：[本次对话中不使用任何记忆内容]
 
 ### 手动编辑
 
-直接编辑 `~/.claude/projects/{hash}/memory/` 下的文件，或使用 `/memory` 命令。
+直接编辑 `~/.claude-yh/projects/{hash}/memory/` 下的文件，或使用 `/memory` 命令。
 
 ### 禁用自动记忆
 
@@ -205,7 +205,7 @@ Claude：[本次对话中不使用任何记忆内容]
 
 ### 自定义记忆目录
 
-在 `~/.claude/settings.json` 中设置：
+在 `~/.claude-yh/settings.json` 中设置：
 
 ```json
 {
@@ -213,7 +213,7 @@ Claude：[本次对话中不使用任何记忆内容]
 }
 ```
 
-支持 `~/` 展开。出于安全考虑，项目级 `.claude/settings.json` **不允许**设置此项。
+支持 `~/` 展开。出于安全考虑，项目级 `.claude-yh/settings.json` **不允许**设置此项。
 
 ---
 
@@ -274,4 +274,5 @@ Claude Code 有一个隐藏的 **AutoDream** 功能，类比人类睡眠时大�
 | 禁用自动记忆 | `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` |
 | 禁用 AutoDream | `settings.json` 中 `"autoDreamEnabled": false` |
 | 手动整合记忆 | `/dream` 命令 |
-| 查看记忆目录 | `~/.claude/projects/{hash}/memory/` |
+| 查看记忆目录 | `~/.claude-yh/projects/{hash}/memory/` |
+

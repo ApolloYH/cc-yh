@@ -57,3 +57,4 @@
 | **Provider** | AI 模型提供商，支持 Anthropic/OpenAI 兼容接口 |
 | **Adapter** | IM 适配器，Telegram/飞书接入 Claude Code |
 | **Store** | Zustand 状态容器，按领域拆分管理 |
+

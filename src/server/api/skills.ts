@@ -74,7 +74,7 @@ function normalizeFrontmatter(content: string, sourcePath?: string): {
 }
 
 function getUserSkillsDir(): string {
-  return path.join(os.homedir(), '.claude', 'skills')
+  return path.join(os.homedir(), '.claude-yh', 'skills')
 }
 
 async function loadSkillMeta(

@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 /**
  * Thin launchers for one-off dialog JSX sites in main.tsx.
  * Each launcher dynamically imports its component and wires the `done` callback

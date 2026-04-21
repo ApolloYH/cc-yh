@@ -11,7 +11,7 @@ export type SessionEntry = {
 type StoreData = Record<string, SessionEntry>
 
 function getDefaultPath(): string {
-  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   return path.join(configDir, 'adapter-sessions.json')
 }
 

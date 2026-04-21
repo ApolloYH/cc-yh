@@ -72,7 +72,7 @@ src/server/
 | PATCH | `/api/sessions/:id` | 更新会话（重命名） |
 | GET | `/api/sessions/:id/messages` | 获取会话消息历史 |
 
-**数据来源**: `~/.claude/projects/{proj}/{sid}.jsonl` (JSONL 格式)
+**数据来源**: `~/.claude-yh/projects/{proj}/{sid}.jsonl` (JSONL 格式)
 
 **实现要点**:
 - 调用 `loadMessageLogs()` 获取会话列表
@@ -125,7 +125,7 @@ type ServerMessage =
 | GET | `/api/permissions/mode` | 获取当前权限模式 |
 | PUT | `/api/permissions/mode` | 切换权限模式 |
 
-**数据来源**: `~/.claude/settings.json` + `.claude/settings.json`
+**数据来源**: `~/.claude-yh/settings.json` + `.claude-yh/settings.json`
 
 ### 4.4 模型 (Models)
 
@@ -146,7 +146,7 @@ type ServerMessage =
 | PUT | `/api/scheduled-tasks/:id` | 更新定时任务 |
 | DELETE | `/api/scheduled-tasks/:id` | 删除定时任务 |
 
-**数据来源**: `.claude/scheduled_tasks.json`
+**数据来源**: `.claude-yh/scheduled_tasks.json`
 
 ### 4.6 搜索 (Search)
 
@@ -270,3 +270,4 @@ class SessionService {
 - 定时任务 CRUD
 - 设置读写
 - 搜索功能
+

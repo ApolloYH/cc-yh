@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { feature } from 'bun:bundle'
 import { relative } from 'path'
 import {

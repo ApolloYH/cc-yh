@@ -1,10 +1,18 @@
 import { JSDOM } from 'jsdom'
-import { afterEach, beforeEach } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 
 type DomTestLockState = {
   tail: Promise<void>
   release: (() => void) | null
+}
+
+// Bun's Vitest compatibility layer does not currently expose every helper
+// used by the desktop tests. Provide the minimal shims centrally.
+;(vi as any).hoisted ??= <T>(factory: () => T) => factory()
+;(vi as any).advanceTimersByTimeAsync ??= async (ms: number) => {
+  vi.advanceTimersByTime(ms)
+  await Promise.resolve()
 }
 
 const DOM_TEST_LOCK_KEY = '__cc_haha_dom_test_lock__'

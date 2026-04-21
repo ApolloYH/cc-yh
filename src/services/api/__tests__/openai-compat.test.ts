@@ -5,6 +5,12 @@ import {
 } from '../openaiCompat.js'
 import { convertAnthropicRequestToOpenAIResponses } from '../openaiResponsesCompat.js'
 import { openaiChatToAnthropic } from '../../../server/proxy/transform/openaiChatToAnthropic.js'
+import { openaiResponsesToAnthropic } from '../../../server/proxy/transform/openaiResponsesToAnthropic.js'
+import {
+  consumeTaggedThinkingChunk,
+  createTaggedThinkingStreamState,
+  splitTaggedThinkingText,
+} from '../../../utils/taggedThinking.js'
 
 describe('OpenAI compatibility transforms', () => {
   test('preserves user/tool_result ordering for chat conversions', () => {
@@ -149,5 +155,84 @@ describe('OpenAI compatibility transforms', () => {
     )
 
     expect((anthropicResponse.content[0] as any).name).toBe(longToolName)
+  })
+
+  test('converts tagged <think> text into Anthropic thinking + text blocks', () => {
+    const anthropicResponse = openaiChatToAnthropic(
+      {
+        id: 'chatcmpl_2',
+        object: 'chat.completion',
+        created: 0,
+        model: 'gpt-4o',
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: '<think>internal reasoning</think>VISIBLE',
+            },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 5,
+          total_tokens: 15,
+        },
+      },
+      'gpt-4o',
+    )
+
+    expect(anthropicResponse.content).toEqual([
+      { type: 'thinking', thinking: 'internal reasoning' },
+      { type: 'text', text: 'VISIBLE' },
+    ])
+  })
+
+  test('converts tagged <think> text in Responses output into Anthropic blocks', () => {
+    const anthropicResponse = openaiResponsesToAnthropic(
+      {
+        id: 'resp_1',
+        model: 'gpt-4o',
+        status: 'completed',
+        output: [
+          {
+            type: 'message',
+            id: 'msg_1',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: '<think>reasoning</think>FINAL' }],
+          } as any,
+        ],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 5,
+        },
+      } as any,
+      'gpt-4o',
+    )
+
+    expect(anthropicResponse.content).toEqual([
+      { type: 'thinking', thinking: 'reasoning' },
+      { type: 'text', text: 'FINAL' },
+    ])
+  })
+
+  test('parses tagged thinking across streaming chunk boundaries', () => {
+    const state = createTaggedThinkingStreamState()
+
+    const first = consumeTaggedThinkingChunk('<thi', state)
+    const second = consumeTaggedThinkingChunk('nk>step 1</think>OK', state)
+
+    expect(first).toEqual([])
+    expect(second).toEqual([
+      { type: 'thinking', text: 'step 1' },
+      { type: 'text', text: 'OK' },
+    ])
+  })
+
+  test('splitTaggedThinkingText leaves plain text untouched', () => {
+    expect(splitTaggedThinkingText('plain text')).toEqual([
+      { type: 'text', text: 'plain text' },
+    ])
   })
 })

@@ -10,6 +10,7 @@
 import * as os from 'os'
 import * as path from 'path'
 import * as fs from 'fs/promises'
+import { PRODUCT_DISPLAY_VERSION } from '../../utils/branding.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 
 // 服务器启动时间（用于计算 uptime）
@@ -117,12 +118,12 @@ async function handleUser(): Promise<Response> {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getConfigDir(): string {
-  return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+  return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
 }
 
 function getVersion(): string {
   // 从 package.json 的 version 字段读取；回退到环境变量或 unknown
-  return process.env.APP_VERSION || '999.0.0-local'
+  return process.env.APP_VERSION || PRODUCT_DISPLAY_VERSION
 }
 
 /**

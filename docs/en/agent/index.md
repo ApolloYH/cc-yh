@@ -127,3 +127,4 @@ All diagrams use a dark background (#1a1a2e) with Anthropic brand copper-orange 
 - [Swarm Infrastructure](https://github.com/NanmiCoder/claude-yh/tree/main/src/utils/swarm/)
 - [Task Management System](https://github.com/NanmiCoder/claude-yh/tree/main/src/tasks/)
 - [GitHub Issues](https://github.com/NanmiCoder/claude-yh/issues)
+

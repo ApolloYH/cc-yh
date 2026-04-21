@@ -99,7 +99,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.providers.sameAsMain': '与主模型相同',
   'settings.providers.testConnection': '测试连接',
   'settings.providers.settingsJson': '设置 JSON',
-  'settings.providers.settingsJsonDesc': '~/.claude/settings.json — 直接编辑，保存时写入。',
+  'settings.providers.settingsJsonDesc': '~/.claude-yh/settings.json — 直接编辑，保存时写入。',
   'settings.providers.jsonError': 'JSON 语法错误: {error}',
   'settings.providers.apiFormat': 'API 格式',
   'settings.providers.apiFormatAnthropic': 'Anthropic Messages (原生)',
@@ -204,7 +204,7 @@ export const zh: Record<TranslationKey, string> = {
 
   // Settings > Skills
   'settings.skills.title': '已安装技能',
-  'settings.skills.description': '技能扩展 Claude 的能力。在 ~/.claude/skills/ 中管理技能。',
+  'settings.skills.description': '技能扩展 Claude 的能力。在 ~/.claude-yh/skills/ 中管理技能。',
   'settings.skills.browserTitle': '浏览已安装技能',
   'settings.skills.browserEyebrow': '技能浏览器',
   'settings.skills.browserDescription': '查看内置、项目和用户技能，比较它们的来源与规模，并打开技能目录阅读文档和源码文件。',
@@ -222,7 +222,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.skills.ready': '可查看',
   'settings.skills.unavailable': '不可用',
   'settings.skills.empty': '暂无已安装技能',
-  'settings.skills.emptyHint': '在 ~/.claude/skills/ 中添加技能即可开始',
+  'settings.skills.emptyHint': '在 ~/.claude-yh/skills/ 中添加技能即可开始',
   'settings.skills.back': '返回列表',
   'settings.skills.files': '个文件',
   'settings.skills.entryFile': '入口文件',

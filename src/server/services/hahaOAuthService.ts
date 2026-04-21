@@ -71,7 +71,7 @@ export class HahaOAuthService {
 
   private getOAuthFilePath(): string {
     const configDir =
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
     return path.join(configDir, 'claude-yh', 'oauth.json')
   }
 

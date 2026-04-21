@@ -38,3 +38,4 @@ cd ~/your-other-project
 claude-yh
 # Ask "What is the current directory?" — it should show ~/your-other-project
 ```
+

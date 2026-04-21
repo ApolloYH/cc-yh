@@ -288,7 +288,7 @@ export async function authStatus(opts: {
     }
     if (!loggedIn) {
       process.stdout.write(
-        'Not logged in. Run claude auth login to authenticate.\n',
+        'Not logged in. Run claude-yh auth login to authenticate.\n',
       )
     }
   } else {
@@ -329,3 +329,4 @@ export async function authLogout(): Promise<void> {
   process.stdout.write('Successfully logged out from your Anthropic account.\n')
   process.exit(0)
 }
+

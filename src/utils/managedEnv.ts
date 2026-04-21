@@ -17,9 +17,9 @@ import {
 } from './settings/settings.js'
 
 /**
- * `claude ssh` remote: ANTHROPIC_UNIX_SOCKET routes auth through a -R forwarded
+ * `claude-yh ssh` remote: ANTHROPIC_UNIX_SOCKET routes auth through a -R forwarded
  * socket to a local proxy, and the launcher sets a handful of placeholder auth
- * env vars that the remote's ~/.claude settings.env MUST NOT clobber (see
+ * env vars that the remote's ~/.claude-yh settings.env MUST NOT clobber (see
  * isAnthropicAuthEnabled). Strip them from any settings-sourced env object.
  */
 function withoutSSHTunnelVars(
@@ -41,7 +41,7 @@ function withoutSSHTunnelVars(
  * When the host owns inference routing (sets
  * CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST in spawn env), strip
  * provider-selection / model-default vars from settings-sourced env so a
- * user's ~/.claude/settings.json can't redirect requests away from the
+ * user's ~/.claude-yh/settings.json can't redirect requests away from the
  * host-configured provider.
  */
 function withoutHostManagedProviderVars(
@@ -93,7 +93,7 @@ function filterSettingsEnv(
 }
 
 /**
- * Read env vars from ~/.claude/claude-yh/settings.json (Haha-specific provider
+ * Read env vars from ~/.claude-yh/settings.json (Haha-specific provider
  * config). This file is written by ProviderService.syncToSettings() and
  * contains ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, model defaults, etc.
  * Returns an empty object if the file doesn't exist or is invalid.
@@ -112,7 +112,7 @@ function getCcHahaSettingsEnv(): Record<string, string> {
 /**
  * Trusted setting sources whose env vars can be applied before the trust dialog.
  *
- * - userSettings (~/.claude/settings.json): controlled by the user, not project-specific
+ * - userSettings (~/.claude-yh/settings.json): controlled by the user, not project-specific
  * - flagSettings (--settings CLI flag or SDK inline settings): explicitly passed by the user
  * - policySettings (managed settings from enterprise API or local managed-settings.json):
  *   controlled by IT/admin (highest priority, cannot be overridden)
@@ -156,7 +156,7 @@ export function applySafeConfigEnvironmentVariables(): void {
 
   // Apply ALL env vars from trusted setting sources, policySettings last.
   // Gate on isSettingSourceEnabled so SDK settingSources: [] (isolation mode)
-  // doesn't get clobbered by ~/.claude/settings.json env (gh#217). policy/flag
+  // doesn't get clobbered by ~/.claude-yh/settings.json env (gh#217). policy/flag
   // sources are always enabled, so this only ever filters userSettings.
   for (const source of TRUSTED_SETTING_SOURCES) {
     if (source === 'policySettings') continue
@@ -167,10 +167,10 @@ export function applySafeConfigEnvironmentVariables(): void {
     )
   }
 
-  // claude-yh provider isolation: apply env from ~/.claude/claude-yh/settings.json
+  // claude-yh provider isolation: apply env from ~/.claude-yh/settings.json
   // AFTER userSettings so Haha-specific provider config takes priority over
   // the original Claude Code's settings. This prevents Haha from polluting
-  // ~/.claude/settings.json while still allowing it to override provider vars.
+  // ~/.claude-yh/settings.json while still allowing it to override provider vars.
   Object.assign(process.env, filterSettingsEnv(getCcHahaSettingsEnv()))
 
   // Compute remote-managed-settings eligibility now, with userSettings and

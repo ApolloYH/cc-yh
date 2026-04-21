@@ -63,3 +63,4 @@ In practice, it usually works when the upstream really implements:
 - Usable streaming and tool-calling behavior
 
 Website login cookies, browser session tokens, and ChatGPT web auth do not count as supported API credentials here.
+

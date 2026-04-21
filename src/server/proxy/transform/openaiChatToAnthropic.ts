@@ -13,6 +13,7 @@ import {
   restoreToolNameFromOpenAI,
   type ToolNameMapping,
 } from './compatHelpers.js'
+import { splitTaggedThinkingText } from '../../../utils/taggedThinking.js'
 
 /**
  * Convert OpenAI Chat Completions response to Anthropic Messages response.
@@ -52,11 +53,23 @@ export function openaiChatToAnthropic(
   // Convert text content
   const messageContent = (choice.message as Record<string, unknown>).content
   if (typeof messageContent === 'string' && messageContent.length > 0) {
-    content.push({ type: 'text', text: messageContent })
+    for (const segment of splitTaggedThinkingText(messageContent)) {
+      if (segment.type === 'thinking') {
+        content.push({ type: 'thinking', thinking: segment.text })
+      } else {
+        content.push({ type: 'text', text: segment.text })
+      }
+    }
   } else if (Array.isArray(messageContent)) {
     for (const part of messageContent as Array<Record<string, unknown>>) {
       if (typeof part?.text === 'string' && part.text.length > 0) {
-        content.push({ type: 'text', text: part.text })
+        for (const segment of splitTaggedThinkingText(part.text)) {
+          if (segment.type === 'thinking') {
+            content.push({ type: 'thinking', thinking: segment.text })
+          } else {
+            content.push({ type: 'text', text: segment.text })
+          }
+        }
       } else if (typeof part?.refusal === 'string' && part.refusal.length > 0) {
         content.push({ type: 'text', text: part.refusal })
       }

@@ -52,7 +52,7 @@ const MOCK_AGENTS = [
     systemPrompt: '# Code Reviewer\n\nYou are an expert code reviewer.',
     color: 'blue',
     source: 'userSettings' as const,
-    baseDir: '~/.claude/agents',
+    baseDir: '~/.claude-yh/agents',
     isActive: true,
   },
   {
@@ -76,7 +76,7 @@ const MOCK_AGENTS = [
     systemPrompt: undefined,
     color: undefined,
     source: 'projectSettings' as const,
-    baseDir: '/workspace/project/.claude/agents',
+    baseDir: '/workspace/project/.claude-yh/agents',
     isActive: false,
     overriddenBy: 'userSettings' as const,
   },

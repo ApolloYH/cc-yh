@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 /**
  * Session file access analytics hooks.
  * Tracks access to session memory and transcript files via Read, Grep, Glob tools.

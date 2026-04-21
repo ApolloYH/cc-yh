@@ -155,7 +155,7 @@ OpenClaw 官方模板已预配 `im:message`、`im:message:send_as_bot`、`im:res
 
 ### 会话没恢复
 
-检查 `~/.claude/adapter-sessions.json` 是否能正常写入，以及 Desktop server 里的 session 是否仍存在。
+检查 `~/.claude-yh/adapter-sessions.json` 是否能正常写入，以及 Desktop server 里的 session 是否仍存在。
 
 ## 源码入口
 
@@ -164,3 +164,4 @@ OpenClaw 官方模板已预配 `im:message`、`im:message:send_as_bot`、`im:res
 - `adapters/common/session-store.ts`
 - `adapters/common/ws-bridge.ts`
 - `adapters/common/http-client.ts`
+

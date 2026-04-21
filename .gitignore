@@ -35,6 +35,7 @@ desktop/brand-assets/
 
 # Claude local config & auto-generated
 .claude/
+.claude-yh/
 
 # Superpowers plans & specs (local only)
 docs/superpowers/

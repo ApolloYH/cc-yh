@@ -38,3 +38,4 @@ cd ~/your-other-project
 claude-yh
 # 启动后询问「当前目录是什么？」，应显示 ~/your-other-project
 ```
+

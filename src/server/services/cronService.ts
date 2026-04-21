@@ -1,7 +1,7 @@
 /**
  * CronService — 管理定时任务的增删改查
  *
- * 任务持久化到 ~/.claude/scheduled_tasks.json（JSON 文件）。
+ * 任务持久化到 ~/.claude-yh/scheduled_tasks.json（JSON 文件）。
  * 文件格式: { "tasks": [ CronTask, ... ] }
  */
 
@@ -44,7 +44,7 @@ export class CronService {
   /** 任务文件路径 */
   private getTasksFilePath(): string {
     const configDir =
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
     return path.join(configDir, 'scheduled_tasks.json')
   }
 

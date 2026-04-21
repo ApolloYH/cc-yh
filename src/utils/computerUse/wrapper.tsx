@@ -231,7 +231,7 @@ export function buildSessionContext(): ComputerUseSessionContext {
   };
 }
 /**
- * Load pre-authorized apps from ~/.claude/claude-yh/computer-use-config.json.
+ * Load pre-authorized apps from ~/.claude-yh/computer-use-config.json.
  * Called once when the binding is first created. Pre-authorized apps
  * are injected into appState so `getAllowedApps()` returns them
  * immediately — no runtime permission dialog needed.
@@ -239,7 +239,7 @@ export function buildSessionContext(): ComputerUseSessionContext {
 async function loadPreAuthorizedApps(): Promise<void> {
   try {
     const configPath = join(
-      process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
+      process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude-yh'),
       'claude-yh',
       'computer-use-config.json',
     )

@@ -119,3 +119,4 @@ Claude 的"做梦"机制——后台静默整合记忆的深度解析，涵盖�
 - [AutoDream 服务](https://github.com/NanmiCoder/claude-yh/tree/main/src/services/autoDream/)
 - [DreamTask 任务](https://github.com/NanmiCoder/claude-yh/tree/main/src/tasks/DreamTask/)
 - [GitHub Issues](https://github.com/NanmiCoder/claude-yh/issues)
+

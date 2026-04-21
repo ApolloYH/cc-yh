@@ -62,3 +62,4 @@ export PATH="$HOME/path/to/claude-yh/bin:$PATH"
 ```bash
 CLAUDE_CODE_FORCE_RECOVERY_CLI=1 ./bin/claude-yh
 ```
+

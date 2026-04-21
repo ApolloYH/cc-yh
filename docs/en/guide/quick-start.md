@@ -62,3 +62,4 @@ If the Ink TUI has issues, use the fallback Recovery CLI mode:
 ```bash
 CLAUDE_CODE_FORCE_RECOVERY_CLI=1 ./bin/claude-yh
 ```
+

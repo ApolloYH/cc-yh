@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * REPL integration hook for `claude ssh` sessions.
+ * REPL integration hook for `claude-yh ssh` sessions.
  *
  * Sibling to useDirectConnect — same shape (isRemoteMode/sendMessage/
  * cancelRequest/disconnect), same REPL wiring, but drives an SSH child

@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import {
   OUTPUT_FILE_TAG,
   STATUS_TAG,

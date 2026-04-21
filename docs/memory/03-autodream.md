@@ -314,3 +314,4 @@ AutoDream 通过以下事件记录运行状态：
 | `tengu_auto_dream_fired` | 梦境启动 | `hours_since`, `sessions_since` |
 | `tengu_auto_dream_completed` | 梦境完成 | `cache_read`, `cache_created`, `output`, `sessions_reviewed` |
 | `tengu_auto_dream_failed` | 梦境失败 | — |
+

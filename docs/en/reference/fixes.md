@@ -11,3 +11,4 @@ The leaked source could not run directly. This repository mainly fixes the follo
 | `--print` hangs | `ultraplan/prompt.txt` was missing | Added resource stub files |
 | **Enter key does nothing** | The `modifiers-napi` native package was missing, `isModifierPressed()` threw, `handleEnter` was interrupted, and `onSubmit` never ran | Added try/catch fault tolerance |
 | Setup was skipped | `preload.ts` automatically set `LOCAL_RECOVERY=1`, skipping all initialization | Removed the default setting |
+

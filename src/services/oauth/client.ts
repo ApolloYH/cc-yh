@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 // OAuth client for handling authentication flows with Claude services
 import axios from 'axios'
 import {

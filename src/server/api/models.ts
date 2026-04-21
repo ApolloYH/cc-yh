@@ -43,6 +43,47 @@ const DEFAULT_EFFORT = 'max'
 const settingsService = new SettingsService()
 const providerService = new ProviderService()
 
+function getEnvBackedModels() {
+  const main = process.env.ANTHROPIC_MODEL?.trim()
+  if (!main) return null
+
+  const candidates = [
+    { id: main, description: 'Main model' },
+    {
+      id: process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL?.trim(),
+      description: 'Haiku model',
+    },
+    {
+      id: process.env.ANTHROPIC_DEFAULT_SONNET_MODEL?.trim(),
+      description: 'Sonnet model',
+    },
+    {
+      id: process.env.ANTHROPIC_DEFAULT_OPUS_MODEL?.trim(),
+      description: 'Opus model',
+    },
+  ]
+
+  const seen = new Set<string>()
+  const models = candidates
+    .filter(
+      (candidate): candidate is { id: string; description: string } =>
+        typeof candidate.id === 'string' && candidate.id.length > 0,
+    )
+    .filter((candidate) => {
+      if (seen.has(candidate.id)) return false
+      seen.add(candidate.id)
+      return true
+    })
+    .map((candidate) => ({
+      id: candidate.id,
+      name: candidate.id,
+      description: candidate.description,
+      context: '',
+    }))
+
+  return models.length > 0 ? models : null
+}
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export async function handleModelsApi(
@@ -95,6 +136,10 @@ async function handleModelsList(): Promise<Response> {
       provider: { id: activeProvider.id, name: activeProvider.name },
     })
   }
+  const envModels = getEnvBackedModels()
+  if (envModels) {
+    return Response.json({ models: envModels, provider: null })
+  }
   return Response.json({ models: DEFAULT_MODELS, provider: null })
 }
 
@@ -127,7 +172,7 @@ async function handleCurrentModel(req: Request): Promise<Response> {
       }
     } else {
       // No provider — use settings model with context tier
-      currentModelId = explicitModel || DEFAULT_MODEL
+      currentModelId = explicitModel || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL
       currentModelName = currentModelId
     }
 
@@ -141,7 +186,7 @@ async function handleCurrentModel(req: Request): Promise<Response> {
           ...(activeProvider.models.sonnet && activeProvider.models.sonnet !== activeProvider.models.main ? [{ id: activeProvider.models.sonnet, name: activeProvider.models.sonnet, description: 'Sonnet model', context: '' }] : []),
           ...(activeProvider.models.opus && activeProvider.models.opus !== activeProvider.models.main ? [{ id: activeProvider.models.opus, name: activeProvider.models.opus, description: 'Opus model', context: '' }] : []),
         ]
-      : DEFAULT_MODELS
+      : (getEnvBackedModels() ?? DEFAULT_MODELS)
 
     const modelEntry = availableModels.find((m) => m.id === lookupId)
       || availableModels.find((m) => m.id === currentModelId)

@@ -15,11 +15,23 @@ import { handleStatusApi, resetUsage, addUsage } from '../api/status.js'
 
 let tmpDir: string
 let originalConfigDir: string | undefined
+let originalAnthropicModel: string | undefined
+let originalAnthropicHaiku: string | undefined
+let originalAnthropicSonnet: string | undefined
+let originalAnthropicOpus: string | undefined
 
 async function setup() {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-test-'))
   originalConfigDir = process.env.CLAUDE_CONFIG_DIR
+  originalAnthropicModel = process.env.ANTHROPIC_MODEL
+  originalAnthropicHaiku = process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+  originalAnthropicSonnet = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
+  originalAnthropicOpus = process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
   process.env.CLAUDE_CONFIG_DIR = tmpDir
+  delete process.env.ANTHROPIC_MODEL
+  delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+  delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
+  delete process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
 }
 
 async function teardown() {
@@ -27,6 +39,26 @@ async function teardown() {
     process.env.CLAUDE_CONFIG_DIR = originalConfigDir
   } else {
     delete process.env.CLAUDE_CONFIG_DIR
+  }
+  if (originalAnthropicModel !== undefined) {
+    process.env.ANTHROPIC_MODEL = originalAnthropicModel
+  } else {
+    delete process.env.ANTHROPIC_MODEL
+  }
+  if (originalAnthropicHaiku !== undefined) {
+    process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = originalAnthropicHaiku
+  } else {
+    delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+  }
+  if (originalAnthropicSonnet !== undefined) {
+    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = originalAnthropicSonnet
+  } else {
+    delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
+  }
+  if (originalAnthropicOpus !== undefined) {
+    process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = originalAnthropicOpus
+  } else {
+    delete process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
   }
   await fs.rm(tmpDir, { recursive: true, force: true })
 }
@@ -83,7 +115,7 @@ describe('SettingsService', () => {
 
   it('should read and write project settings', async () => {
     const projectRoot = path.join(tmpDir, 'myproject')
-    await fs.mkdir(path.join(projectRoot, '.claude'), { recursive: true })
+    await fs.mkdir(path.join(projectRoot, '.claude-yh'), { recursive: true })
 
     const svc = new SettingsService(projectRoot)
     await svc.updateProjectSettings({ outputStyle: 'verbose' })
@@ -94,7 +126,7 @@ describe('SettingsService', () => {
 
   it('should merge user and project settings', async () => {
     const projectRoot = path.join(tmpDir, 'myproject')
-    await fs.mkdir(path.join(projectRoot, '.claude'), { recursive: true })
+    await fs.mkdir(path.join(projectRoot, '.claude-yh'), { recursive: true })
 
     const svc = new SettingsService(projectRoot)
     await svc.updateUserSettings({ theme: 'dark', model: 'claude-opus-4-7' })
@@ -246,6 +278,55 @@ describe('Models API', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.model.id).toBe('claude-opus-4-7')
+  })
+
+  it('GET /api/models should reflect env-backed model mappings when no provider is configured', async () => {
+    const originalModel = process.env.ANTHROPIC_MODEL
+    const originalHaiku = process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+    const originalSonnet = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
+    const originalOpus = process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
+    process.env.ANTHROPIC_MODEL = 'MiniMax-M2.7'
+    process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = 'MiniMax-M2.7-highspeed'
+    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'MiniMax-M2.7'
+    process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = 'MiniMax-M2.7'
+
+    try {
+      const { req, url, segments } = makeRequest('GET', '/api/models')
+      const res = await handleModelsApi(req, url, segments)
+
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.models.map((m: any) => m.id)).toEqual([
+        'MiniMax-M2.7',
+        'MiniMax-M2.7-highspeed',
+      ])
+    } finally {
+      if (originalModel === undefined) delete process.env.ANTHROPIC_MODEL
+      else process.env.ANTHROPIC_MODEL = originalModel
+      if (originalHaiku === undefined) delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+      else process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = originalHaiku
+      if (originalSonnet === undefined) delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
+      else process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = originalSonnet
+      if (originalOpus === undefined) delete process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
+      else process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = originalOpus
+    }
+  })
+
+  it('GET /api/models/current should prefer env-backed model when settings are empty', async () => {
+    const originalModel = process.env.ANTHROPIC_MODEL
+    process.env.ANTHROPIC_MODEL = 'MiniMax-M2.7'
+
+    try {
+      const { req, url, segments } = makeRequest('GET', '/api/models/current')
+      const res = await handleModelsApi(req, url, segments)
+
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.model.id).toBe('MiniMax-M2.7')
+    } finally {
+      if (originalModel === undefined) delete process.env.ANTHROPIC_MODEL
+      else process.env.ANTHROPIC_MODEL = originalModel
+    }
   })
 
   it('PUT /api/models/current should switch model', async () => {

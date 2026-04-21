@@ -9,6 +9,11 @@ import type {
   BetaUsage,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import { createHash } from 'node:crypto'
+import {
+  consumeTaggedThinkingChunk,
+  createTaggedThinkingStreamState,
+  flushTaggedThinkingState,
+} from '../../utils/taggedThinking.js'
 
 type AnyBlock = Record<string, unknown>
 export type ToolNameMapping = Record<string, string>
@@ -422,15 +427,14 @@ export async function* createAnthropicStreamFromOpenAI(input: {
   const decoder = new TextDecoder()
   let buffer = ''
   let started = false
-  let textStarted = false
-  let textContentIndex: number | null = null
-  let thinkingStarted = false
-  let thinkingContentIndex: number | null = null
+  let activeNarrativeType: 'text' | 'thinking' | null = null
+  let activeNarrativeIndex: number | null = null
   const toolIndexByOpenAIIndex = new Map<number, number>()
   let nextContentIndex = 0
   let promptTokens = 0
   let completionTokens = 0
   let emittedAnyContent = false
+  const taggedThinkingState = createTaggedThinkingStreamState()
   const toolCallState = new Map<number, {
     id: string
     name: string
@@ -439,6 +443,60 @@ export async function* createAnthropicStreamFromOpenAI(input: {
     pendingArgumentDeltas: string[]
     started: boolean
   }>()
+
+  const closeActiveNarrative = function* (): Generator<BetaRawMessageStreamEvent> {
+    if (activeNarrativeType === null || activeNarrativeIndex === null) return
+    yield {
+      type: 'content_block_stop',
+      index: activeNarrativeIndex,
+    } as BetaRawMessageStreamEvent
+    activeNarrativeType = null
+    activeNarrativeIndex = null
+  }
+
+  const emitNarrative = function* (
+    type: 'text' | 'thinking',
+    text: string,
+  ): Generator<BetaRawMessageStreamEvent> {
+    if (!text) return
+    if (activeNarrativeType !== type) {
+      yield* closeActiveNarrative()
+      activeNarrativeType = type
+      activeNarrativeIndex = nextContentIndex
+      nextContentIndex += 1
+      yield {
+        type: 'content_block_start',
+        index: activeNarrativeIndex,
+        content_block:
+          type === 'thinking'
+            ? {
+                type: 'thinking',
+                thinking: '',
+                signature: '',
+              }
+            : {
+                type: 'text',
+                text: '',
+              },
+      } as BetaRawMessageStreamEvent
+    }
+
+    yield {
+      type: 'content_block_delta',
+      index: activeNarrativeIndex ?? 0,
+      delta:
+        type === 'thinking'
+          ? {
+              type: 'thinking_delta',
+              thinking: text,
+            }
+          : {
+              type: 'text_delta',
+              text,
+            },
+    } as BetaRawMessageStreamEvent
+    emittedAnyContent = true
+  }
 
   while (true) {
     const { done, value } = await input.reader.read()
@@ -492,29 +550,17 @@ export async function* createAnthropicStreamFromOpenAI(input: {
         }
 
         if (delta?.content) {
-          if (!textStarted) {
-            textStarted = true
-            textContentIndex = nextContentIndex
-            nextContentIndex += 1
-            yield {
-              type: 'content_block_start',
-              index: textContentIndex,
-              content_block: {
-                type: 'text',
-                text: '',
-              },
-            } as BetaRawMessageStreamEvent
+          const segments = consumeTaggedThinkingChunk(delta.content, taggedThinkingState)
+          if (segments.length === 0) {
+            yield* emitNarrative('text', delta.content)
+          } else {
+            for (const segment of segments) {
+              yield* emitNarrative(
+                segment.type === 'thinking' ? 'thinking' : 'text',
+                segment.text,
+              )
+            }
           }
-
-          yield {
-            type: 'content_block_delta',
-            index: textContentIndex ?? 0,
-            delta: {
-              type: 'text_delta',
-              text: delta.content,
-            },
-          } as BetaRawMessageStreamEvent
-          emittedAnyContent = true
         }
 
         const thinkingDelta =
@@ -527,30 +573,17 @@ export async function* createAnthropicStreamFromOpenAI(input: {
             : '')
 
         if (thinkingDelta) {
-          if (!thinkingStarted) {
-            thinkingStarted = true
-            thinkingContentIndex = nextContentIndex
-            nextContentIndex += 1
-            yield {
-              type: 'content_block_start',
-              index: thinkingContentIndex,
-              content_block: {
-                type: 'thinking',
-                thinking: '',
-                signature: '',
-              },
-            } as BetaRawMessageStreamEvent
-          }
+          yield* emitNarrative('thinking', thinkingDelta)
+        }
 
-          yield {
-              type: 'content_block_delta',
-              index: thinkingContentIndex ?? 0,
-              delta: {
-                type: 'thinking_delta',
-                thinking: thinkingDelta,
-              },
-            } as BetaRawMessageStreamEvent
-          emittedAnyContent = true
+        if ((delta?.tool_calls?.length ?? 0) > 0) {
+          for (const segment of flushTaggedThinkingState(taggedThinkingState)) {
+            yield* emitNarrative(
+              segment.type === 'thinking' ? 'thinking' : 'text',
+              segment.text,
+            )
+          }
+          yield* closeActiveNarrative()
         }
 
         for (const toolCall of delta?.tool_calls ?? []) {
@@ -625,6 +658,12 @@ export async function* createAnthropicStreamFromOpenAI(input: {
         }
 
         if (choice?.finish_reason) {
+          for (const segment of flushTaggedThinkingState(taggedThinkingState)) {
+            yield* emitNarrative(
+              segment.type === 'thinking' ? 'thinking' : 'text',
+              segment.text,
+            )
+          }
           if (!emittedAnyContent) {
             yield {
               type: 'content_block_start',
@@ -640,19 +679,7 @@ export async function* createAnthropicStreamFromOpenAI(input: {
             } as BetaRawMessageStreamEvent
           }
           completionTokens = chunk.usage?.completion_tokens ?? completionTokens
-          if (textStarted && textContentIndex !== null) {
-            yield {
-              type: 'content_block_stop',
-              index: textContentIndex,
-            } as BetaRawMessageStreamEvent
-          }
-
-          if (thinkingStarted && thinkingContentIndex !== null) {
-            yield {
-              type: 'content_block_stop',
-              index: thinkingContentIndex,
-            } as BetaRawMessageStreamEvent
-          }
+          yield* closeActiveNarrative()
 
           for (const [openAIIndex, state] of toolCallState.entries()) {
             if (!state.started) {
@@ -724,6 +751,13 @@ export async function* createAnthropicStreamFromOpenAI(input: {
         }
       }
     }
+  }
+
+  for (const segment of flushTaggedThinkingState(taggedThinkingState)) {
+    yield* emitNarrative(
+      segment.type === 'thinking' ? 'thinking' : 'text',
+      segment.text,
+    )
   }
 
   throw new Error(

@@ -1,7 +1,7 @@
 /**
  * Adapter 配置加载
  *
- * 优先级：环境变量 > ~/.claude/adapters.json > 默认值
+ * 优先级：环境变量 > ~/.claude-yh/adapters.json > 默认值
  */
 
 import * as fs from 'node:fs'
@@ -47,7 +47,7 @@ export type AdapterConfig = {
 }
 
 function getConfigPath(): string {
-  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   return path.join(configDir, 'adapters.json')
 }
 

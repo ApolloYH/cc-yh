@@ -1,17 +1,25 @@
 # Findings
 
-- `claude-yh` already has Anthropic<->OpenAI transform code and provider UI/server fields for `openai_chat` and `openai_responses`.
-- The remaining blocker after prior work is the main streaming branch in `src/services/api/claude.ts`, which still calls `anthropic.beta.messages.create(...).withResponse()`.
-- Direct OpenAI compat can reuse the existing Anthropic<->OpenAI transform layer; the essential changes are transport selection and provider env sync.
-- `desktop/src/pages/Settings.tsx` needed explicit cleanup of compat env keys when switching back to Anthropic, otherwise preview JSON could show stale compat flags.
-- `bun-types` was genuinely missing; installing it unblocked `tsc` startup.
-- After that, full-repo `tsc` surfaced a large pre-existing backlog of unrelated type errors and missing optional packages (`vitest`, `grammy`, `@larksuiteoapi/node-sdk`, several OpenTelemetry exporters, etc.).
-- The direct compat layer had two concrete protocol gaps that are easy to trigger in real workloads:
-  - interleaved `user` text and `tool_result` blocks were reordered during conversion
-  - long tool names could exceed provider limits and were not restored on the way back
-- Streaming tool-call handling also needed delayed `tool_use` block starts so providers that send tool arguments before the final function name do not produce malformed Anthropic blocks.
-- The old proxy request transforms had the same quality gap as the direct compat path. They now share the same practical safeguards:
-  - order-preserving `tool_result` emission
-  - tool-name normalization mapping
-  - document block text fallback
-  - serialized nested tool-result content
+- `docs/handoff-2026-04-21-ai-transfer.md` is about a defensive `normalizeMessages` fix for malformed / tombstone / unknown messages; it does not cover the broader `claude-yh` branding/path cleanup.
+- `src/utils/messages.ts` currently guards `isNotEmptyMessage` against nullish/non-object input and drops invalid message shapes plus `tombstone` entries inside `normalizeMessages`.
+- `src/components/Messages.tsx` and `src/utils/queryHelpers.ts` are real consumers of `normalizeMessages(...).filter(isNotEmptyMessage)` / `normalizeMessage(...)`, so those paths need broader regression coverage than the existing three tests provide.
+- The repo already exposes itself as `claude-yh` in `package.json` and `bin/claude-yh`, so remaining `claude ...` command strings are stale user-facing copy, not a deliberate binary name.
+- The branding/path problem was broader than commands alone:
+  - default config home still resolved to `~/.claude`
+  - project settings and scheduled tasks still pointed at `.claude/...`
+  - repo-local config directory was still named `.claude`
+  - high-signal user-facing text still mentioned `Claude Code`, `claude.ai`, and old `claude ...` command forms
+- After the current pass:
+  - the tested paths use `.claude-yh` / `~/.claude-yh`
+  - resume/help output is aligned to `claude-yh`
+  - the remaining desktop test runner incompatibility was centralized in `desktop/src/test/setupDom.ts`
+  - the desktop React type incompatibilities in `Sidebar.tsx` and `TitleBar.tsx` are fixed
+- Verified project state:
+  - full `bun test` passes
+  - root and desktop `tsc --noEmit` pass
+- Intentionally left unchanged because they would break runtime behavior:
+  - external real URLs / OAuth / download endpoints
+  - protocol names like `claude/channel`
+  - internal constants and historical identifiers with compatibility impact
+- The current user request raises a valid QA gap: automated tests prove regression coverage, but they do not by themselves prove that the packaged `claude-yh` flows behave correctly for a human operator.
+- For trustworthy manual verification, runtime checks need to be isolated from the user's real `~/.claude-yh` and legacy `~/.claude` data.

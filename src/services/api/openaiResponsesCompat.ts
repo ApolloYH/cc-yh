@@ -19,6 +19,11 @@ import {
   type OpenAICompatConfig,
   type ToolNameMapping,
 } from './openaiCompat.js'
+import {
+  consumeTaggedThinkingChunk,
+  createTaggedThinkingStreamState,
+  flushTaggedThinkingState,
+} from '../../utils/taggedThinking.js'
 
 type OpenAIResponsesInputPart =
   | { type: 'input_text'; text: string }
@@ -379,18 +384,71 @@ export async function* createAnthropicStreamFromOpenAIResponses(input: {
   const decoder = new TextDecoder()
   let buffer = ''
   let started = false
-  let textStarted = false
-  let textContentIndex: number | null = null
-  let thinkingStarted = false
-  let thinkingContentIndex: number | null = null
+  let activeNarrativeType: 'text' | 'thinking' | null = null
+  let activeNarrativeIndex: number | null = null
   let nextContentIndex = 0
   let emittedAnyContent = false
   let promptTokens = 0
   let completionTokens = 0
   let responseId = 'openai-responses-compat'
   let stopReason: BetaMessage['stop_reason'] = 'end_turn'
+  const taggedThinkingState = createTaggedThinkingStreamState()
   const toolStateById = new Map<string, ToolState>()
   const toolIdsInOrder: string[] = []
+
+  const closeActiveNarrative = function* (): Generator<BetaRawMessageStreamEvent> {
+    if (activeNarrativeType === null || activeNarrativeIndex === null) return
+    yield {
+      type: 'content_block_stop',
+      index: activeNarrativeIndex,
+    } as BetaRawMessageStreamEvent
+    activeNarrativeType = null
+    activeNarrativeIndex = null
+  }
+
+  const emitNarrative = function* (
+    type: 'text' | 'thinking',
+    text: string,
+  ): Generator<BetaRawMessageStreamEvent> {
+    if (!text) return
+    if (activeNarrativeType !== type) {
+      yield* closeActiveNarrative()
+      activeNarrativeType = type
+      activeNarrativeIndex = nextContentIndex
+      nextContentIndex += 1
+      yield {
+        type: 'content_block_start',
+        index: activeNarrativeIndex,
+        content_block:
+          type === 'thinking'
+            ? {
+                type: 'thinking',
+                thinking: '',
+                signature: '',
+              }
+            : {
+                type: 'text',
+                text: '',
+              },
+      } as BetaRawMessageStreamEvent
+    }
+
+    yield {
+      type: 'content_block_delta',
+      index: activeNarrativeIndex ?? 0,
+      delta:
+        type === 'thinking'
+          ? {
+              type: 'thinking_delta',
+              thinking: text,
+            }
+          : {
+              type: 'text_delta',
+              text,
+            },
+    } as BetaRawMessageStreamEvent
+    emittedAnyContent = true
+  }
 
   while (true) {
     const { done, value } = await input.reader.read()
@@ -441,58 +499,30 @@ export async function* createAnthropicStreamFromOpenAIResponses(input: {
         const textDelta = getEventTextDelta(event)
         const thinkingDelta = getEventThinkingDelta(event)
         if (thinkingDelta && eventType.includes('reasoning')) {
-          if (!thinkingStarted) {
-            thinkingStarted = true
-            thinkingContentIndex = nextContentIndex
-            nextContentIndex += 1
-            yield {
-              type: 'content_block_start',
-              index: thinkingContentIndex,
-              content_block: {
-                type: 'thinking',
-                thinking: '',
-                signature: '',
-              },
-            } as BetaRawMessageStreamEvent
-          }
-
-          yield {
-            type: 'content_block_delta',
-            index: thinkingContentIndex ?? 0,
-            delta: {
-              type: 'thinking_delta',
-              thinking: thinkingDelta,
-            },
-          } as BetaRawMessageStreamEvent
-          emittedAnyContent = true
+          yield* emitNarrative('thinking', thinkingDelta)
         }
         if (textDelta && (eventType.includes('text') || eventType.includes('content_part'))) {
-          if (!textStarted) {
-            textStarted = true
-            textContentIndex = nextContentIndex
-            nextContentIndex += 1
-            yield {
-              type: 'content_block_start',
-              index: textContentIndex,
-              content_block: {
-                type: 'text',
-                text: '',
-              },
-            } as BetaRawMessageStreamEvent
+          const segments = consumeTaggedThinkingChunk(textDelta, taggedThinkingState)
+          if (segments.length === 0) {
+            yield* emitNarrative('text', textDelta)
+          } else {
+            for (const segment of segments) {
+              yield* emitNarrative(
+                segment.type === 'thinking' ? 'thinking' : 'text',
+                segment.text,
+              )
+            }
           }
-
-          yield {
-            type: 'content_block_delta',
-            index: textContentIndex ?? 0,
-            delta: {
-              type: 'text_delta',
-              text: textDelta,
-            },
-          } as BetaRawMessageStreamEvent
-          emittedAnyContent = true
         }
 
         if (eventType.includes('function_call')) {
+          for (const segment of flushTaggedThinkingState(taggedThinkingState)) {
+            yield* emitNarrative(
+              segment.type === 'thinking' ? 'thinking' : 'text',
+              segment.text,
+            )
+          }
+          yield* closeActiveNarrative()
           const details = getToolCallDetails(event)
           const toolId = details.id ?? `toolu_${toolIdsInOrder.length}`
           let toolState = toolStateById.get(toolId)
@@ -587,6 +617,13 @@ export async function* createAnthropicStreamFromOpenAIResponses(input: {
     )
   }
 
+  for (const segment of flushTaggedThinkingState(taggedThinkingState)) {
+    yield* emitNarrative(
+      segment.type === 'thinking' ? 'thinking' : 'text',
+      segment.text,
+    )
+  }
+
   if (!emittedAnyContent) {
     yield {
       type: 'content_block_start',
@@ -602,19 +639,7 @@ export async function* createAnthropicStreamFromOpenAIResponses(input: {
     } as BetaRawMessageStreamEvent
   }
 
-  if (textStarted && textContentIndex !== null) {
-    yield {
-      type: 'content_block_stop',
-      index: textContentIndex,
-    } as BetaRawMessageStreamEvent
-  }
-
-  if (thinkingStarted && thinkingContentIndex !== null) {
-    yield {
-      type: 'content_block_stop',
-      index: thinkingContentIndex,
-    } as BetaRawMessageStreamEvent
-  }
+  yield* closeActiveNarrative()
 
   for (const toolId of toolIdsInOrder) {
     const toolState = toolStateById.get(toolId)

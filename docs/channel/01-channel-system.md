@@ -232,7 +232,7 @@ if (!isChannelsEnabled()) {
 ```typescript
 if (!getClaudeAIOAuthTokens()?.accessToken) {
   return { action: 'skip', kind: 'auth',
-    reason: 'channels requires claude.ai authentication (run /login)' }
+    reason: 'channels requires claude-yh.ai authentication (run /login)' }
 }
 ```
 
@@ -546,7 +546,7 @@ const PluginManifestChannelsSchema = z.object({
 1. `getUnconfiguredChannels()` 检测未满足验证的字段
 2. `PluginOptionsFlow` 组件逐个提示用户输入
 3. 敏感值（如 bot_token）存入 Keychain
-4. 普通值存入 `~/.claude/plugins/options/{pluginId}.json`
+4. 普通值存入 `~/.claude-yh/plugins/options/{pluginId}.json`
 
 ```typescript
 // mcpPluginIntegration.ts:290-318
@@ -663,13 +663,13 @@ Channel 消息入队时设置 `skipSlashCommands: true`，确保 IM 用户发送
 
 ```bash
 # 使用已审批的 Channel 插件
-claude --channels plugin:telegram@anthropic plugin:feishu@anthropic
+claude-yh --channels plugin:telegram@anthropic plugin:feishu@anthropic
 
 # 本地开发模式（旁路白名单）
-claude --dangerously-load-development-channels plugin:my-channel@local
+claude-yh --dangerously-load-development-channels plugin:my-channel@local
 
 # 两者可以同时使用
-claude --channels plugin:telegram@anthropic \
+claude-yh --channels plugin:telegram@anthropic \
        --dangerously-load-development-channels plugin:dev-channel@local
 ```
 
@@ -783,3 +783,6 @@ Channel 失败不会阻断本地工作流。权限中继是多源竞争机制，
 | `src/utils/plugins/schemas.ts` | ~700 | 插件清单 Schema（含 Channel 声明） |
 | `src/bootstrap/state.ts` | - | 全局 Channel 白名单状态 |
 | `src/main.tsx` | ~3850 | CLI 参数注册和解析 |
+
+
+

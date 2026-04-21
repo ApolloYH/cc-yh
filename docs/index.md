@@ -49,3 +49,4 @@ features:
     details: 基于 Tauri 2 + React 的图形化客户端，多标签、多会话、IM 适配器接入，支持 macOS 和 Windows
     link: /desktop/
 ---
+

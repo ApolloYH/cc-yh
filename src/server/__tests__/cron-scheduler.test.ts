@@ -8,6 +8,7 @@ import * as path from 'path'
 import * as os from 'os'
 import {
   cronMatches,
+  extractAssistantText,
   fieldMatches,
   CronScheduler,
   type TaskRun,
@@ -361,6 +362,21 @@ describe('CronScheduler', () => {
 
     const runs = await scheduler.getRecentRuns(2)
     expect(runs).toHaveLength(2)
+  })
+})
+
+describe('extractAssistantText', () => {
+  it('deduplicates identical assistant/result payloads from stream-json output', () => {
+    const raw = [
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'text', text: 'CRON_OK' }] },
+      }),
+      JSON.stringify({ type: 'result', result: 'CRON_OK' }),
+      '',
+    ].join('\n')
+
+    expect(extractAssistantText(raw)).toBe('CRON_OK')
   })
 })
 

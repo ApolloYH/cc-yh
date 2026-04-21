@@ -18,10 +18,10 @@ on:
 jobs:
   claude:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude-yh')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude-yh')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude-yh')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude-yh') || contains(github.event.issue.title, '@claude-yh')))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -71,13 +71,13 @@ This PR adds a GitHub Actions workflow that enables Claude Code integration in o
 
 ### How it works
 
-Once this PR is merged, we'll be able to interact with Claude by mentioning @claude in a pull request or issue comment.
+Once this PR is merged, we'll be able to interact with Claude by mentioning @claude-yh in a pull request or issue comment.
 Once the workflow is triggered, Claude will analyze the comment and surrounding context, and execute on the request in a GitHub action.
 
 ### Important Notes
 
 - **This workflow won't take effect until this PR is merged**
-- **@claude mentions won't work until after the merge is complete**
+- **@claude-yh mentions won't work until after the merge is complete**
 - The workflow runs automatically whenever Claude is mentioned in PR or issue comments
 - Claude gets access to the entire PR or issue context including files, diffs, and previous comments
 
@@ -95,7 +95,7 @@ allowed_tools: Bash(npm install),Bash(npm run build),Bash(npm run lint),Bash(npm
 
 There's more information in the [Claude Code action repo](https://github.com/anthropics/claude-code-action).
 
-After merging this PR, let's try mentioning @claude in a comment on any PR to get started!`
+After merging this PR, let's try mentioning @claude-yh in a comment on any PR to get started!`
 
 export const CODE_REVIEW_PLUGIN_WORKFLOW_CONTENT = `name: Claude Code Review
 
@@ -136,9 +136,10 @@ jobs:
         with:
           anthropic_api_key: \${{ secrets.ANTHROPIC_API_KEY }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
+          plugins: 'code-review@claude-yh-code-plugins'
           prompt: '/code-review:code-review \${{ github.repository }}/pull/\${{ github.event.pull_request.number }}'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
 `
+

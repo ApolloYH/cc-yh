@@ -702,27 +702,48 @@ export function isNotEmptyMessage(
     return true
   }
 
-  if (typeof message.message.content === 'string') {
-    return message.message.content.trim().length > 0
+  if (
+    !('message' in message) ||
+    !message.message ||
+    typeof message.message !== 'object' ||
+    !('content' in message.message)
+  ) {
+    return false
   }
 
-  if (message.message.content.length === 0) {
+  const { content } = message.message
+
+  if (typeof content === 'string') {
+    return content.trim().length > 0
+  }
+
+  if (!Array.isArray(content) || content.length === 0) {
     return false
   }
 
   // Skip multi-block messages for now
-  if (message.message.content.length > 1) {
+  if (content.length > 1) {
     return true
   }
 
-  if (message.message.content[0]!.type !== 'text') {
+  const firstBlock = content[0]
+  if (
+    !firstBlock ||
+    typeof firstBlock !== 'object' ||
+    !('type' in firstBlock)
+  ) {
+    return false
+  }
+
+  if (firstBlock.type !== 'text') {
     return true
   }
 
   return (
-    message.message.content[0]!.text.trim().length > 0 &&
-    message.message.content[0]!.text !== NO_CONTENT_MESSAGE &&
-    message.message.content[0]!.text !== INTERRUPT_MESSAGE_FOR_TOOL_USE
+    typeof firstBlock.text === 'string' &&
+    firstBlock.text.trim().length > 0 &&
+    firstBlock.text !== NO_CONTENT_MESSAGE &&
+    firstBlock.text !== INTERRUPT_MESSAGE_FOR_TOOL_USE
   )
 }
 
@@ -760,8 +781,12 @@ export function normalizeMessages(messages: Message[]): NormalizedMessage[] {
 
     switch (message.type) {
       case 'assistant': {
-        isNewChain = isNewChain || message.message.content.length > 1
-        return message.message.content.map((_, index) => {
+        const content = message.message?.content
+        if (!Array.isArray(content)) {
+          return []
+        }
+        isNewChain = isNewChain || content.length > 1
+        return content.map((_, index) => {
           const uuid = isNewChain
             ? deriveUUID(message.uuid, index)
             : message.uuid
@@ -793,7 +818,8 @@ export function normalizeMessages(messages: Message[]): NormalizedMessage[] {
         // Tombstones signal deletions in state handling and should not render.
         return []
       case 'user': {
-        if (typeof message.message.content === 'string') {
+        const content = message.message?.content
+        if (typeof content === 'string') {
           const uuid = isNewChain ? deriveUUID(message.uuid, 0) : message.uuid
           return [
             {
@@ -801,14 +827,17 @@ export function normalizeMessages(messages: Message[]): NormalizedMessage[] {
               uuid,
               message: {
                 ...message.message,
-                content: [{ type: 'text', text: message.message.content }],
+                content: [{ type: 'text', text: content }],
               },
             } as NormalizedMessage,
           ]
         }
-        isNewChain = isNewChain || message.message.content.length > 1
+        if (!Array.isArray(content)) {
+          return []
+        }
+        isNewChain = isNewChain || content.length > 1
         let imageIndex = 0
-        return message.message.content.map((_, index) => {
+        return content.map((_, index) => {
           const isImage = _.type === 'image'
           // For image content blocks, extract just the ID for this image
           const imageId =

@@ -28,7 +28,7 @@ Claude Code 源码中已有完整的 **Channel 系统**（详见 [01-channel-sys
 
 1. **编译时门控** — `feature('KAIROS')` / `feature('KAIROS_CHANNELS')` 编译标志
 2. **运行时门控** — GrowthBook `tengu_harbor`（默认 false）
-3. **OAuth 门控** — 需要 claude.ai OAuth 登录
+3. **OAuth 门控** — 需要 claude-yh.ai OAuth 登录
 4. **组织策略门控** — Team/Enterprise 必须显式启用 `channelsEnabled: true`
 5. **会话白名单** — 需要 `--channels` CLI 参数指定
 6. **插件市场审批** — 插件必须通过 Anthropic 市场审批
@@ -359,7 +359,7 @@ bot.on('callback_query', (ctx) => {
 | `src/server/im/types.ts` | IM 消息协议类型定义 |
 | `src/server/im/gateway.ts` | Gateway 核心 — Adapter 连接管理、chatId->session 路由、消息翻译 |
 | `src/server/im/sessionMap.ts` | chatId-sessionId 映射管理、可选持久化 |
-| `src/server/im/config.ts` | `~/.claude/im-gateway.json` 配置读取 |
+| `src/server/im/config.ts` | `~/.claude-yh/im-gateway.json` 配置读取 |
 | `adapters/telegram/index.ts` | Telegram Bot Adapter |
 | `adapters/telegram/package.json` | 依赖 telegraf + ws |
 | `adapters/feishu/index.ts` | 飞书 Adapter |
@@ -367,7 +367,7 @@ bot.on('callback_query', (ctx) => {
 
 ### 配置文件
 
-`~/.claude/im-gateway.json`：
+`~/.claude-yh/im-gateway.json`：
 
 ```json
 {
@@ -504,3 +504,4 @@ wscat -c ws://localhost:3456/im/test-adapter
 - [Channel 系统架构解析](./01-channel-system.md) — 源码 Channel 系统文档
 - [Telegraf](https://github.com/telegraf/telegraf) — Telegram Bot Framework
 - [@larksuiteoapi/node-sdk](https://github.com/larksuite/oapi-sdk-nodejs) — 飞书 SDK
+

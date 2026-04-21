@@ -1,4 +1,12 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useTranslation } from '../../i18n'
@@ -56,7 +64,7 @@ export function Sidebar() {
   // Group by time
   const timeGroups = useMemo(() => groupByTime(filteredSessions), [filteredSessions])
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, id: string) => {
+  const handleContextMenu = useCallback((e: MouseEvent, id: string) => {
     e.preventDefault()
     setContextMenu({ id, x: e.clientX, y: e.clientY })
   }, [])
@@ -92,7 +100,7 @@ export function Sidebar() {
       .catch(() => {})
   }, [])
 
-  const handleSidebarDrag = useCallback((e: React.MouseEvent) => {
+  const handleSidebarDrag = useCallback((e: MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input, textarea, select, a, [role="button"]')) return
     startDraggingRef.current?.()
   }, [])
@@ -323,7 +331,17 @@ function groupByTime(sessions: SessionListItem[]): Map<TimeGroup, SessionListIte
   return groups
 }
 
-function NavItem({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+function NavItem({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  icon: ReactNode
+  children: ReactNode
+}) {
   return (
     <button
       onClick={onClick}

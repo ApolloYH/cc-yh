@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useUIStore } from '../../stores/uiStore'
 import { useTranslation } from '../../i18n'
 
@@ -76,7 +77,7 @@ function TabButton({
   active: boolean
   onClick: () => void
   icon: string
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <button

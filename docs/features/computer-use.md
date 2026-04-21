@@ -320,3 +320,4 @@ async function callPythonHelper<T>(command: string, payload: object): Promise<T>
 | [psutil](https://github.com/giampaolo/psutil) | Windows | 进程管理（应用列表、进程操作） |
 | [pyperclip](https://github.com/asweigart/pyperclip) | Windows | 剪贴板操作 |
 | [screeninfo](https://github.com/rr-/screeninfo) | Windows | 显示器信息（多屏支持） |
+

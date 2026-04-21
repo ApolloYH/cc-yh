@@ -97,7 +97,7 @@ export const en = {
   'settings.providers.sameAsMain': 'Same as main',
   'settings.providers.testConnection': 'Test Connection',
   'settings.providers.settingsJson': 'Settings JSON',
-  'settings.providers.settingsJsonDesc': '~/.claude/settings.json — edit directly, will be written on save.',
+  'settings.providers.settingsJsonDesc': '~/.claude-yh/settings.json — edit directly, will be written on save.',
   'settings.providers.jsonError': 'JSON syntax error: {error}',
   'settings.providers.apiFormat': 'API Format',
   'settings.providers.apiFormatAnthropic': 'Anthropic Messages (native)',
@@ -202,7 +202,7 @@ export const en = {
 
   // Settings > Skills
   'settings.skills.title': 'Installed Skills',
-  'settings.skills.description': 'Skills extend Claude with specialized capabilities. Manage skills in ~/.claude/skills/',
+  'settings.skills.description': 'Skills extend Claude with specialized capabilities. Manage skills in ~/.claude-yh/skills/',
   'settings.skills.browserTitle': 'Browse installed skills',
   'settings.skills.browserEyebrow': 'Skill Browser',
   'settings.skills.browserDescription': 'Inspect bundled, project, and user skills, compare their scope, and open each skill folder to read its docs and source files.',
@@ -220,7 +220,7 @@ export const en = {
   'settings.skills.ready': 'Ready',
   'settings.skills.unavailable': 'Unavailable',
   'settings.skills.empty': 'No skills installed',
-  'settings.skills.emptyHint': 'Add skills to ~/.claude/skills/ to get started',
+  'settings.skills.emptyHint': 'Add skills to ~/.claude-yh/skills/ to get started',
   'settings.skills.back': 'Back to list',
   'settings.skills.files': 'files',
   'settings.skills.entryFile': 'entry file',

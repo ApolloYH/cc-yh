@@ -46,7 +46,7 @@ DISABLE_TELEMETRY=1
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ```
 
-### 方式二：`~/.claude/settings.json`
+### 方式二：`~/.claude-yh/settings.json`
 
 ```json
 {
@@ -58,4 +58,5 @@ CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 }
 ```
 
-> 配置优先级：环境变量 > `.env` 文件 > `~/.claude/settings.json`
+> 配置优先级：环境变量 > `.env` 文件 > `~/.claude-yh/settings.json`
+

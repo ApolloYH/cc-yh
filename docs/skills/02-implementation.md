@@ -91,9 +91,9 @@ const loadAllCommands = memoize(async (cwd: string): Promise<Command[]> => {
 ```
 getSkillDirCommands(cwd)
 ├─ 确定加载路径
-│  ├─ managed: ${MANAGED_PATH}/.claude/skills/
-│  ├─ user:    ~/.claude/skills/
-│  ├─ project: .claude/skills/ (向上遍历到 HOME)
+│  ├─ managed: ${MANAGED_PATH}/.claude-yh/skills/
+│  ├─ user:    ~/.claude-yh/skills/
+│  ├─ project: .claude-yh/skills/ (向上遍历到 HOME)
 │  └─ additional: --add-dir 指定的路径
 │
 ├─ 并行加载（Promise.all）
@@ -647,7 +647,7 @@ export async function discoverSkillDirsForPaths(
     let currentDir = dirname(filePath)
     // 从文件所在目录向上遍历到 cwd（不含 cwd 本身）
     while (currentDir.startsWith(resolvedCwd + pathSep)) {
-      const skillDir = join(currentDir, '.claude', 'skills')
+      const skillDir = join(currentDir, '.claude-yh', 'skills')
       if (!dynamicSkillDirs.has(skillDir)) {
         dynamicSkillDirs.add(skillDir)
         await fs.stat(skillDir)  // 检查是否存在
@@ -895,3 +895,4 @@ addInvokedSkill(name, path, content, agentId)
 | `tengu_skill_tool_slash_prefix` | 模型使用了 / 前缀 |
 | `tengu_dynamic_skills_changed` | 动态 Skills 变化（条件激活/目录发现） |
 | `tengu_skill_descriptions_truncated` | Skill 描述被截断 |
+

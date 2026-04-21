@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { feature } from 'bun:bundle'
 import { chmod, open, rename, stat, unlink } from 'fs/promises'
 import mapValues from 'lodash-es/mapValues.js'
@@ -269,7 +269,7 @@ export function dedupPluginMcpServers(
 /**
  * Filter claude.ai connectors, dropping any whose signature matches an enabled
  * manually-configured server. Manual wins: a user who wrote .mcp.json or ran
- * `claude mcp add` expressed higher intent than a connector toggled in the web UI.
+ * `claude-yh mcp add` expressed higher intent than a connector toggled in the web UI.
  *
  * Connector keys are `claude.ai <DisplayName>` so they never key-collide with
  * manual servers in the merge 鈥?this content-based check catches the case where

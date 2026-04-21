@@ -474,7 +474,7 @@ export class ConversationService {
   private async buildChildEnv(workDir: string): Promise<Record<string, string>> {
     // Provider isolation: when Desktop has its own provider config/index,
     // strip inherited provider env vars so the child CLI reads fresh values
-    // from ~/.claude/claude-yh/settings.json instead of stale process.env.
+    // from ~/.claude-yh/settings.json instead of stale process.env.
     //
     // If the user never configured a Desktop provider and only launched the
     // app/server with ANTHROPIC_* env vars, keep those env vars so Windows
@@ -547,14 +547,8 @@ export class ConversationService {
 
   private shouldStripInheritedProviderEnv(): boolean {
     const configDir =
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
-    const ccHahaDir = path.join(configDir, 'claude-yh')
-    const providersIndexPath = path.join(ccHahaDir, 'providers.json')
-    const settingsPath = path.join(ccHahaDir, 'settings.json')
-
-    if (fs.existsSync(providersIndexPath)) {
-      return true
-    }
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
+    const settingsPath = path.join(configDir, 'claude-yh', 'settings.json')
 
     try {
       const raw = fs.readFileSync(settingsPath, 'utf-8')
@@ -584,8 +578,14 @@ export class ConversationService {
    * provider 管理,也希望官方 OAuth 能正常工作。
    */
   private shouldMarkManagedOAuth(): boolean {
+    const hasInheritedProviderEnv = [
+      process.env.ANTHROPIC_API_KEY,
+      process.env.ANTHROPIC_AUTH_TOKEN,
+      process.env.ANTHROPIC_BASE_URL,
+    ].some((value) => typeof value === 'string' && value.trim().length > 0)
+
     const configDir =
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
     const settingsPath = path.join(configDir, 'claude-yh', 'settings.json')
     try {
       const raw = fs.readFileSync(settingsPath, 'utf-8')
@@ -599,9 +599,9 @@ export class ConversationService {
         (key) =>
           typeof env[key] === 'string' && env[key]!.trim().length > 0,
       )
-      return !hasProviderEnv
+      return !hasProviderEnv && !hasInheritedProviderEnv
     } catch {
-      return true
+      return !hasInheritedProviderEnv
     }
   }
 
@@ -680,7 +680,7 @@ export class ConversationService {
 
   private clearStaleLock(sessionId: string): boolean {
     const lockDir = path.join(
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh'),
       '.lock',
     )
     const lockFile = path.join(lockDir, sessionId)
@@ -782,7 +782,7 @@ export class ConversationService {
     }
 
     const uploadDir = path.join(
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh'),
       'uploads',
       sessionId,
     )

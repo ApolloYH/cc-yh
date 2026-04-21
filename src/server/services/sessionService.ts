@@ -1,7 +1,7 @@
 /**
  * Session Service — 会话文件的读写操作封装
  *
- * 读写 CLI 持久化在 ~/.claude/projects/{sanitized_path}/{sessionId}.jsonl 的会话数据，
+ * 读写 CLI 持久化在 ~/.claude-yh/projects/{sanitized_path}/{sessionId}.jsonl 的会话数据，
  * 确保 Desktop App 与 CLI 的数据完全互通。
  */
 
@@ -81,7 +81,7 @@ export class SessionService {
   // --------------------------------------------------------------------------
 
   private getConfigDir(): string {
-    return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+    return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   }
 
   private getProjectsDir(): string {

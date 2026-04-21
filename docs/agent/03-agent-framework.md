@@ -194,11 +194,11 @@ CLAUDE.md 是用户自定义指令系统，按**优先级从低到高**加载（
 ```
 /etc/claude-code/CLAUDE.md          ← 全局管理配置（最低优先级）
   ↓
-~/.claude/CLAUDE.md                 ← 用户全局指令
+~/.claude-yh/CLAUDE.md                 ← 用户全局指令
   ↓
 项目根目录/CLAUDE.md                 ← 项目级指令
-项目根目录/.claude/CLAUDE.md
-项目根目录/.claude/rules/*.md
+项目根目录/.claude-yh/CLAUDE.md
+项目根目录/.claude-yh/rules/*.md
   ↓
 项目根目录/CLAUDE.local.md           ← 本地私有指令（最高优先级）
 ```
@@ -404,9 +404,9 @@ type BundledSkillDefinition = {
   ↓
 插件技能（plugin）          ← 插件注册
   ↓
-用户技能（~/.claude/skills/） ← 用户全局
+用户技能（~/.claude-yh/skills/） ← 用户全局
   ↓
-项目技能（.claude/skills/）   ← 项目级
+项目技能（.claude-yh/skills/）   ← 项目级
   ↓
 策略技能（policy）           ← 组织管理
 ```
@@ -788,3 +788,4 @@ query() 异步生成器循环（src/query.ts）
 - [实现原理](./02-implementation.md) — 多 Agent 编排的技术细节
 - [Anthropic API 文档](https://docs.anthropic.com/) — 原生 API 能力
 - [MCP 协议规范](https://modelcontextprotocol.io/) — 模型上下文协议
+
