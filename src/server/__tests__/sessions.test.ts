@@ -349,6 +349,24 @@ describe('SessionService', () => {
     expect(workDir).toBe('/tmp/from-meta')
   })
 
+  it('should prefer the latest session-meta workDir when multiple entries exist', async () => {
+    const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-ffffffffffff'
+    await writeSessionFile('-tmp-project', sessionId, [
+      makeSnapshotEntry(),
+      makeSessionMetaEntry('/tmp/original'),
+      makeUserEntry('Hello'),
+      {
+        type: 'session-meta',
+        isMeta: true,
+        workDir: '/tmp/updated',
+        timestamp: '2026-01-01T00:03:00.000Z',
+      },
+    ])
+
+    const workDir = await service.getSessionWorkDir(sessionId)
+    expect(workDir).toBe('/tmp/updated')
+  })
+
   it('should recover workDir from transcript cwd when session-meta is missing', async () => {
     const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
     await writeSessionFile('-tmp-project', sessionId, [
@@ -468,6 +486,41 @@ describe('SessionService', () => {
     expect(
       service.renameSession('00000000-0000-0000-0000-000000000000', 'Title')
     ).rejects.toThrow('Session not found')
+  })
+
+  it('should update the workDir in-place for placeholder sessions', async () => {
+    const originalWorkDir = await fs.mkdtemp(path.join(tmpDir, 'workdir-original-'))
+    const nextWorkDir = await fs.mkdtemp(path.join(tmpDir, 'workdir-next-'))
+    const { sessionId } = await service.createSession(originalWorkDir)
+
+    await service.updateSessionWorkDir(sessionId, nextWorkDir)
+
+    const launchInfo = await service.getSessionLaunchInfo(sessionId)
+    const movedFile = path.join(
+      tmpDir,
+      'projects',
+      sanitizePath(nextWorkDir),
+      `${sessionId}.jsonl`,
+    )
+
+    expect(launchInfo).not.toBeNull()
+    expect(launchInfo!.workDir).toBe(nextWorkDir)
+    expect(await fs.stat(movedFile)).toBeDefined()
+  })
+
+  it('should reject changing workDir for non-empty sessions', async () => {
+    const sessionId = 'aaaaaaaa-bbbb-cccc-dddd-111111111111'
+    const projectDir = await fs.mkdtemp(path.join(tmpDir, 'non-empty-project-'))
+    const nextWorkDir = await fs.mkdtemp(path.join(tmpDir, 'non-empty-next-'))
+    await writeSessionFile(sanitizePath(projectDir), sessionId, [
+      makeSnapshotEntry(),
+      makeSessionMetaEntry(projectDir),
+      makeUserEntry('Existing transcript'),
+    ])
+
+    expect(service.updateSessionWorkDir(sessionId, nextWorkDir)).rejects.toThrow(
+      'Cannot change workDir for a non-empty session',
+    )
   })
 
   // --------------------------------------------------------------------------

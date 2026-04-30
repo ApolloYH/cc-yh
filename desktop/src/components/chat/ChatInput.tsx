@@ -9,8 +9,6 @@ import { PermissionModeSelector } from '../controls/PermissionModeSelector'
 import { ModelSelector } from '../controls/ModelSelector'
 import type { AttachmentRef } from '../../types/chat'
 import { AttachmentGallery } from './AttachmentGallery'
-import { ProjectContextChip } from '../shared/ProjectContextChip'
-import { DirectoryPicker } from '../shared/DirectoryPicker'
 import { FileSearchMenu, type FileSearchMenuHandle } from './FileSearchMenu'
 import {
   FALLBACK_SLASH_COMMANDS,
@@ -56,7 +54,6 @@ export function ChatInput() {
   const activeSession = useSessionStore((state) => activeTabId ? state.sessions.find((session) => session.id === activeTabId) ?? null : null)
   const memberInfo = useTeamStore((s) => activeTabId ? s.getMemberBySessionId(activeTabId) : null)
   const [gitInfo, setGitInfo] = useState<GitInfo | null>(null)
-  const hasMessages = useChatStore((s) => activeTabId ? (s.sessions[activeTabId]?.messages?.length ?? 0) > 0 : false)
 
   const isMemberSession = !!memberInfo
   const isActive = chatState !== 'idle'
@@ -394,11 +391,11 @@ export function ChatInput() {
   }
 
   return (
-    <div className="bg-[#FAF9F5] px-4 py-4">
+    <div className="bg-[var(--color-background)] px-4 py-4">
       <div className="mx-auto max-w-[860px]">
         <div
-          className="relative rounded-xl border border-[#dac1ba]/15 bg-white p-4 transition-colors focus-within:border-[var(--color-border-focus)]"
-          style={{ boxShadow: '0 4px 20px rgba(27, 28, 26, 0.04), 0 12px 40px rgba(27, 28, 26, 0.08)' }}
+          className="relative rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-container-lowest)] p-4 transition-colors focus-within:border-[var(--color-border-focus)]"
+          style={{ boxShadow: 'var(--shadow-dropdown)' }}
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         >
@@ -491,7 +488,7 @@ export function ChatInput() {
             className="w-full resize-none bg-transparent py-2 pb-12 text-sm leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] disabled:opacity-50"
           />
 
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between border-t border-[#dac1ba]/10 px-3 py-3">
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between border-t border-[var(--color-border)]/60 px-3 py-3">
             <div className="flex items-center gap-2">
               {!isMemberSession && (
                 <>
@@ -499,26 +496,29 @@ export function ChatInput() {
                     <button
                       onClick={() => setPlusMenuOpen((value) => !value)}
                       aria-label="Open composer tools"
-                      className="rounded-[var(--radius-md)] p-1.5 text-[var(--color-text-secondary)] transition-colors hover:bg-[#F4F4F0]"
+                      className="rounded-[var(--radius-md)] p-1.5 text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)]"
                     >
                       <span className="material-symbols-outlined text-[18px]">add</span>
                     </button>
 
                     {plusMenuOpen && (
-                      <div className="absolute bottom-full left-0 z-50 mb-2 w-[240px] rounded-xl border border-[#dac1ba]/20 bg-white py-1 shadow-[0_18px_48px_rgba(27,28,26,0.12)]">
+                      <div
+                        className="absolute bottom-full left-0 z-50 mb-2 w-[240px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] py-1"
+                        style={{ boxShadow: 'var(--shadow-dropdown)' }}
+                      >
                         <button
                           onClick={() => {
                             fileInputRef.current?.click()
                             setPlusMenuOpen(false)
                           }}
-                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[#F8F7F4]"
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--color-surface-hover)]"
                         >
                           <span className="material-symbols-outlined text-[18px] text-[var(--color-text-secondary)]">attach_file</span>
                           <span className="text-sm text-[var(--color-text-primary)]">{t('chat.addFiles')}</span>
                         </button>
                         <button
                           onClick={insertSlashCommand}
-                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[#F8F7F4]"
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[var(--color-surface-hover)]"
                         >
                           <span className="w-[24px] text-center text-[18px] font-bold text-[var(--color-text-secondary)]">/</span>
                           <span className="text-sm text-[var(--color-text-primary)]">{t('chat.slashCommands')}</span>
@@ -552,34 +552,6 @@ export function ChatInput() {
         </div>
 
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileSelect} />
-
-        {!isMemberSession && (
-          <div className="mt-3 px-1">
-            {hasMessages ? (
-              <ProjectContextChip
-                workDir={gitInfo?.workDir || activeSession?.workDir}
-                repoName={gitInfo?.repoName || null}
-                branch={gitInfo?.branch || null}
-              />
-            ) : (
-              <DirectoryPicker
-                value={gitInfo?.workDir || activeSession?.workDir || ''}
-                onChange={async (newWorkDir) => {
-                  if (!activeTabId) return
-                  const oldId = activeTabId
-                  const { deleteSession, createSession } = useSessionStore.getState()
-                  const { replaceTabSession } = useTabStore.getState()
-                  const { disconnectSession, connectToSession } = useChatStore.getState()
-                  const newId = await createSession(newWorkDir)
-                  disconnectSession(oldId)
-                  replaceTabSession(oldId, newId)
-                  connectToSession(newId)
-                  deleteSession(oldId).catch(() => {})
-                }}
-              />
-            )}
-          </div>
-        )}
       </div>
     </div>
   )

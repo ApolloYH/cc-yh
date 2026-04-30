@@ -40,6 +40,9 @@ if (!config.telegram.botToken) {
 }
 
 const bot = new Bot(config.telegram.botToken)
+bot.catch((err) => {
+  console.error('[Telegram] Bot error:', err.error)
+})
 const bridge = new WsBridge(config.serverUrl, 'tg')
 const dedup = new MessageDedup()
 const sessionStore = new SessionStore()
@@ -594,12 +597,18 @@ async function routeUserMessage(
   const chatId = String(ctx.chat.id)
   const userId = ctx.from.id
 
+  console.log(
+    `[Telegram] Incoming message from user=${userId} chat=${chatId} text=${JSON.stringify(text.slice(0, 80))} attachments=${attachments.length}`,
+  )
+
   if (!isAllowedUser('telegram', userId)) {
     const displayName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
     const success = tryPair(text.trim(), { userId, displayName }, 'telegram')
     if (success) {
+      console.log(`[Telegram] Pairing succeeded for user=${userId} (${displayName || 'unknown'})`)
       await ctx.reply('✅ 配对成功！现在可以开始聊天了。\n\n发送消息即可与 Claude 对话。')
     } else {
+      console.log(`[Telegram] Pairing failed or user not authorized for user=${userId}`)
       await ctx.reply('🔒 未授权。请在 Claude Code 桌面端生成配对码后发送给我。')
     }
     return
@@ -736,12 +745,39 @@ bot.on('callback_query:data', async (ctx) => {
 
 // ---------- start ----------
 
-console.log('[Telegram] Starting bot...')
-console.log(`[Telegram] Server: ${config.serverUrl}`)
-console.log(`[Telegram] Allowed users: ${config.telegram.allowedUsers.length === 0 ? 'all' : config.telegram.allowedUsers.join(', ')}`)
+async function startBot(): Promise<void> {
+  const me = await bot.api.getMe()
+  const webhookInfo = await bot.api.getWebhookInfo()
+  const pairingActive =
+    !!config.pairing.code &&
+    !!config.pairing.expiresAt &&
+    Date.now() < config.pairing.expiresAt
 
-bot.start({
-  onStart: () => console.log('[Telegram] Bot is running!'),
+  console.log('[Telegram] Starting bot...')
+  console.log(`[Telegram] Bot: @${me.username}`)
+  console.log(`[Telegram] Server: ${config.serverUrl}`)
+  console.log(
+    `[Telegram] Access mode: ${
+      config.telegram.allowedUsers.length === 0
+        ? 'pairing-required (no allowedUsers configured)'
+        : `allowedUsers=${config.telegram.allowedUsers.join(', ')}`
+    }`,
+  )
+  console.log(`[Telegram] Pairing code active: ${pairingActive ? 'yes' : 'no'}`)
+
+  if (webhookInfo.url) {
+    console.log(`[Telegram] Existing webhook detected, clearing: ${webhookInfo.url}`)
+    await bot.api.deleteWebhook()
+  }
+
+  await bot.start({
+    onStart: () => console.log('[Telegram] Bot is running!'),
+  })
+}
+
+void startBot().catch((err) => {
+  console.error('[Telegram] Failed to start bot:', err)
+  process.exit(1)
 })
 
 // Graceful shutdown

@@ -10,6 +10,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import { ApiError } from '../middleware/errorHandler.js'
+import { PROVIDER_PRESETS } from '../config/providerPresets.js'
 import { anthropicToOpenaiChat } from '../proxy/transform/anthropicToOpenaiChat.js'
 import { anthropicToOpenaiResponses } from '../proxy/transform/anthropicToOpenaiResponses.js'
 import { openaiChatToAnthropic } from '../proxy/transform/openaiChatToAnthropic.js'
@@ -38,6 +39,87 @@ const MANAGED_ENV_KEYS = [
 ] as const
 
 const DEFAULT_INDEX: ProvidersIndex = { activeId: null, providers: [] }
+
+type AuthStatusSource = 'claude-yh-provider' | 'original-settings' | 'env' | 'none'
+
+type EffectiveProviderInfo = {
+  name: string
+  baseUrl?: string
+  apiFormat: ApiFormat
+  modelId?: string
+  readOnly: boolean
+  source: Exclude<AuthStatusSource, 'none'>
+}
+
+const PROVIDER_NAME_HINTS: Array<{ name: string; keywords: string[] }> = [
+  { name: 'MiniMax', keywords: ['minimax', 'minimaxi'] },
+  { name: 'DeepSeek', keywords: ['deepseek'] },
+  { name: 'Kimi', keywords: ['moonshot', 'kimi'] },
+  { name: 'Zhipu GLM', keywords: ['bigmodel', 'zhipu', 'glm'] },
+  { name: 'Anthropic Claude', keywords: ['anthropic', 'claude'] },
+  { name: 'OpenAI', keywords: ['openai'] },
+]
+
+function normalizeBaseUrl(baseUrl?: string): string | undefined {
+  const trimmed = baseUrl?.trim()
+  if (!trimmed) return undefined
+  return trimmed.replace(/\/+$/, '').toLowerCase()
+}
+
+function inferApiFormatFromEnv(env: Record<string, string | undefined>): ApiFormat {
+  if (env.CLAUDE_CODE_COMPAT_PROVIDER === 'openai') {
+    return env.CLAUDE_CODE_OPENAI_COMPAT_MODE === 'responses'
+      ? 'openai_responses'
+      : 'openai_chat'
+  }
+  return 'anthropic'
+}
+
+function inferProviderName(baseUrl: string | undefined, apiFormat: ApiFormat): string {
+  const normalized = normalizeBaseUrl(baseUrl)
+  if (normalized) {
+    const preset = PROVIDER_PRESETS.find((candidate) => {
+      if (!candidate.baseUrl || candidate.id === 'official' || candidate.id === 'custom') {
+        return false
+      }
+      return normalizeBaseUrl(candidate.baseUrl) === normalized
+    })
+    if (preset) return preset.name
+
+    for (const hint of PROVIDER_NAME_HINTS) {
+      if (hint.keywords.some((keyword) => normalized.includes(keyword))) {
+        return hint.name
+      }
+    }
+
+    try {
+      const host = new URL(normalized).hostname.replace(/^www\./, '')
+      if (host) return host
+    } catch {
+      // Ignore malformed URLs and fall back below.
+    }
+  }
+
+  return apiFormat === 'anthropic' ? 'Anthropic Compatible' : 'OpenAI Compatible'
+}
+
+function resolveEffectiveProvider(
+  env: Record<string, string | undefined>,
+  source: Exclude<AuthStatusSource, 'none'>,
+): EffectiveProviderInfo {
+  const apiFormat = inferApiFormatFromEnv(env)
+  const baseUrl = env.ANTHROPIC_BASE_URL?.trim()
+  const modelId = env.ANTHROPIC_MODEL?.trim()
+
+  return {
+    name: inferProviderName(baseUrl, apiFormat),
+    ...(baseUrl ? { baseUrl } : {}),
+    apiFormat,
+    ...(modelId ? { modelId } : {}),
+    readOnly: source !== 'claude-yh-provider',
+    source,
+  }
+}
 
 export class ProviderService {
   private static serverPort = 3456
@@ -273,21 +355,40 @@ export class ProviderService {
    */
   async checkAuthStatus(): Promise<{
     hasAuth: boolean
-    source: 'claude-yh-provider' | 'original-settings' | 'env' | 'none'
+    source: AuthStatusSource
     activeProvider?: string
+    effectiveProvider?: EffectiveProviderInfo
   }> {
     // 1. Check claude-yh active provider
     const index = await this.readIndex()
     if (index.activeId) {
       const provider = index.providers.find(p => p.id === index.activeId)
       if (provider?.apiKey) {
-        return { hasAuth: true, source: 'claude-yh-provider', activeProvider: provider.name }
+        return {
+          hasAuth: true,
+          source: 'claude-yh-provider',
+          activeProvider: provider.name,
+          effectiveProvider: {
+            name: provider.name,
+            baseUrl: provider.baseUrl,
+            apiFormat: provider.apiFormat ?? 'anthropic',
+            modelId: provider.models.main,
+            readOnly: false,
+            source: 'claude-yh-provider',
+          },
+        }
       }
     }
 
     // 2. Check process.env (covers .env file + inherited env)
     if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) {
-      return { hasAuth: true, source: 'env' }
+      const effectiveProvider = resolveEffectiveProvider(process.env, 'env')
+      return {
+        hasAuth: true,
+        source: 'env',
+        activeProvider: effectiveProvider.name,
+        effectiveProvider,
+      }
     }
 
     // 3. Check original ~/.claude-yh/settings.json
@@ -297,7 +398,13 @@ export class ProviderService {
       const settings = JSON.parse(raw) as { env?: Record<string, string> }
       const env = settings.env ?? {}
       if (env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_API_KEY) {
-        return { hasAuth: true, source: 'original-settings' }
+        const effectiveProvider = resolveEffectiveProvider(env, 'original-settings')
+        return {
+          hasAuth: true,
+          source: 'original-settings',
+          activeProvider: effectiveProvider.name,
+          effectiveProvider,
+        }
       }
     } catch {
       // File doesn't exist or invalid

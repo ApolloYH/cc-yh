@@ -77,14 +77,18 @@ async function handleServeFile(url: URL): Promise<Response> {
 }
 
 async function handleBrowse(url: URL): Promise<Response> {
-  const targetPath = url.searchParams.get('path') || process.env.HOME || '/'
-  const resolvedPath = path.resolve(targetPath)
-
-  // Path whitelist: only allow browsing under home directory or /tmp
-  const homeDir = os.homedir()
-  if (!resolvedPath.startsWith(homeDir) && !resolvedPath.startsWith('/tmp')) {
-    return json({ error: 'Access denied: path outside allowed directory' }, 403)
+  const rawTargetPath = url.searchParams.get('path')
+  if (process.platform === 'win32' && rawTargetPath === '__roots__') {
+    const entries = listWindowsDriveRoots()
+    return json({
+      currentPath: '__roots__',
+      parentPath: '',
+      entries,
+    })
   }
+
+  const targetPath = rawTargetPath || os.homedir()
+  const resolvedPath = path.resolve(targetPath)
 
   const searchQuery = url.searchParams.get('search') || ''
   const includeFiles = url.searchParams.get('includeFiles') === 'true'
@@ -122,7 +126,7 @@ async function handleBrowse(url: URL): Promise<Response> {
 
       return json({
         currentPath: resolvedPath,
-        parentPath: path.dirname(resolvedPath),
+        parentPath: getBrowseParent(resolvedPath),
         entries: results,
         query: searchQuery,
       })
@@ -148,12 +152,43 @@ async function handleBrowse(url: URL): Promise<Response> {
 
     return json({
       currentPath: resolvedPath,
-      parentPath: path.dirname(resolvedPath),
+      parentPath: getBrowseParent(resolvedPath),
       entries: entries_list,
     })
   } catch (err) {
     return json({ error: `Cannot read directory: ${err}`, path: resolvedPath }, 500)
   }
+}
+
+function getBrowseParent(resolvedPath: string): string {
+  const parentPath = path.dirname(resolvedPath)
+  if (process.platform === 'win32') {
+    const root = path.parse(resolvedPath).root
+    if (resolvedPath.toLowerCase() === root.toLowerCase()) {
+      return '__roots__'
+    }
+  }
+  return parentPath
+}
+
+function listWindowsDriveRoots(): Array<{ name: string; path: string; isDirectory: boolean }> {
+  const entries: Array<{ name: string; path: string; isDirectory: boolean }> = []
+  for (let code = 65; code <= 90; code += 1) {
+    const driveLetter = String.fromCharCode(code)
+    const drivePath = `${driveLetter}:\\`
+    try {
+      if (fs.existsSync(drivePath)) {
+        entries.push({
+          name: `${driveLetter}:`,
+          path: drivePath,
+          isDirectory: true,
+        })
+      }
+    } catch {
+      // ignore inaccessible drives
+    }
+  }
+  return entries
 }
 
 function json(data: unknown, status = 200): Response {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTabStore } from '../stores/tabStore'
 import { useSessionStore } from '../stores/sessionStore'
 import { useChatStore } from '../stores/chatStore'
@@ -9,6 +9,7 @@ import { MessageList } from '../components/chat/MessageList'
 import { ChatInput } from '../components/chat/ChatInput'
 import { TeamStatusBar } from '../components/teams/TeamStatusBar'
 import { SessionTaskBar } from '../components/chat/SessionTaskBar'
+import { DirectoryPicker } from '../components/shared/DirectoryPicker'
 
 const TASK_POLL_INTERVAL_MS = 1000
 
@@ -63,9 +64,44 @@ export function ActiveSession() {
   const messages = sessionState?.messages ?? []
   const streamingText = sessionState?.streamingText ?? ''
   const isEmpty = messages.length === 0 && !streamingText
+  const [isSwitchingWorkDir, setIsSwitchingWorkDir] = useState(false)
 
   const isActive = chatState !== 'idle'
   const totalTokens = tokenUsage.input_tokens + tokenUsage.output_tokens
+  const sessionTitle = session?.title || t('session.untitled')
+
+  const handleChangeWorkDir = async (newWorkDir: string) => {
+    if (!activeTabId || !newWorkDir || isSwitchingWorkDir) return
+
+    const normalizePath = (value: string) =>
+      value.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
+
+    if (session?.workDir && normalizePath(session.workDir) === normalizePath(newWorkDir)) {
+      return
+    }
+
+    setIsSwitchingWorkDir(true)
+    try {
+      const currentMessageCount = session?.messageCount ?? 0
+      const hasTranscript = currentMessageCount > 0 || messages.length > 0 || !!streamingText
+
+      if (!hasTranscript) {
+        await useSessionStore.getState().updateSessionWorkDir(activeTabId, newWorkDir)
+        return
+      }
+
+      const oldId = activeTabId
+      const { createSession } = useSessionStore.getState()
+      const { replaceTabSession } = useTabStore.getState()
+      const { disconnectSession } = useChatStore.getState()
+
+      const newId = await createSession(newWorkDir)
+      replaceTabSession(oldId, newId)
+      disconnectSession(oldId)
+    } finally {
+      setIsSwitchingWorkDir(false)
+    }
+  }
 
   const lastUpdated = useMemo(() => {
     if (!session?.modifiedAt) return ''
@@ -125,6 +161,18 @@ export function ActiveSession() {
         </div>
       )}
 
+      {!isMemberSession && (
+        <div className="w-full px-8 pt-4">
+          <DirectoryPicker
+            value={session?.workDir || ''}
+            onChange={handleChangeWorkDir}
+            variant="toolbar"
+            placeholderLabel={t('dirPicker.selectProject')}
+            disabled={isSwitchingWorkDir}
+          />
+        </div>
+      )}
+
       {isEmpty ? (
         <div className="flex flex-1 flex-col items-center justify-center p-8 pb-32">
           <div className="flex max-w-md flex-col items-center text-center">
@@ -153,10 +201,10 @@ export function ActiveSession() {
       ) : (
         <>
           {!isMemberSession && (
-            <div className="mx-auto flex w-full max-w-[860px] items-center border-b border-outline-variant/10 px-8 py-3">
-              <div className="flex-1">
+            <div className="mx-auto flex w-full max-w-[860px] items-center px-8 pb-3 pt-3">
+              <div className="flex-1 min-w-0">
                 <h1 className="text-lg font-bold font-headline text-on-surface leading-tight">
-                  {session?.title || t('session.untitled')}
+                  {sessionTitle}
                 </h1>
                 <div className="flex items-center gap-2 text-[10px] text-outline font-medium mt-1">
                   {isActive && (

@@ -14,10 +14,21 @@ type ProvidersResponse = { providers: SavedProvider[]; activeId: string | null }
 type ProviderResponse = { provider: SavedProvider }
 type PresetsResponse = { presets: ProviderPreset[] }
 type TestResultResponse = { result: ProviderTestResult }
-type AuthStatusResponse = {
+
+export type EffectiveProviderInfo = {
+  name: string
+  baseUrl?: string
+  apiFormat: 'anthropic' | 'openai_chat' | 'openai_responses'
+  modelId?: string
+  readOnly: boolean
+  source: 'claude-yh-provider' | 'original-settings' | 'env'
+}
+
+export type AuthStatusResponse = {
   hasAuth: boolean
   source: 'claude-yh-provider' | 'original-settings' | 'env' | 'none'
   activeProvider?: string
+  effectiveProvider?: EffectiveProviderInfo
 }
 
 export const providersApi = {

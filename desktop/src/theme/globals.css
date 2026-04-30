@@ -84,7 +84,7 @@
 }
 
 .code-viewer-area .has-line-numbers {
-  --line-numbers-foreground: rgba(135, 115, 109, 0.5);
+  --line-numbers-foreground: rgba(138, 143, 152, 0.58);
   --line-numbers-width: 2.5ch;
   --line-numbers-padding-left: 1ch;
   --line-numbers-padding-right: 1.5ch;
@@ -95,27 +95,27 @@
 @theme {
   --color-primary: #8F482F;
   --color-primary-container: #AD5F45;
-  --color-primary-fixed: #FFDBD0;
-  --color-primary-fixed-dim: #FFB59D;
+  --color-primary-fixed: #F6E6E1;
+  --color-primary-fixed-dim: #EBC6B9;
 
   --color-on-primary: #FFFFFF;
-  --color-on-surface: #1B1C1A;
-  --color-on-surface-variant: #54433E;
+  --color-on-surface: #1F1F23;
+  --color-on-surface-variant: #5F646C;
 
-  --color-surface: #FAF9F5;
-  --color-surface-bright: #FAF9F5;
-  --color-surface-dim: #DBDAD6;
-  --color-surface-container: #EFEEEA;
-  --color-surface-container-low: #F4F4F0;
-  --color-surface-container-high: #E9E8E4;
-  --color-surface-container-highest: #E3E2DF;
+  --color-surface: #F7F7F8;
+  --color-surface-bright: #FCFCFD;
+  --color-surface-dim: #ECECF1;
+  --color-surface-container: #F1F1F4;
+  --color-surface-container-low: #F5F5F7;
+  --color-surface-container-high: #ECEDF1;
+  --color-surface-container-highest: #E5E7EB;
   --color-surface-container-lowest: #FFFFFF;
-  --color-surface-variant: #E3E2DF;
+  --color-surface-variant: #ECECF1;
 
-  --color-background: #FAF9F5;
+  --color-background: #F7F7F8;
 
-  --color-outline: #87736D;
-  --color-outline-variant: #DAC1BA;
+  --color-outline: #8A8F98;
+  --color-outline-variant: #DDDFE4;
 
   --color-secondary: #2D628F;
   --color-secondary-container: #9ACBFE;
@@ -125,9 +125,9 @@
   --color-error: #BA1A1A;
   --color-error-container: #FFDAD6;
 
-  --color-inverse-surface: #2F312E;
-  --color-inverse-on-surface: #F2F1ED;
-  --color-inverse-primary: #FFB59D;
+  --color-inverse-surface: #24262B;
+  --color-inverse-on-surface: #F5F6F7;
+  --color-inverse-primary: #EBC6B9;
 
   --color-success: #16A34A;
   --color-warning: #CA8A04;
@@ -168,7 +168,7 @@
   --color-text-accent: var(--color-secondary);
 
   /* Shadows */
-  --shadow-dropdown: 0 4px 20px rgba(27, 28, 26, 0.04), 0 12px 40px rgba(27, 28, 26, 0.08);
+  --shadow-dropdown: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.08);
 
   /* Button colors */
   --color-btn-primary-bg: var(--color-primary);
@@ -235,7 +235,7 @@ button, input, textarea, select, a, [role="button"] {
 
 /* Custom shadow from prototype */
 .custom-shadow {
-  box-shadow: 0 4px 20px rgba(27, 28, 26, 0.04), 0 12px 40px rgba(27, 28, 26, 0.08);
+  box-shadow: var(--shadow-dropdown);
 }
 
 /* Scrollbar */

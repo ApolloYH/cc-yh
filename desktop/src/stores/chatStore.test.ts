@@ -36,6 +36,7 @@ vi.mock('../api/sessions', () => ({
     create: vi.fn(async () => ({ sessionId: 'mock-session' })),
     delete: vi.fn(async () => ({ ok: true })),
     rename: vi.fn(async () => ({ ok: true })),
+    updateWorkDir: vi.fn(async () => ({ ok: true })),
     getRecentProjects: vi.fn(async () => ({ projects: [] })),
     getGitInfo: vi.fn(async () => ({
       branch: null,

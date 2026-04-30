@@ -7,6 +7,7 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { execFileSync } from 'node:child_process'
 
 export type PairedUser = {
   userId: string | number
@@ -62,7 +63,86 @@ function loadFile(): Record<string, any> {
   }
 }
 
+function normalizeProxyUrl(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  return /^[a-z]+:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`
+}
+
+function parseWindowsProxyServer(value: string): { http?: string; https?: string } {
+  const trimmed = value.trim()
+  if (!trimmed) return {}
+
+  if (!trimmed.includes('=')) {
+    const proxy = normalizeProxyUrl(trimmed)
+    return proxy ? { http: proxy, https: proxy } : {}
+  }
+
+  const result: { http?: string; https?: string } = {}
+  for (const segment of trimmed.split(';')) {
+    const [rawScheme, rawTarget] = segment.split('=', 2)
+    const scheme = rawScheme?.trim().toLowerCase()
+    const target = rawTarget?.trim()
+    if (!scheme || !target) continue
+    const proxy = normalizeProxyUrl(target)
+    if (!proxy) continue
+    if (scheme === 'http') result.http = proxy
+    if (scheme === 'https') result.https = proxy
+  }
+
+  if (!result.http && result.https) result.http = result.https
+  if (!result.https && result.http) result.https = result.http
+  return result
+}
+
+function applyWindowsSystemProxyEnv(): void {
+  if (process.platform !== 'win32') return
+  if (
+    process.env.HTTP_PROXY ||
+    process.env.HTTPS_PROXY ||
+    process.env.ALL_PROXY ||
+    process.env.http_proxy ||
+    process.env.https_proxy ||
+    process.env.all_proxy
+  ) {
+    return
+  }
+
+  try {
+    const output = execFileSync(
+      'reg',
+      ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    )
+
+    const proxyEnableMatch = output.match(/ProxyEnable\s+REG_DWORD\s+0x([0-9a-fA-F]+)/)
+    const proxyServerMatch = output.match(/ProxyServer\s+REG_SZ\s+(.+)/)
+
+    if (!proxyEnableMatch || parseInt(proxyEnableMatch[1]!, 16) !== 1) return
+    if (!proxyServerMatch) return
+
+    const proxy = parseWindowsProxyServer(proxyServerMatch[1]!)
+    if (!proxy.http && !proxy.https) return
+
+    if (proxy.http) {
+      process.env.HTTP_PROXY = proxy.http
+      process.env.http_proxy = proxy.http
+    }
+    if (proxy.https) {
+      process.env.HTTPS_PROXY = proxy.https
+      process.env.https_proxy = proxy.https
+    }
+
+    console.log(
+      `[Config] Using Windows system proxy${proxy.http || proxy.https ? `: ${proxy.https ?? proxy.http}` : ''}`,
+    )
+  } catch {
+    // Ignore system proxy detection failures and fall back to direct access.
+  }
+}
+
 export function loadConfig(): AdapterConfig {
+  applyWindowsSystemProxyEnv()
   const file = loadFile()
   const tg = file.telegram ?? {}
   const fs_ = file.feishu ?? {}

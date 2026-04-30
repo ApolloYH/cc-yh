@@ -106,6 +106,10 @@ export const en = {
   'settings.providers.apiFormatOpenaiChat': 'OpenAI Chat Completions (proxy)',
   'settings.providers.apiFormatOpenaiResponses': 'OpenAI Responses API (proxy)',
   'settings.providers.proxyHint': 'Requests will be translated via the local proxy',
+  'settings.providers.readOnly': 'Read-only',
+  'settings.providers.readOnlyHint': 'This connection is managed externally via {source}. Edit it at the source instead of here.',
+  'settings.providers.sourceEnv': 'environment variables',
+  'settings.providers.sourceOriginalSettings': 'global settings.json',
 
   // Settings > Permissions
   'settings.permissions.title': 'Permission Mode',

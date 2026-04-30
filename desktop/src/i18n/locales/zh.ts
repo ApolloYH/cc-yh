@@ -108,6 +108,10 @@ export const zh: Record<TranslationKey, string> = {
   'settings.providers.apiFormatOpenaiChat': 'OpenAI Chat Completions (代理转换)',
   'settings.providers.apiFormatOpenaiResponses': 'OpenAI Responses API (代理转换)',
   'settings.providers.proxyHint': '请求将通过本地代理转换协议格式',
+  'settings.providers.readOnly': '只读',
+  'settings.providers.readOnlyHint': '该连接由{source}接管，请在外部配置源中修改。',
+  'settings.providers.sourceEnv': '环境变量',
+  'settings.providers.sourceOriginalSettings': '全局 settings.json',
 
   // Settings > Permissions
   'settings.permissions.title': '权限模式',

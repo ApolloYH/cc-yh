@@ -336,14 +336,23 @@ export function EmptySession() {
   }
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden bg-[#FAF9F5]">
+    <div className="relative flex flex-1 flex-col overflow-hidden bg-[var(--color-background)]">
+      <div className="w-full px-8 pt-4">
+        <DirectoryPicker
+          value={workDir}
+          onChange={setWorkDir}
+          variant="toolbar"
+          placeholderLabel={t('dirPicker.selectProject')}
+        />
+      </div>
+
       <div className="flex flex-1 flex-col items-center justify-center p-8 pb-32">
         <div className="flex max-w-md flex-col items-center text-center">
           <img src="/app-icon.svg" alt="Claude YH" className="mb-6 h-24 w-24 rounded-[22px] shadow-[0_2px_12px_rgba(0,0,0,0.06)]" />
-          <h1 className="mb-2 text-3xl font-extrabold tracking-tight text-[#1B1C1A]" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          <h1 className="mb-2 text-3xl font-extrabold tracking-tight text-[var(--color-text-primary)]" style={{ fontFamily: "'Manrope', sans-serif" }}>
             {t('empty.title')}
           </h1>
-          <p className="mx-auto max-w-xs text-[#87736D]" style={{ fontFamily: "'Inter', sans-serif" }}>
+          <p className="mx-auto max-w-xs text-[var(--color-text-secondary)]" style={{ fontFamily: "'Inter', sans-serif" }}>
             {t('empty.subtitle')}
           </p>
         </div>
@@ -352,8 +361,8 @@ export function EmptySession() {
       <div className="absolute bottom-4 left-0 right-0 flex justify-center px-8">
         <div className="flex w-full max-w-3xl flex-col gap-2">
           <div
-            className="relative flex flex-col gap-3 rounded-xl border border-[#dac1ba]/15 bg-white p-4"
-            style={{ boxShadow: '0 4px 20px rgba(27, 28, 26, 0.04), 0 12px 40px rgba(27, 28, 26, 0.08)' }}
+            className="relative flex flex-col gap-3 rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-container-lowest)] p-4"
+            style={{ boxShadow: 'var(--shadow-dropdown)' }}
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleDrop}
           >
@@ -382,7 +391,8 @@ export function EmptySession() {
             {slashMenuOpen && filteredCommands.length > 0 && (
               <div
                 ref={slashMenuRef}
-                className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-[#dac1ba]/20 bg-white shadow-[0_18px_48px_rgba(27,28,26,0.12)]"
+                className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)]"
+                style={{ boxShadow: 'var(--shadow-dropdown)' }}
               >
                 <div className="max-h-[260px] overflow-y-auto py-1">
                   {filteredCommands.map((command, index) => (
@@ -392,11 +402,11 @@ export function EmptySession() {
                       onClick={() => selectSlashCommand(command.name)}
                       onMouseEnter={() => setSlashSelectedIndex(index)}
                       className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors ${
-                        index === slashSelectedIndex ? 'bg-[#F4F4F0]' : 'hover:bg-[#F8F7F4]'
+                        index === slashSelectedIndex ? 'bg-[var(--color-surface-hover)]' : 'hover:bg-[var(--color-surface-hover)]'
                       }`}
                     >
-                      <span className="text-sm font-semibold text-[#1B1C1A]">/{command.name}</span>
-                      <span className="truncate text-xs text-[#87736D]">{command.description}</span>
+                      <span className="text-sm font-semibold text-[var(--color-text-primary)]">/{command.name}</span>
+                      <span className="truncate text-xs text-[var(--color-text-tertiary)]">{command.description}</span>
                     </button>
                   ))}
                 </div>
@@ -414,41 +424,44 @@ export function EmptySession() {
                 onChange={(event) => handleInputChange(event.target.value, event.target.selectionStart ?? event.target.value.length)}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                className="flex-1 resize-none border-none bg-transparent py-2 leading-relaxed text-[#1B1C1A] outline-none placeholder:text-[#87736D]/50"
+                className="flex-1 resize-none border-none bg-transparent py-2 leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]/60"
                 style={{ fontFamily: "'Inter', sans-serif" }}
                 placeholder={t('empty.placeholder')}
                 rows={2}
               />
             </div>
 
-            <div className="flex items-center justify-between border-t border-[#dac1ba]/10 pt-3">
+            <div className="flex items-center justify-between border-t border-[var(--color-border)]/60 pt-3">
               <div className="flex items-center gap-2">
                 <div ref={plusMenuRef} className="relative">
                   <button
                     onClick={() => setPlusMenuOpen((prev) => !prev)}
                     aria-label="Open composer tools"
-                    className="rounded-lg p-1.5 text-[#87736D] transition-colors hover:bg-[#F4F4F0]"
+                    className="rounded-lg p-1.5 text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)]"
                   >
                     <span className="material-symbols-outlined text-[18px]">add</span>
                   </button>
 
                   {plusMenuOpen && (
-                    <div className="absolute bottom-full left-0 mb-2 w-[240px] rounded-xl border border-[#dac1ba]/20 bg-white py-1 shadow-[0_18px_48px_rgba(27,28,26,0.12)]">
+                    <div
+                      className="absolute bottom-full left-0 mb-2 w-[240px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] py-1"
+                      style={{ boxShadow: 'var(--shadow-dropdown)' }}
+                    >
                       <button
                         onClick={() => {
                           fileInputRef.current?.click()
                           setPlusMenuOpen(false)
                         }}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[#1B1C1A] transition-colors hover:bg-[#F8F7F4]"
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
                       >
-                        <span className="material-symbols-outlined text-[18px] text-[#87736D]">attach_file</span>
+                        <span className="material-symbols-outlined text-[18px] text-[var(--color-text-secondary)]">attach_file</span>
                         {t('empty.addFiles')}
                       </button>
                       <button
                         onClick={insertSlashCommand}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[#1B1C1A] transition-colors hover:bg-[#F8F7F4]"
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
                       >
-                        <span className="w-5 text-center text-[18px] font-bold text-[#87736D]">/</span>
+                        <span className="w-5 text-center text-[18px] font-bold text-[var(--color-text-secondary)]">/</span>
                         {t('empty.slashCommands')}
                       </button>
                     </div>
@@ -472,9 +485,6 @@ export function EmptySession() {
             </div>
           </div>
 
-          <div>
-            <DirectoryPicker value={workDir} onChange={setWorkDir} />
-          </div>
         </div>
       </div>
 

@@ -119,7 +119,7 @@ export function PermissionDialog({ requestId, toolName, input, description }: Pr
   const isPending = pendingPermission?.requestId === requestId
   const [showRaw, setShowRaw] = useState(false)
 
-  const meta = TOOL_META[toolName] || { icon: 'shield', label: toolName, color: '#87736D' }
+  const meta = TOOL_META[toolName] || { icon: 'shield', label: toolName, color: '#5F646C' }
   const details = extractToolDetails(toolName, input, t)
   const rawInput = typeof input === 'string' ? input : JSON.stringify(input, null, 2)
   const preview = renderPermissionPreview(toolName, input)

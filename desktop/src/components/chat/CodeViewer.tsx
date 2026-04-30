@@ -74,7 +74,7 @@ function CodeArea({ code, language, showLineNumbers }: { code: string; language?
   }, [code, language])
 
   return (
-    <div ref={containerRef} className="code-viewer-area max-h-[420px] overflow-auto bg-[#FDFCF9]">
+    <div ref={containerRef} className="code-viewer-area max-h-[420px] overflow-auto bg-[var(--color-surface-container-lowest)]">
       {/* Plain-text fallback shown until Shiki finishes highlighting */}
       {!loaded && (
         <pre
@@ -86,7 +86,7 @@ function CodeArea({ code, language, showLineNumbers }: { code: string; language?
             lineHeight: '1.45',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
-            color: '#24201E',
+            color: 'var(--color-text-primary)',
           }}
         >
           {code}

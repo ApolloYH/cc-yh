@@ -14,6 +14,7 @@ type SessionStore = {
   createSession: (workDir?: string) => Promise<string>
   deleteSession: (id: string) => Promise<void>
   renameSession: (id: string, title: string) => Promise<void>
+  updateSessionWorkDir: (id: string, workDir: string) => Promise<void>
   updateSessionTitle: (id: string, title: string) => void
   setActiveSession: (id: string | null) => void
   setSelectedProjects: (projects: string[]) => void
@@ -87,6 +88,39 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         session.id === id ? { ...session, title } : session,
       ),
     }))
+  },
+
+  updateSessionWorkDir: async (id: string, workDir: string) => {
+    const previousSession = get().sessions.find((session) => session.id === id)
+    const now = new Date().toISOString()
+
+    set((s) => ({
+      sessions: s.sessions.map((session) =>
+        session.id === id
+          ? {
+              ...session,
+              workDir,
+              projectPath: workDir,
+              workDirExists: true,
+              modifiedAt: now,
+            }
+          : session,
+      ),
+    }))
+
+    try {
+      await sessionsApi.updateWorkDir(id, workDir)
+      void get().fetchSessions()
+    } catch (error) {
+      if (previousSession) {
+        set((s) => ({
+          sessions: s.sessions.map((session) =>
+            session.id === id ? previousSession : session,
+          ),
+        }))
+      }
+      throw error
+    }
   },
 
   updateSessionTitle: (id, title) => {

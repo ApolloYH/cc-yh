@@ -42,6 +42,10 @@ export const sessionsApi = {
     return api.patch<{ ok: true }>(`/api/sessions/${sessionId}`, { title })
   },
 
+  updateWorkDir(sessionId: string, workDir: string) {
+    return api.patch<{ ok: true }>(`/api/sessions/${sessionId}`, { workDir })
+  },
+
   getRecentProjects() {
     return api.get<{ projects: RecentProject[] }>('/api/sessions/recent-projects')
   },

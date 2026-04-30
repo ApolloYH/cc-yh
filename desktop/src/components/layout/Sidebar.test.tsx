@@ -42,14 +42,18 @@ import { useUIStore } from '../../stores/uiStore'
 
 describe('Sidebar', () => {
   const connectToSession = vi.fn()
+  const disconnectSession = vi.fn()
   const fetchSessions = vi.fn()
   const createSession = vi.fn()
+  const deleteSession = vi.fn()
   const addToast = vi.fn()
 
   beforeEach(() => {
     connectToSession.mockReset()
+    disconnectSession.mockReset()
     fetchSessions.mockReset()
     createSession.mockReset()
+    deleteSession.mockReset()
     addToast.mockReset()
 
     useTabStore.setState({ tabs: [], activeTabId: null })
@@ -62,9 +66,11 @@ describe('Sidebar', () => {
       availableProjects: [],
       fetchSessions,
       createSession,
+      deleteSession,
     })
     useChatStore.setState({
       connectToSession,
+      disconnectSession,
     } as Partial<ReturnType<typeof useChatStore.getState>>)
     useUIStore.setState({
       sidebarOpen: true,
@@ -127,5 +133,48 @@ describe('Sidebar', () => {
     })
 
     expect(useUIStore.getState().sidebarOpen).toBe(false)
+  })
+
+  it('deletes a session from the history list via the inline delete action', async () => {
+    deleteSession.mockResolvedValue(undefined)
+
+    useSessionStore.setState({
+      sessions: [{
+        id: 'session-delete-1',
+        title: 'Delete Me',
+        createdAt: '2026-04-24T00:00:00.000Z',
+        modifiedAt: '2026-04-24T00:00:00.000Z',
+        messageCount: 1,
+        projectPath: 'C:/Users/y1513/Desktop/cc/cc-yh',
+        workDir: 'C:/Users/y1513/Desktop/cc/cc-yh',
+        workDirExists: true,
+      }],
+      activeSessionId: 'session-delete-1',
+      isLoading: false,
+      error: null,
+      selectedProjects: [],
+      availableProjects: [],
+      fetchSessions,
+      createSession,
+      deleteSession,
+    })
+    useTabStore.setState({
+      tabs: [{ sessionId: 'session-delete-1', title: 'Delete Me', type: 'session', status: 'idle' }],
+      activeTabId: 'session-delete-1',
+    })
+
+    render(<Sidebar />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Delete Me' }))
+    })
+
+    await waitFor(() => {
+      expect(deleteSession).toHaveBeenCalledWith('session-delete-1')
+      expect(disconnectSession).toHaveBeenCalledWith('session-delete-1')
+    })
+
+    expect(useTabStore.getState().tabs).toEqual([])
+    expect(useTabStore.getState().activeTabId).toBeNull()
   })
 })

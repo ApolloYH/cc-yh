@@ -29,10 +29,13 @@ export function Sidebar() {
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
   const deleteSession = useSessionStore((s) => s.deleteSession)
   const renameSession = useSessionStore((s) => s.renameSession)
+  const disconnectSession = useChatStore((s) => s.disconnectSession)
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const addToast = useUIStore((s) => s.addToast)
   const activeTabId = useTabStore((s) => s.activeTabId)
+  const closeTab = useTabStore((s) => s.closeTab)
+  const t = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -73,8 +76,18 @@ export function Sidebar() {
 
   const handleDelete = useCallback(async (id: string) => {
     setContextMenu(null)
-    await deleteSession(id)
-  }, [deleteSession])
+    try {
+      await deleteSession(id)
+      disconnectSession(id)
+      closeTab(id)
+    } catch (error) {
+      addToast({
+        type: 'error',
+        message:
+          error instanceof Error ? error.message : t('sidebar.sessionListFailed'),
+      })
+    }
+  }, [addToast, closeTab, deleteSession, disconnectSession, t])
 
   const handleStartRename = useCallback((id: string, currentTitle: string) => {
     setContextMenu(null)
@@ -106,8 +119,6 @@ export function Sidebar() {
     if ((e.target as HTMLElement).closest('button, input, textarea, select, a, [role="button"]')) return
     startDraggingRef.current?.()
   }, [])
-
-  const t = useTranslation()
 
   const TIME_GROUP_LABELS: Record<TimeGroup, string> = {
     today: t('sidebar.timeGroup.today'),
@@ -250,37 +261,51 @@ export function Sidebar() {
                       className="w-full px-3 py-2 text-sm rounded-[var(--radius-md)] border border-[var(--color-border-focus)] bg-[var(--color-surface)] text-[var(--color-text-primary)] outline-none ml-1"
                     />
                   ) : (
-                    <button
-                      onClick={() => {
-                        useTabStore.getState().openTab(session.id, session.title)
-                        useChatStore.getState().connectToSession(session.id)
-                      }}
-                      onContextMenu={(e) => handleContextMenu(e, session.id)}
-                      className={`
-                        w-full flex items-center gap-2 pl-4 pr-3 py-1.5 text-sm text-left rounded-[var(--radius-md)] transition-colors duration-200 group
-                        ${session.id === activeTabId
-                          ? 'bg-[var(--color-surface-selected)] text-[var(--color-text-primary)]'
-                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
-                        }
-                      `}
-                    >
-                      <span className="w-1 h-1 rounded-full flex-shrink-0" style={{
-                        backgroundColor: session.id === activeTabId ? 'var(--color-brand)' : 'var(--color-text-tertiary)',
-                        opacity: session.id === activeTabId ? 1 : 0.5,
-                      }} />
-                      <span className="truncate flex-1">{session.title || 'Untitled'}</span>
-                      {!session.workDirExists && (
-                        <span
-                          className="text-[10px] text-[var(--color-warning)] flex-shrink-0"
-                          title={session.workDir ?? ''}
-                        >
-                          {t('sidebar.missingDir')}
+                    <div className="group relative">
+                      <button
+                        onClick={() => {
+                          useTabStore.getState().openTab(session.id, session.title)
+                          useChatStore.getState().connectToSession(session.id)
+                        }}
+                        onContextMenu={(e) => handleContextMenu(e, session.id)}
+                        className={`
+                          w-full flex items-center gap-2 pl-4 pr-16 py-1.5 text-sm text-left rounded-[var(--radius-md)] transition-colors duration-200
+                          ${session.id === activeTabId
+                            ? 'bg-[var(--color-surface-selected)] text-[var(--color-text-primary)]'
+                            : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
+                          }
+                        `}
+                      >
+                        <span className="w-1 h-1 rounded-full flex-shrink-0" style={{
+                          backgroundColor: session.id === activeTabId ? 'var(--color-brand)' : 'var(--color-text-tertiary)',
+                          opacity: session.id === activeTabId ? 1 : 0.5,
+                        }} />
+                        <span className="truncate flex-1">{session.title || 'Untitled'}</span>
+                        {!session.workDirExists && (
+                          <span
+                            className="text-[10px] text-[var(--color-warning)] flex-shrink-0"
+                            title={session.workDir ?? ''}
+                          >
+                            {t('sidebar.missingDir')}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-[var(--color-text-tertiary)] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {formatRelativeTime(session.modifiedAt)}
                         </span>
-                      )}
-                      <span className="text-[10px] text-[var(--color-text-tertiary)] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {formatRelativeTime(session.modifiedAt)}
-                      </span>
-                    </button>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`${t('common.delete')} ${session.title || 'Untitled'}`}
+                        title={t('common.delete')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleDelete(session.id)
+                        }}
+                        className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-[var(--color-text-tertiary)] opacity-0 transition-all hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)] group-hover:opacity-100 focus:opacity-100"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -417,6 +442,28 @@ function PlusIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
     </svg>
   )
 }

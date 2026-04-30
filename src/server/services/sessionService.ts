@@ -133,8 +133,12 @@ export class SessionService {
     entries: RawEntry[],
     fallbackProjectDir?: string,
   ): string | null {
-    for (const entry of entries) {
-      if (entry.type === 'session-meta' && typeof (entry as Record<string, unknown>).workDir === 'string') {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i]
+      if (
+        entry?.type === 'session-meta' &&
+        typeof (entry as Record<string, unknown>).workDir === 'string'
+      ) {
         return (entry as Record<string, unknown>).workDir as string
       }
     }
@@ -640,6 +644,69 @@ export class SessionService {
     }
 
     await this.appendJsonlEntry(found.filePath, entry)
+  }
+
+  /**
+   * Update the working directory for a placeholder session that has no transcript yet.
+   * This keeps the same session id for empty desktop-created sessions.
+   */
+  async updateSessionWorkDir(sessionId: string, workDir: string): Promise<void> {
+    if (!workDir || typeof workDir !== 'string') {
+      throw ApiError.badRequest('workDir is required')
+    }
+
+    const found = await this.findSessionFile(sessionId)
+    if (!found) {
+      throw ApiError.notFound(`Session not found: ${sessionId}`)
+    }
+
+    const absWorkDir = path.resolve(workDir)
+    let stat
+    try {
+      stat = await fs.stat(absWorkDir)
+    } catch {
+      throw ApiError.badRequest(`Working directory does not exist: ${absWorkDir}`)
+    }
+    if (!stat.isDirectory()) {
+      throw ApiError.badRequest(`Working directory is not a directory: ${absWorkDir}`)
+    }
+
+    const launchInfo = await this.getSessionLaunchInfo(sessionId)
+    if (!launchInfo) {
+      throw ApiError.notFound(`Session not found: ${sessionId}`)
+    }
+
+    if (launchInfo.transcriptMessageCount > 0) {
+      throw ApiError.badRequest('Cannot change workDir for a non-empty session')
+    }
+
+    if (path.resolve(launchInfo.workDir) === absWorkDir) {
+      return
+    }
+
+    const nextProjectDir = path.join(this.getProjectsDir(), this.sanitizePath(absWorkDir))
+    await fs.mkdir(nextProjectDir, { recursive: true })
+
+    const nextFilePath = path.join(nextProjectDir, `${sessionId}.jsonl`)
+    if (path.resolve(found.filePath) !== path.resolve(nextFilePath)) {
+      await fs.rename(found.filePath, nextFilePath)
+    }
+
+    await this.appendJsonlEntry(nextFilePath, {
+      type: 'session-meta',
+      isMeta: true,
+      workDir: absWorkDir,
+      timestamp: new Date().toISOString(),
+    })
+
+    try {
+      const remaining = await fs.readdir(found.projectDir)
+      if (remaining.length === 0) {
+        await fs.rmdir(found.projectDir)
+      }
+    } catch {
+      // ignore cleanup failures for empty project folders
+    }
   }
 
   /**

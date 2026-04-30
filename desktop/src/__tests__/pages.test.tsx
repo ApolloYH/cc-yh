@@ -31,15 +31,15 @@ describe('Content-only pages render without errors', () => {
   it('EmptySession renders mascot and composer', () => {
     const { container } = render(<EmptySession />)
     expect(container.querySelector('textarea')).toBeInTheDocument()
-    expect(container.innerHTML).toContain('New session')
-    expect(container.innerHTML).toContain('Ask anything')
+    expect(container.innerHTML).toContain('新建会话')
+    expect(container.innerHTML).toContain('随便问点什么')
   })
 
   it('EmptySession plus menu exposes uploads and slash commands before chat starts', () => {
     render(<EmptySession />)
     fireEvent.click(screen.getByRole('button', { name: 'Open composer tools' }))
-    expect(screen.getByText('Add files or photos')).toBeInTheDocument()
-    expect(screen.getByText('Slash commands')).toBeInTheDocument()
+    expect(screen.getByText('添加文件或图片')).toBeInTheDocument()
+    expect(screen.getByText('斜杠命令')).toBeInTheDocument()
   })
 
   it('ActiveSession renders with chat components', () => {
@@ -68,7 +68,7 @@ describe('Content-only pages render without errors', () => {
     })
     const { container } = render(<ActiveSession />)
     // With empty messages, the hero is shown
-    expect(container.innerHTML).toContain('New session')
+    expect(container.innerHTML).toContain('新建会话')
     // ChatInput has a textarea
     expect(container.querySelector('textarea')).toBeInTheDocument()
     expect(container.innerHTML).not.toContain('Preview')
@@ -116,8 +116,8 @@ describe('Content-only pages render without errors', () => {
 
   it('ScheduledTasks renders (store-connected)', async () => {
     const { container } = render(<ScheduledTasks />)
-    await screen.findByText('Scheduled tasks')
-    expect(container.innerHTML).toContain('Scheduled tasks')
+    await screen.findByText('定时任务')
+    expect(container.innerHTML).toContain('定时任务')
   })
 
   it('ToolInspection renders diff viewer', () => {
@@ -152,9 +152,9 @@ describe('AppShell layout renders chrome', () => {
   it('AppShell renders sidebar and session shell', () => {
     const { container } = render(<Sidebar />)
     expect(container.querySelector('aside')).toBeInTheDocument()
-    expect(container.innerHTML).toContain('New session')
-    expect(container.innerHTML).toContain('Scheduled')
-    expect(container.innerHTML).toContain('All projects')
+    expect(container.innerHTML).toContain('新建会话')
+    expect(container.innerHTML).toContain('定时任务')
+    expect(container.innerHTML).toContain('所有项目')
   })
 })
 

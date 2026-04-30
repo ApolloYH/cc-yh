@@ -1,15 +1,17 @@
 import '../test/setupDom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createMock, listMock } = vi.hoisted(() => ({
+const { createMock, listMock, updateWorkDirMock } = vi.hoisted(() => ({
   createMock: vi.fn(),
   listMock: vi.fn(),
+  updateWorkDirMock: vi.fn(),
 }))
 
 vi.mock('../api/sessions', () => ({
   sessionsApi: {
     create: createMock,
     list: listMock,
+    updateWorkDir: updateWorkDirMock,
     getMessages: vi.fn(async () => ({ messages: [] })),
     delete: vi.fn(async () => ({ ok: true })),
     rename: vi.fn(async () => ({ ok: true })),
@@ -36,6 +38,7 @@ describe('sessionStore', () => {
   beforeEach(() => {
     createMock.mockReset()
     listMock.mockReset()
+    updateWorkDirMock.mockReset()
     useSessionStore.setState({
       ...initialState,
       sessions: [],
@@ -69,5 +72,38 @@ describe('sessionStore', () => {
       workDirExists: true,
     })
     expect(listMock).toHaveBeenCalledOnce()
+  })
+
+  it('updates an empty session workDir optimistically before refresh completes', async () => {
+    listMock.mockImplementation(() => new Promise(() => {}))
+    updateWorkDirMock.mockResolvedValue({ ok: true })
+
+    useSessionStore.setState({
+      sessions: [{
+        id: 'empty-session-1',
+        title: 'New Session',
+        createdAt: '2026-04-23T00:00:00.000Z',
+        modifiedAt: '2026-04-23T00:00:00.000Z',
+        messageCount: 0,
+        projectPath: 'C:/Users/y1513',
+        workDir: 'C:/Users/y1513',
+        workDirExists: true,
+      }],
+      activeSessionId: 'empty-session-1',
+      isLoading: false,
+      error: null,
+      selectedProjects: [],
+      availableProjects: [],
+    })
+
+    await useSessionStore.getState().updateSessionWorkDir('empty-session-1', 'D:/workspace/demo')
+
+    expect(updateWorkDirMock).toHaveBeenCalledWith('empty-session-1', 'D:/workspace/demo')
+    expect(useSessionStore.getState().sessions[0]).toMatchObject({
+      id: 'empty-session-1',
+      workDir: 'D:/workspace/demo',
+      projectPath: 'D:/workspace/demo',
+      workDirExists: true,
+    })
   })
 })

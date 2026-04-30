@@ -20,8 +20,8 @@ import { SkillList } from '../components/skills/SkillList'
 import { SkillDetail } from '../components/skills/SkillDetail'
 import { ComputerUseSettings } from './ComputerUseSettings'
 import { useUIStore, type SettingsTab } from '../stores/uiStore'
-import { ClaudeOfficialLogin } from '../components/settings/ClaudeOfficialLogin'
 import { useUpdateStore } from '../stores/updateStore'
+import { providersApi, type AuthStatusResponse } from '../api/providers'
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers')
@@ -88,14 +88,30 @@ function TabButton({ icon, label, active, onClick }: { icon: string; label: stri
 // ─── Provider Settings ──────────────────────────────────────
 
 function ProviderSettings() {
-  const { providers, activeId, isLoading, fetchProviders, deleteProvider, activateProvider, activateOfficial, testProvider } = useProviderStore()
+  const { providers, activeId, isLoading, fetchProviders, deleteProvider, activateProvider, testProvider } = useProviderStore()
   const fetchSettings = useSettingsStore((s) => s.fetchAll)
   const t = useTranslation()
   const [editingProvider, setEditingProvider] = useState<SavedProvider | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [testResults, setTestResults] = useState<Record<string, { loading: boolean; result?: ProviderTestResult }>>({})
+  const [authStatus, setAuthStatus] = useState<AuthStatusResponse | null>(null)
 
   useEffect(() => { fetchProviders() }, [fetchProviders])
+  useEffect(() => {
+    let cancelled = false
+
+    const loadAuthStatus = async () => {
+      try {
+        const status = await providersApi.authStatus()
+        if (!cancelled) setAuthStatus(status)
+      } catch {
+        if (!cancelled) setAuthStatus(null)
+      }
+    }
+
+    void loadAuthStatus()
+    return () => { cancelled = true }
+  }, [providers, activeId])
 
   const handleDelete = async (provider: SavedProvider) => {
     if (activeId === provider.id) return
@@ -118,12 +134,10 @@ function ProviderSettings() {
     await fetchSettings()
   }
 
-  const handleActivateOfficial = async () => {
-    await activateOfficial()
-    await fetchSettings()
-  }
-
-  const isOfficialActive = activeId === null
+  const externalProvider = !activeId && authStatus?.hasAuth ? authStatus.effectiveProvider : null
+  const externalSourceLabel = authStatus?.effectiveProvider?.source === 'original-settings'
+    ? t('settings.providers.sourceOriginalSettings')
+    : t('settings.providers.sourceEnv')
 
   return (
     <div className="max-w-2xl">
@@ -139,35 +153,32 @@ function ProviderSettings() {
       </div>
 
       {/* Official provider — always visible at top */}
-      <div
-        className={`relative flex flex-col rounded-xl border transition-all mb-2 ${
-          isOfficialActive
-            ? 'border-[var(--color-brand)] bg-[var(--color-primary-fixed)]'
-            : 'border-[var(--color-border)] hover:border-[var(--color-border-focus)] cursor-pointer'
-        }`}
-      >
-        <div
-          className="flex items-center gap-4 px-4 py-3.5"
-          onClick={() => !isOfficialActive && handleActivateOfficial()}
-        >
-          <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isOfficialActive ? 'bg-[var(--color-success)]' : 'bg-[var(--color-text-tertiary)]'}`} />
+      {externalProvider && (
+        <div className="relative flex items-center gap-4 px-4 py-3.5 rounded-xl border border-[var(--color-brand)] bg-[var(--color-primary-fixed)] mb-2">
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-[var(--color-success)]" />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-[var(--color-text-primary)]">{t('settings.providers.officialName')}</span>
-              {isOfficialActive && (
-                <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-[var(--color-brand)] text-white leading-none">{t('common.active')}</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{externalProvider.name}</span>
+              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-[var(--color-brand)] text-white leading-none">{t('common.active')}</span>
+              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-[var(--color-surface-container-high)] text-[var(--color-text-tertiary)] leading-none">
+                {externalProvider.apiFormat === 'openai_chat'
+                  ? 'OpenAI Chat'
+                  : externalProvider.apiFormat === 'openai_responses'
+                    ? 'OpenAI Responses'
+                    : 'Anthropic'}
+              </span>
+              {externalProvider.readOnly && (
+                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-[var(--color-surface-container-high)] text-[var(--color-warning)] leading-none">
+                  {t('settings.providers.readOnly')}
+                </span>
               )}
             </div>
-            <div className="text-xs text-[var(--color-text-tertiary)] mt-0.5">{t('settings.providers.officialDesc')}</div>
+            <div className="text-xs text-[var(--color-text-tertiary)] truncate mt-0.5">
+              {([externalProvider.baseUrl, externalProvider.modelId].filter(Boolean).join(' · ')) || externalSourceLabel}
+            </div>
           </div>
         </div>
-
-        {isOfficialActive && (
-          <div className="px-4 pb-4 pt-3 border-t border-[var(--color-border-separator)]">
-            <ClaudeOfficialLogin />
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Saved providers */}
       {isLoading && providers.length === 0 ? (

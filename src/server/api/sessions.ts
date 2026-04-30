@@ -229,18 +229,30 @@ async function getGitInfo(sessionId: string): Promise<Response> {
 }
 
 async function patchSession(req: Request, sessionId: string): Promise<Response> {
-  let body: { title?: string }
+  let body: { title?: string; workDir?: string }
   try {
-    body = (await req.json()) as { title?: string }
+    body = (await req.json()) as { title?: string; workDir?: string }
   } catch {
     throw ApiError.badRequest('Invalid JSON body')
   }
 
-  if (!body.title || typeof body.title !== 'string') {
-    throw ApiError.badRequest('title (string) is required in request body')
+  if (body.title !== undefined && typeof body.title !== 'string') {
+    throw ApiError.badRequest('title must be a string')
+  }
+  if (body.workDir !== undefined && typeof body.workDir !== 'string') {
+    throw ApiError.badRequest('workDir must be a string')
+  }
+  if (!body.title && !body.workDir) {
+    throw ApiError.badRequest('title or workDir is required in request body')
   }
 
-  await sessionService.renameSession(sessionId, body.title)
+  if (body.workDir) {
+    await sessionService.updateSessionWorkDir(sessionId, body.workDir)
+  }
+
+  if (body.title) {
+    await sessionService.renameSession(sessionId, body.title)
+  }
   return Response.json({ ok: true })
 }
 
