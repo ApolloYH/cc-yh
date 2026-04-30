@@ -3406,7 +3406,7 @@ async function run(): Promise<CommanderCommand> {
         }
       }
 
-      // --remote and --teleport both create/resume Claude Code Web (CCR) sessions.
+      // --remote and --teleport both create/resume claude-yh Web (CCR) sessions.
       // Remote Control (--rc) is a separate feature gated in initReplBridge.ts.
       if (remote !== null || teleport) {
         await waitForPolicyLimitsToLoad();

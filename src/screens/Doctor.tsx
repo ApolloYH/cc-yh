@@ -223,7 +223,7 @@ export function Doctor(t0) {
   let t7;
   if ($[11] !== onDone) {
     t7 = () => {
-      onDone("Claude Code diagnostics dismissed", {
+      onDone("claude-yh diagnostics dismissed", {
         display: "system"
       });
     };

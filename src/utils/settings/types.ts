@@ -291,7 +291,7 @@ export const SettingsSchema = lazySchema(() =>
                   .describe('IdP issuer URL for OIDC discovery'),
                 clientId: z
                   .string()
-                  .describe("Claude Code's client_id registered at the IdP"),
+                  .describe("claude-yh's client_id registered at the IdP"),
                 callbackPort: z
                   .number()
                   .int()
@@ -332,7 +332,7 @@ export const SettingsSchema = lazySchema(() =>
         ),
       env: EnvironmentVariablesSchema()
         .optional()
-        .describe('Environment variables to set for Claude Code sessions'),
+        .describe('Environment variables to set for claude-yh sessions'),
       // Attribution for commits and PRs
       attribution: z
         .object({
@@ -354,7 +354,7 @@ export const SettingsSchema = lazySchema(() =>
         .optional()
         .describe(
           'Customize attribution text for commits and PRs. ' +
-            'Each field defaults to the standard Claude Code attribution if not set.',
+            'Each field defaults to the standard claude-yh attribution if not set.',
         ),
       includeCoAuthoredBy: z
         .boolean()
@@ -375,7 +375,7 @@ export const SettingsSchema = lazySchema(() =>
       model: z
         .string()
         .optional()
-        .describe('Override the default model used by Claude Code'),
+        .describe('Override the default model used by claude-yh'),
       // Enterprise allowlist of models
       availableModels: z
         .array(z.string())

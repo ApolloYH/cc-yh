@@ -635,7 +635,7 @@ function cacheToStats(
 }
 
 /**
- * Aggregates stats from all Claude Code sessions across all projects.
+ * Aggregates stats from all claude-yh sessions across all projects.
  * Uses a disk cache to avoid reprocessing historical data.
  */
 export async function aggregateClaudeCodeStats(): Promise<ClaudeCodeStats> {

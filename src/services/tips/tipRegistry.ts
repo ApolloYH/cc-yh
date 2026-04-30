@@ -356,7 +356,7 @@ const externalTips: Tip[] = [
   {
     id: 'paste-images-mac',
     content: async () =>
-      'Paste images into Claude Code using control+v (not cmd+v!)',
+      'Paste images into claude-yh using control+v (not cmd+v!)',
     cooldownSessions: 10,
     isRelevant: async () => getPlatform() === 'macos',
   },
@@ -438,7 +438,7 @@ const externalTips: Tip[] = [
   {
     id: 'desktop-app',
     content: async () =>
-      'Run Claude Code locally or remotely using the Claude desktop app: clau.de/desktop',
+      'Run claude-yh locally or remotely using the desktop app',
     cooldownSessions: 15,
     isRelevant: async () => getPlatform() !== 'linux',
   },
@@ -446,7 +446,7 @@ const externalTips: Tip[] = [
     id: 'desktop-shortcut',
     content: async ctx => {
       const blue = color('suggestion', ctx.theme)
-      return `Continue your session in Claude Code Desktop with ${blue('/desktop')}`
+      return `Continue your session in claude-yh Desktop with ${blue('/desktop')}`
     },
     cooldownSessions: 15,
     isRelevant: async () => {
@@ -587,7 +587,7 @@ const externalTips: Tip[] = [
       const claude = color('claude', ctx.theme)
       const reward = getCachedReferrerReward()
       return reward
-        ? `Share Claude Code and earn ${claude(formatCreditAmount(reward))} of extra usage · ${claude('/passes')}`
+        ? `Share claude-yh and earn ${claude(formatCreditAmount(reward))} of extra usage · ${claude('/passes')}`
         : `You have free guest passes to share · ${claude('/passes')}`
     },
     cooldownSessions: 3,

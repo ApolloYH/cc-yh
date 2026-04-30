@@ -222,7 +222,7 @@ export function isClaudeSettingsPath(filePath: string): boolean {
   )
 }
 
-// Always ask when Claude Code tries to edit its own config files
+// Always ask when claude-yh tries to edit its own config files
 function isClaudeConfigFilePath(filePath: string): boolean {
   if (isClaudeSettingsPath(filePath)) {
     return true
@@ -320,7 +320,7 @@ export function getClaudeTempDirName(): string {
  * Uses TMPDIR env var if set, otherwise:
  * - On Unix: /tmp/claude-{uid}/ (resolved to /private/tmp/claude-{uid}/ on macOS)
  * - On Windows: {tmpdir}/claude/ (e.g., C:\Users\{user}\AppData\Local\Temp\claude\)
- * This is a per-user temporary directory used by Claude Code for all temp files.
+ * This is a per-user temporary directory used by claude-yh for all temp files.
  *
  * NOTE: We resolve symlinks to ensure this path matches the resolved paths used
  * in permission checks. On macOS, /tmp is a symlink to /private/tmp, so without
@@ -609,7 +609,7 @@ function hasSuspiciousWindowsPathPattern(path: string): boolean {
  * This function performs comprehensive safety checks including:
  * - Suspicious Windows path patterns (NTFS streams, 8.3 names, long path prefixes, etc.)
  * - Claude config files (.claude-yh/settings.json, .claude-yh/commands/, .claude-yh/agents/)
- * - MCP CLI state files (managed internally by Claude Code)
+ * - MCP CLI state files (managed internally by claude-yh)
  * - Dangerous files (.bashrc, .gitconfig, .git/, .vscode/, .idea/, etc.)
  *
  * IMPORTANT: This function checks BOTH the original path AND resolved symlink paths

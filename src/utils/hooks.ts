@@ -2,7 +2,7 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
 /**
  * Hooks are user-defined shell commands that can be executed at various points
- * in Claude Code's lifecycle.
+ * in claude-yh's lifecycle.
  */
 import { basename } from 'path'
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'

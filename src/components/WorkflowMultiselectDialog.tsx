@@ -21,7 +21,7 @@ const WORKFLOWS: WorkflowOption[] = [{
   label: '@Claude-YH - Tag @claude-yh in issues and PR comments'
 }, {
   value: 'claude-review' as const,
-  label: 'Claude Code Review - Automated code review on new PRs'
+  label: 'claude-yh Review - Automated code review on new PRs'
 }];
 function renderInputGuide(exitState: ExitState): React.ReactNode {
   if (exitState.pending) {
