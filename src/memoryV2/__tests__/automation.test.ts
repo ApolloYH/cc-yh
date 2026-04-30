@@ -44,7 +44,7 @@ describe('Memory L1-L4 automation', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('summarizes sessions, refreshes vectors, and auto-applies distill candidates', async () => {
+  it('summarizes sessions and refreshes vectors without heuristic distillation', async () => {
     const projectDir = path.join(tmpDir, 'projects', 'repo-a')
     await fs.mkdir(projectDir, { recursive: true })
     await fs.writeFile(
@@ -66,12 +66,11 @@ describe('Memory L1-L4 automation', () => {
 
     const result = await runMemoryV2Automation(5)
     expect(result.summaries).toBeGreaterThan(0)
-    expect(result.candidates).toBeGreaterThan(0)
-    expect(result.applied).toBe(result.candidates)
+    expect(result.candidates).toBe(0)
+    expect(result.applied).toBe(0)
 
     const status = await getMemoryV2Status()
     expect(status.indexPath).toBe(path.join(tmpDir, 'project-memory', 'MEMORY.md'))
-    expect(status.sops.length + status.facts.length).toBeGreaterThan(0)
 
     const search = await searchMemoryV2('browser configuration')
     expect(search.length).toBeGreaterThan(0)

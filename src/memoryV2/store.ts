@@ -294,34 +294,152 @@ export async function generateMemoryV2DistillCandidates(
   if (!sourceSummaries && summaries.length === 0) {
     summaries = await listL4Entries(limit)
   }
-  const candidates = summaries
-    .filter(entry => {
-      const text = (entry.title + '\n' + (entry.content ?? '')).toLowerCase()
-      return /browser|memory|skill|配置|测试|搜索|权限|定时|away|jarvis|rust/.test(text)
-    })
-    .slice(0, limit)
-    .map(entry => {
-      const text = entry.title + '\n' + (entry.content ?? '')
-      const isProcedure = /怎么|如何|流程|测试|配置|步骤|smoke|browser|skill/i.test(text)
-      return {
-        id: 'candidate-' + entry.id,
-        layer: isProcedure ? 'L3' as const : 'L2' as const,
-        title: isProcedure ? 'SOP: ' + entry.title : 'Fact: ' + entry.title,
-        content: [
-          entry.summary || entry.content || entry.title,
-          '',
-          'Derived from ' + (entry.source || entry.path) + '. Review before relying on this memory.',
-        ].join('\n').trim(),
-        source: entry.source || entry.path,
-        confidence: 0.72,
-        reason: 'Generated from verified L4 session summary; requires review before long-term use.',
-        verified: true as const,
-      }
-    })
+  const candidates: MemoryV2DistillCandidate[] = []
+  for (const entry of summaries) {
+    if (candidates.length >= limit) break
+    const extracted = await extractMemoryCandidatesWithModel(entry)
+    for (const candidate of extracted) {
+      if (candidates.length >= limit) break
+      candidates.push(candidate)
+    }
+  }
   const paths = getMemoryV2Paths()
   await ensureMemoryV2Dirs(paths)
   await fs.writeFile(paths.candidatePath, JSON.stringify(candidates, null, 2), 'utf-8')
   return candidates
+}
+
+async function extractMemoryCandidatesWithModel(entry: MemoryV2Entry): Promise<MemoryV2DistillCandidate[]> {
+  const modelResult = await callConfiguredMainModel({
+    maxTokens: 1400,
+    timeoutMs: 120_000,
+    systemPrompt: [
+      '你是 claude-yh 的长期记忆抽取子智能体。',
+      '只根据给定 L4 会话摘要判断是否值得沉淀长期记忆。',
+      '必须返回 JSON，不要输出解释。',
+      'JSON 格式：{"candidates":[{"layer":"L2|L3","title":"...","content":"...","confidence":0.0,"reason":"...","evidence":"..."}]}。',
+      'L2 只保存长期稳定事实：用户明确表达的长期偏好、身份定位、稳定配置、长期规则、全局约束。',
+      'L3 只保存抽象可复用流程：必须有适用触发条件、可复用步骤、验证/回退方式。',
+      '必须区分“用户本人身份”和“助手/产品身份”：用户说“你是 claude-yh”“你改名字了”“你是我基于 claude-code 开发的智能体”时，指的是助手或产品 claude-yh，不是用户本人。',
+      '除非用户明确说“我叫 claude-yh”“称呼我为 claude-yh”，否则绝不能写“用户身份是 claude-yh”或“称呼用户为 claude-yh”。',
+      '如果身份归属不确定，返回空 candidates，不要猜测。',
+      '不要把一次性任务、搜索请求、天气查询、论文查询、B 站/CNKI/网页搜索、问候、工具询问、当前会话标题沉淀为记忆。',
+      'SOP 标题必须是抽象流程名，不能是“去某网站搜索某内容”这种具体任务。',
+      '如果没有长期价值，返回 {"candidates":[]}。',
+      '不要保存密钥、token、cookie、账号密码等敏感内容。',
+    ].join('\n'),
+    userPrompt: JSON.stringify({
+      l4: {
+        id: entry.id,
+        title: entry.title,
+        source: entry.source || entry.path,
+        summary: entry.summary,
+        content: entry.content?.slice(0, 10_000),
+      },
+    }),
+  }).catch(error => {
+    logDiagnosticEvent({
+      scope: 'memoryV2.distill',
+      event: 'model_extract_failed',
+      ok: false,
+      severity: 'warn',
+      data: {
+        entryId: entry.id,
+        sessionTitle: entry.title,
+        entryTitle: entry.title,
+        title: entry.title,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    })
+    return null
+  })
+  if (!modelResult) {
+    logDiagnosticEvent({
+      scope: 'memoryV2.distill',
+      event: 'model_extract_skipped',
+      ok: true,
+      severity: 'info',
+      data: {
+        entryId: entry.id,
+        sessionTitle: entry.title,
+        entryTitle: entry.title,
+        title: entry.title,
+        reason: 'main_model_unavailable_or_disabled',
+      },
+    })
+    return []
+  }
+
+  const parsed = parseJsonFromModelText(modelResult.content)
+  const rawCandidates = Array.isArray(parsed?.candidates) ? parsed.candidates : []
+  const candidates = rawCandidates
+    .map((item, index) => normalizeModelMemoryCandidate(item, entry, index))
+    .filter((candidate): candidate is MemoryV2DistillCandidate => candidate !== null)
+  logDiagnosticEvent({
+    scope: 'memoryV2.distill',
+    event: 'model_extract_completed',
+    ok: true,
+    severity: 'info',
+    data: {
+      entryId: entry.id,
+      sessionTitle: entry.title,
+      entryTitle: entry.title,
+      title: entry.title,
+      rawCandidates: rawCandidates.length,
+      acceptedCandidates: candidates.length,
+      acceptedTitles: candidates.map(candidate => candidate.title),
+    },
+  })
+  return candidates
+}
+
+function normalizeModelMemoryCandidate(
+  value: unknown,
+  entry: MemoryV2Entry,
+  index: number,
+): MemoryV2DistillCandidate | null {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Record<string, unknown>
+  const layer = record.layer === 'L2' || record.layer === 'L3' ? record.layer : null
+  const title = typeof record.title === 'string' ? record.title.trim() : ''
+  const content = typeof record.content === 'string' ? record.content.trim() : ''
+  const reason = typeof record.reason === 'string' ? record.reason.trim() : ''
+  const evidence = typeof record.evidence === 'string' ? record.evidence.trim() : ''
+  const confidence = typeof record.confidence === 'number' ? record.confidence : 0
+  if (!layer || !title || !content || confidence < 0.78) return null
+  if (isLikelyInvertedAssistantIdentity(title, content)) return null
+
+  return {
+    id: `candidate-${entry.id}-${index + 1}`,
+    layer,
+    title: normalizeModelMemoryTitle(title, layer),
+    content: [
+      content,
+      '',
+      '## 溯源',
+      '',
+      `- L4: ${relativeMemoryPath(getMemoryV2Paths().root, entry.path)}`,
+      `- Source: ${entry.source || entry.path}`,
+      evidence ? `- Evidence: ${evidence}` : '',
+    ].filter(Boolean).join('\n'),
+    source: entry.source || entry.path,
+    confidence,
+    reason: reason || '由长期记忆抽取子智能体判定为可沉淀内容。',
+    verified: true as const,
+  }
+}
+
+function normalizeModelMemoryTitle(title: string, layer: 'L2' | 'L3'): string {
+  const factPrefix = 'Fact: '
+  const sopPrefix = 'SOP: '
+  if (layer === 'L2') {
+    if (title.startsWith(factPrefix)) return title
+    if (title.startsWith(sopPrefix)) return factPrefix + title.slice(sopPrefix.length).trim()
+    return factPrefix + title
+  }
+  if (title.startsWith(sopPrefix)) return title
+  if (title.startsWith(factPrefix)) return sopPrefix + title.slice(factPrefix.length).trim()
+  return sopPrefix + title
 }
 
 export async function applyMemoryV2DistillCandidate(
@@ -471,7 +589,18 @@ async function rewriteCompactIndex(paths: MemoryV2Paths): Promise<void> {
 }
 
 function relativeMemoryPath(root: string, target: string): string {
-  return path.relative(root, target).replace(/\\/g, '/') || '.'
+  return path.relative(root, target).split(path.sep).join('/') || '.'
+}
+
+function isLikelyInvertedAssistantIdentity(title: string, content: string): boolean {
+  const text = `${title}\n${content}`.toLowerCase()
+  const mentionsClaudeYh = text.includes('claude-yh') || text.includes('claude yh')
+  if (!mentionsClaudeYh) return false
+  if (text.includes('称呼用户为 claude-yh') || text.includes('用户身份') || text.includes('用户本人')) {
+    const explicitUserSelfName = text.includes('我叫 claude-yh') || text.includes('称呼我为 claude-yh')
+    return !explicitUserSelfName
+  }
+  return false
 }
 
 function buildProseL1Index(
@@ -1171,7 +1300,8 @@ function parseFrontmatter(content: string): {
   source?: string
   verified?: boolean
 } {
-  const match = content.match(/^---\n([\s\S]*?)\n---/)
+  const normalized = content.replace(/^\uFEFF/, '')
+  const match = normalized.match(/^---\r?\n([\s\S]*?)\r?\n---/)
   if (!match) return {}
   const result: {
     title?: string
@@ -1193,7 +1323,7 @@ function parseFrontmatter(content: string): {
 }
 
 function stripFrontmatter(content: string): string {
-  return content.replace(/^---\n[\s\S]*?\n---\n*/, '')
+  return content.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---\r?\n*/, '')
 }
 
 function parseJsonString(value: string): string | null {

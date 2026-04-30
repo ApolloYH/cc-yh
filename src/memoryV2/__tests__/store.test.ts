@@ -240,6 +240,6 @@ describe('MemoryV2 store', () => {
     expect(updated.content).toContain('Manual pointer')
 
     const candidates = await generateMemoryV2DistillCandidates(5)
-    expect(candidates.some(candidate => candidate.layer === 'L3')).toBe(true)
+    expect(candidates).toHaveLength(0)
   })
 })

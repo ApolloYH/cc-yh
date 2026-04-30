@@ -968,7 +968,7 @@ function MemoryEventsPanel({
                   className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-[var(--color-text-tertiary)]"
                   title={JSON.stringify(event.data, null, 2)}
                 >
-                  {formatMemoryEventData(event.data)}
+                  {formatMemoryEventData(event)}
                 </div>
               )}
             </div>
@@ -980,8 +980,9 @@ function MemoryEventsPanel({
 }
 
 function memoryEventLabel(event: MemoryEvent): string {
-  const name = event.event ?? 'event'
   const title = memoryEventSessionTitle(event.data)
+  if (title) return compactMemoryEventTitle(title)
+  const name = event.event ?? 'event'
   switch (name) {
     case 'scheduled':
       return '已安排记忆抽取'
@@ -994,16 +995,16 @@ function memoryEventLabel(event: MemoryEvent): string {
     case 'cleanup/remove_failed':
       return '清理旧记忆失败'
     default:
-      return title
-        ? `${event.scope ?? 'memory'} / ${name} · ${title}`
-        : `${event.scope ?? 'memory'} / ${name}`
+      return memoryEventName(event)
   }
 }
 
-function formatMemoryEventData(data: Record<string, unknown>): string {
+function formatMemoryEventData(event: MemoryEvent): string {
+  const data = event.data ?? {}
   const lines: string[] = []
   const title = memoryEventSessionTitle(data)
   if (title) lines.push(`会话：${title}`)
+  lines.push(`事件：${memoryEventName(event)}`)
   if (typeof data.sessionId === 'string') lines.push(`ID：${data.sessionId}`)
   if (typeof data.reason === 'string') lines.push(`原因：${data.reason}`)
   if (typeof data.messageCount === 'number') lines.push(`消息数：${data.messageCount}`)
@@ -1033,7 +1034,55 @@ function memoryEventSessionTitle(data: Record<string, unknown> | undefined): str
   if (typeof data.sessionTitle === 'string' && data.sessionTitle.trim()) {
     return data.sessionTitle.trim()
   }
+  if (typeof data.entryTitle === 'string' && data.entryTitle.trim()) {
+    return data.entryTitle.trim()
+  }
+  if (typeof data.title === 'string' && data.title.trim()) {
+    return data.title.trim()
+  }
+  const result = data.result && typeof data.result === 'object'
+    ? data.result as Record<string, unknown>
+    : null
+  const summaryTitles = result?.summaryTitles
+  if (Array.isArray(summaryTitles)) {
+    const first = summaryTitles.find((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    if (first) return first.trim()
+  }
   return null
+}
+
+function memoryEventName(event: MemoryEvent): string {
+  const key = `${event.scope ?? ''}/${event.event ?? ''}`
+  switch (key) {
+    case 'memoryV2.session/finalize_started':
+      return '开始整理会话记忆'
+    case 'memoryV2.session/finalize_completed':
+      return '会话记忆整理完成'
+    case 'memoryV2.session/finalize_failed':
+      return '会话记忆整理失败'
+    case 'memoryV2.automation/scheduled':
+      return '已安排自动记忆整理'
+    case 'memoryV2.automation/flush_scheduled':
+      return '执行待处理记忆任务'
+    case 'memoryV2.automation/completed':
+      return '自动记忆整理完成'
+    case 'memoryV2.automation/failed':
+      return '自动记忆整理失败'
+    case 'memoryV2.distill/model_extract_completed':
+      return '长期记忆抽取完成'
+    case 'memoryV2.distill/model_extract_skipped':
+      return '长期记忆抽取跳过'
+    case 'memoryV2.distill/model_extract_failed':
+      return '长期记忆抽取失败'
+    default:
+      return [event.scope, event.event].filter(Boolean).join(' / ') || 'memory'
+  }
+}
+
+function compactMemoryEventTitle(title: string): string {
+  const normalized = title.replace(/\s+/g, ' ').trim()
+  const chars = Array.from(normalized)
+  return chars.length > 12 ? `${chars.slice(0, 12).join('')}...` : normalized
 }
 
 function ProviderSettings() {

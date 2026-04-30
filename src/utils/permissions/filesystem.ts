@@ -1572,11 +1572,12 @@ export function checkEditableInternalPath(
   // pass an allow rule for the override path.
   if (!hasAutoMemPathOverride() && isAutoMemPath(normalizedPath)) {
     return {
-      behavior: 'allow',
-      updatedInput: input,
+      behavior: 'deny',
+      message:
+        'Long-term memory is managed by MemoryV2 automation. Do not write ~/.claude-yh/memory files directly; let the session finalizer extract L2/L3 from L4.',
       decisionReason: {
         type: 'other',
-        reason: 'auto memory files are allowed for writing',
+        reason: 'Direct writes to managed long-term memory are denied',
       },
     }
   }

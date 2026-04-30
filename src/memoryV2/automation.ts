@@ -27,6 +27,10 @@ let hasScheduledRun = false
 let scheduledReason = 'idle'
 let scheduledStartedAt = 0
 
+export function hasPendingMemoryV2Automation(): boolean {
+  return Boolean(hasScheduledRun || inProgress)
+}
+
 function getMemoryAutomationIdleDelayMs(): number {
   const raw = Number(
     process.env.CLAUDE_YH_MEMORY_V2_IDLE_MS ??
@@ -80,6 +84,7 @@ export function scheduleMemoryV2Automation(
 
 export async function flushScheduledMemoryV2Automation(
   timeoutMs = 60_000,
+  sessionId?: string,
 ): Promise<MemoryV2AutomationResult | null> {
   if (scheduledTimer) {
     clearTimeout(scheduledTimer)
@@ -93,9 +98,11 @@ export async function flushScheduledMemoryV2Automation(
     scope: 'memoryV2.automation',
     event: 'flush_scheduled',
     ok: true,
-    data: { reason, timeoutMs },
+    data: { reason, timeoutMs, sessionId },
   })
-  const run = runMemoryV2Automation()
+  const run = sessionId
+    ? runMemoryV2Automation({ sessionId })
+    : runMemoryV2Automation()
   return Promise.race([
     run,
     new Promise<null>(resolve => setTimeout(resolve, timeoutMs).unref()),
