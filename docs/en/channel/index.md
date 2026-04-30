@@ -1,4 +1,4 @@
-# Claude Code Channel System Documentation
+﻿# Claude Code Channel System Documentation
 
 > Complete technical analysis of remote Agent control via IM platforms
 
@@ -80,5 +80,6 @@ All illustrations use dark background (#1a1a2e) with Anthropic brand copper-oran
 - [Claude YH Home](/en/)
 - [Agent Framework Deep Dive](/en/agent/03-agent-framework)
 - [Skills System Documentation](/en/skills/01-usage-guide)
-- [GitHub Issues](https://github.com/NanmiCoder/claude-yh/issues)
+- [GitHub Issues](https://github.com/ApolloYH/cc-yh/issues)
+
 

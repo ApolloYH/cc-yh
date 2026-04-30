@@ -1,4 +1,4 @@
-# Claude Code Desktop App — UI 设计规范
+﻿# Claude Code Desktop App — UI 设计规范
 
 > 本文档面向设计图生成，包含完整的配色方案、布局尺寸、组件规格和页面交互逻辑。
 > 可直接用于 AI 设计工具或设计师参考。
@@ -963,4 +963,5 @@
 | Agent Completed | ● | 6px 实心绿点 |
 | Agent Failed | ● | 6px 实心红点 |
 | Back to Leader | ← | 左箭头 + 文本 |
+
 

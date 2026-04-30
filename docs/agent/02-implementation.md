@@ -1,4 +1,4 @@
-# Claude Code 多 Agent 系统 — 实现原理
+﻿# Claude Code 多 Agent 系统 — 实现原理
 
 > 深入剖析多 Agent 编排的架构设计、生成流程、上下文传递和协作机制。
 
@@ -850,4 +850,5 @@ Fork Agent 需要权限
 | `tengu_auto_background_agents` | 120 秒后自动后台化 |
 | `tengu_slim_subagent_claudemd` | 只读 Agent 省略 CLAUDE.md |
 | `tengu_agent_list_attach` | Agent 列表通过 attachment 注入 |
+
 

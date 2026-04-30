@@ -2,6 +2,7 @@ import {
   callConfiguredMainModel,
   parseJsonFromModelText,
 } from '../services/model/mainModelClient.js'
+import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
 import type { JarvisModeConfig } from './types.js'
 
 export type JarvisIntent =
@@ -74,8 +75,24 @@ export async function routeJarvisInput(input: {
     }
   }
 
-  const modelDecision = await routeWithModel(input).catch(() => null)
+  let modelDecision: JarvisRouterDecision | null = null
+  try {
+    modelDecision = await routeWithModel(input)
+  } catch (error) {
+    logDiagnosticEvent({
+      scope: 'jarvis.router',
+      event: 'model_route_failed',
+      ok: false,
+      data: {
+        messagePreview: message.slice(0, 160),
+        error: stringifyError(error),
+      },
+    })
+  }
   if (modelDecision) return modelDecision
+
+  const fallbackDecision = routeDeterministicFallback(input)
+  if (fallbackDecision) return fallbackDecision
 
   return {
     intent: 'clarify',
@@ -86,6 +103,92 @@ export async function routeJarvisInput(input: {
   }
 }
 
+export function routeDeterministicFallback(input: {
+  message: string
+  config: JarvisModeConfig
+}): JarvisRouterDecision | null {
+  const message = input.message.trim()
+  const schedule = parseRelativeReminder(message)
+  if (!schedule) return null
+  return {
+    intent: 'schedule',
+    lane: 'none',
+    permissionMode: input.config.riskMode,
+    confidence: 0.78,
+    reason: 'Router model unavailable or invalid; deterministic fallback recognized an explicit relative reminder.',
+    schedule,
+  }
+}
+
+function parseRelativeReminder(message: string): JarvisScheduleSpec | null {
+  const normalized = message.replace(/\s+/g, '')
+  const match = normalized.match(/^(.{0,12}?)(\d+|[\u4e00\u4e8c\u4e24\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e]+)(\u79d2|\u5206\u949f|\u5206|\u5c0f\u65f6|\u5929)\u540e(.+)$/)
+  if (!match) return null
+  const amount = parseChineseOrArabicNumber(match[2])
+  if (!amount || amount <= 0) return null
+  const unit = match[3]
+  const tail = match[4]?.trim() ?? ''
+  if (!tail) return null
+  if (!/(\u63d0\u9192|\u901a\u77e5|\u544a\u8bc9|\u558a|\u53eb|\u8bf4|\u53d1\u9001|\u53d1)/.test(tail)) return null
+
+  const delayMs = unit === '\u79d2'
+    ? amount * 1000
+    : unit === '\u5206\u949f' || unit === '\u5206'
+      ? amount * 60_000
+      : unit === '\u5c0f\u65f6'
+        ? amount * 60 * 60_000
+        : amount * 24 * 60 * 60_000
+  const fireAt = new Date(Date.now() + delayMs)
+  const prompt = cleanReminderPrompt(tail)
+  return {
+    fireAtIso: fireAt.toISOString(),
+    prompt,
+    name: buildFallbackScheduleName(prompt),
+    description: message,
+    recurring: false,
+    mode: 'reminder',
+  }
+}
+
+function parseChineseOrArabicNumber(value: string | undefined): number | null {
+  if (!value) return null
+  if (/^\d+$/.test(value)) return Number.parseInt(value, 10)
+  const digitMap: Record<string, number> = {
+    '\u4e00': 1,
+    '\u4e8c': 2,
+    '\u4e24': 2,
+    '\u4e09': 3,
+    '\u56db': 4,
+    '\u4e94': 5,
+    '\u516d': 6,
+    '\u4e03': 7,
+    '\u516b': 8,
+    '\u4e5d': 9,
+  }
+  if (value === '\u5341') return 10
+  const tenIndex = value.indexOf('\u5341')
+  if (tenIndex >= 0) {
+    const left = value.slice(0, tenIndex)
+    const right = value.slice(tenIndex + 1)
+    const tens = left ? digitMap[left] ?? null : 1
+    const ones = right ? digitMap[right] ?? null : 0
+    return tens === null || ones === null ? null : tens * 10 + ones
+  }
+  return digitMap[value] ?? null
+}
+
+function cleanReminderPrompt(tail: string): string {
+  const cleaned = tail
+    .replace(/^(\u63d0\u9192\u6211|\u901a\u77e5\u6211|\u544a\u8bc9\u6211|\u558a\u6211|\u53eb\u6211|\u7ed9\u6211|\u548c\u6211|\u5411\u6211)/, '')
+    .replace(/^(\u8bf4|\u53d1\u9001|\u53d1|\u63d0\u9192|\u901a\u77e5|\u544a\u8bc9|\u558a|\u53eb)/, '')
+    .trim()
+  return cleaned || tail
+}
+
+function buildFallbackScheduleName(prompt: string): string {
+  const trimmed = prompt.replace(/\s+/g, ' ').trim()
+  return trimmed ? '\u63d0\u9192\uff1a' + trimmed.slice(0, 24) : 'Jarvis \u63d0\u9192'
+}
 async function routeWithModel(input: {
   message: string
   config: JarvisModeConfig
@@ -99,10 +202,12 @@ async function routeWithModel(input: {
   }>
 }): Promise<JarvisRouterDecision | null> {
   const result = await callConfiguredMainModel({
-    maxTokens: 800,
-    timeoutMs: 20_000,
-      systemPrompt: [
+    maxTokens: 1800,
+    timeoutMs: 45_000,
+    disableThinking: true,
+    systemPrompt: [
       'You are Jarvis Router for claude-yh.',
+      'Think as little as possible. Output the final JSON immediately.',
       'Classify exactly one user message. Do not execute, plan, answer, inspect files, or break down the task.',
       'Return JSON only with this schema:',
       '{"intent":"control|status|chat|supplement|schedule|new_task|clarify","lane":"none|read_only|write|external","targetTaskId":"optional","workdir":"optional","permissionMode":"observe|assisted|autonomous|full_autonomous","confidence":0.0,"reason":"short reason","controlAction":"pause|resume|cancel|delete|kill|mute_reports|unmute_reports|stop_all|none","schedule":{"cron":"optional 5-field cron","fireAtIso":"optional ISO time","prompt":"prompt/message to run or send when fired","name":"short name","description":"optional","recurring":false,"mode":"reminder|task"}}.',
@@ -122,15 +227,15 @@ async function routeWithModel(input: {
       'Hard invariant: chat/status/control/schedule MUST use lane="none" and MUST NOT include workdir. If lane is read_only/write/external or workdir is present, the intent is normally new_task or supplement, not status/chat.',
       'Lane rules: chat/status/control/schedule use none. read_only is research/search/analysis without edits. write modifies files/state. external contacts websites, IM, payments, sends messages, or depends on external side effects.',
       'Examples:',
-      '"现在有什么任务" => {"intent":"status","lane":"none"}',
-      '"当前队列状态" => {"intent":"status","lane":"none"}',
-      '"C:\\Users\\me\\Desktop\\project 分析这个项目" => {"intent":"new_task","lane":"read_only","workdir":"C:\\Users\\me\\Desktop\\project"}',
-      '"研究一下这个仓库怎么实现登录" => {"intent":"new_task","lane":"read_only"}',
-      '"修复这个项目的登录 bug" => {"intent":"new_task","lane":"write"}',
-      '"三分钟后提醒我喝水" => {"intent":"schedule","lane":"none","schedule":{"mode":"reminder"}}',
-      '"不要报告过程了" => {"intent":"control","lane":"none","controlAction":"mute_reports"}',
-      '"只要最后结果" => {"intent":"control","lane":"none","controlAction":"mute_reports"}',
-      '"恢复进度汇报" => {"intent":"control","lane":"none","controlAction":"unmute_reports"}',
+      '"What tasks are running?" => {"intent":"status","lane":"none"}',
+      '"Current queue status" => {"intent":"status","lane":"none"}',
+      '"C:\\Users\\me\\Desktop\\project analyze this project" => {"intent":"new_task","lane":"read_only","workdir":"C:\\Users\\me\\Desktop\\project"}',
+      '"Research how this repository implements login" => {"intent":"new_task","lane":"read_only"}',
+      '"Fix this project login bug" => {"intent":"new_task","lane":"write"}',
+      '"Remind me to drink water in three minutes" => {"intent":"schedule","lane":"none","schedule":{"mode":"reminder"}}',
+      '"Stop reporting progress" => {"intent":"control","lane":"none","controlAction":"mute_reports"}',
+      '"Only final result" => {"intent":"control","lane":"none","controlAction":"mute_reports"}',
+      '"Resume progress reports" => {"intent":"control","lane":"none","controlAction":"unmute_reports"}',
       'If unsure whether the user is supplementing an active task or creating a new task, choose clarify.',
     ].join(' '),
     userPrompt: JSON.stringify({
@@ -142,9 +247,28 @@ async function routeWithModel(input: {
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     }),
   })
-  if (!result?.content.trim()) return null
+  if (!result?.content.trim()) {
+    logDiagnosticEvent({
+      scope: 'jarvis.router',
+      event: 'model_route_empty',
+      ok: false,
+      data: { messagePreview: input.message.slice(0, 160) },
+    })
+    return null
+  }
   const parsed = parseJsonFromModelText(result.content)
-  if (!parsed || typeof parsed !== 'object') return null
+  if (!parsed || typeof parsed !== 'object') {
+    logDiagnosticEvent({
+      scope: 'jarvis.router',
+      event: 'model_route_invalid_json',
+      ok: false,
+      data: {
+        messagePreview: input.message.slice(0, 160),
+        modelOutputPreview: result.content.slice(0, 600),
+      },
+    })
+    return null
+  }
 
   const intent = readIntent(parsed.intent)
   const lane = readLane(parsed.lane)
@@ -178,6 +302,11 @@ async function routeWithModel(input: {
     schedule: readScheduleSpec(parsed.schedule),
   }
   return enforceRouterInvariants(decision, input.config)
+}
+
+function stringifyError(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`
+  return String(error)
 }
 
 export function enforceRouterInvariants(

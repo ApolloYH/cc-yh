@@ -1,4 +1,4 @@
-# Claude Code Skills System -- Usage Guide
+﻿# Claude Code Skills System -- Usage Guide
 
 > Skills are the extensible capability engine of Claude Code, allowing you to define custom automated workflows using Markdown files.
 
@@ -391,4 +391,5 @@ EOF
 | Project | Yes (default) | Yes | Yes | Yes |
 | Plugin | Per config | Per config | Yes | Yes |
 | MCP | Per config | Per config | Yes | No (security restriction) |
+
 

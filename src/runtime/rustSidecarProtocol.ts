@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, parse, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const RUST_SIDECAR_PROTOCOL_VERSION = 1
@@ -136,7 +136,7 @@ export function getRustSidecarLaunchConfig(
 
   if (env.CLAUDE_YH_DISABLE_RUST_SIDECAR === '1') return null
 
-  for (const root of searchRoots) {
+  for (const root of expandSearchRoots(searchRoots)) {
     const found = findRustSidecarUnder(root)
     if (found) return { command: found, args: [] }
   }
@@ -146,7 +146,38 @@ export function getRustSidecarLaunchConfig(
 function defaultRustSidecarSearchRoots(): string[] {
   const moduleDir = dirname(fileURLToPath(import.meta.url))
   const packageRoot = resolve(moduleDir, '..', '..')
-  return Array.from(new Set([process.cwd(), packageRoot]))
+  const execDir = dirname(process.execPath)
+  return [
+    process.env.CLAUDE_YH_APP_ROOT,
+    process.env.CLAUDE_APP_ROOT,
+    process.env.INIT_CWD,
+    process.cwd(),
+    execDir,
+    packageRoot,
+  ].filter((root): root is string => Boolean(root && root.trim()))
+}
+
+function expandSearchRoots(roots: string[]): string[] {
+  const expanded: string[] = []
+  for (const root of roots) {
+    for (const candidate of parentDirs(resolve(root))) {
+      expanded.push(candidate)
+    }
+  }
+  return Array.from(new Set(expanded))
+}
+
+function parentDirs(start: string): string[] {
+  const dirs: string[] = []
+  let current = start
+  const root = parse(current).root
+  while (true) {
+    dirs.push(current)
+    if (current === root) return dirs
+    const parent = dirname(current)
+    if (parent === current) return dirs
+    current = parent
+  }
 }
 
 function findRustSidecarUnder(root: string): string | null {

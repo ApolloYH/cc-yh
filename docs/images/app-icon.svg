@@ -1,0 +1,27 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="claude-YH Sunburst Icon">
+    <title>claude-YH Sunburst Icon</title>
+    <desc>claude-YH icon option</desc>
+    
+    
+    <defs>
+      <linearGradient id="bgA" x1="22" y1="16" x2="184" y2="190" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#E08A64"/>
+        <stop offset="100%" stop-color="#CB6F4C"/>
+      </linearGradient>
+      <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(74 54) rotate(35) scale(120 96)">
+        <stop offset="0%" stop-color="#FFF6EE" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="#FFF6EE" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="shadowA" x="0" y="0" width="200" height="200" color-interpolation-filters="sRGB">
+        <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#7D3D2C" flood-opacity="0.22"/>
+      </filter>
+    </defs>
+    
+    <g filter="url(#shadowA)">
+      <rect x="16" y="16" width="168" height="168" rx="46" fill="url(#bgA)"/>
+      <rect x="16.75" y="16.75" width="166.5" height="166.5" rx="45.25" stroke="#FFF9F2" stroke-opacity="0.16" stroke-width="1.5"/>
+      <rect x="16" y="16" width="168" height="168" rx="46" fill="url(#glowA)"/>
+    </g>
+    <g><rect x="92.50" y="46.00" width="15.00" height="62.00" rx="7.50" fill="#FFF6EE" transform="rotate(-6 100 100)"/><rect x="93.00" y="40.00" width="14.00" height="68.00" rx="7.00" fill="#FFF6EE" transform="rotate(28 100 100)"/><rect x="92.50" y="51.00" width="15.00" height="57.00" rx="7.50" fill="#FFF6EE" transform="rotate(66 100 100)"/><rect x="93.50" y="38.00" width="13.00" height="70.00" rx="6.50" fill="#FFF6EE" transform="rotate(103 100 100)"/><rect x="93.00" y="54.00" width="14.00" height="54.00" rx="7.00" fill="#FFF6EE" transform="rotate(139 100 100)"/><rect x="92.50" y="48.00" width="15.00" height="60.00" rx="7.50" fill="#FFF6EE" transform="rotate(176 100 100)"/><rect x="93.00" y="41.00" width="14.00" height="67.00" rx="7.00" fill="#FFF6EE" transform="rotate(214 100 100)"/><rect x="93.50" y="52.00" width="13.00" height="56.00" rx="6.50" fill="#FFF6EE" transform="rotate(252 100 100)"/><rect x="92.50" y="45.00" width="15.00" height="63.00" rx="7.50" fill="#FFF6EE" transform="rotate(289 100 100)"/><rect x="93.00" y="49.00" width="14.00" height="59.00" rx="7.00" fill="#FFF6EE" transform="rotate(325 100 100)"/></g>
+    
+    </svg>

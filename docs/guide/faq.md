@@ -1,4 +1,4 @@
-# 常见问题
+﻿# 常见问题
 
 ## Q: `undefined is not an object (evaluating 'usage.input_tokens')`
 
@@ -18,7 +18,7 @@
 
 如果你接的是 OpenAI 兼容服务，直接配置：
 
-```env
+```text
 CLAUDE_CODE_COMPAT_PROVIDER=openai
 CLAUDE_CODE_OPENAI_COMPAT_MODE=chat_completions
 ANTHROPIC_BASE_URL=https://api.openai.com/v1
@@ -63,4 +63,5 @@ bun upgrade
 - 流式输出和工具调用不要太偏离标准
 
 网页登录 cookie、浏览器 session token、ChatGPT 网页登录态这类都不属于这里支持的 API 凭证。
+
 

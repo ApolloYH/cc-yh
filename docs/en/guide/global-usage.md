@@ -1,4 +1,4 @@
-# Global Usage (Run from Any Directory)
+﻿# Global Usage (Run from Any Directory)
 
 
 If you want to run `claude-yh` directly from any project directory, set up one of the following. Once configured, `claude-yh` will automatically recognize your current working directory.
@@ -40,4 +40,5 @@ cd C:\path\to\your-other-project
 claude-yh
 # Ask "What is the current directory?" - it should show the current project directory
 ```
+
 

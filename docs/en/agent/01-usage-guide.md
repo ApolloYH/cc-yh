@@ -1,4 +1,4 @@
-# Claude Code Multi-Agent System — Usage Guide
+﻿# Claude Code Multi-Agent System — Usage Guide
 
 > Let Claude Code orchestrate multiple specialized agents to handle complex tasks in parallel.
 
@@ -441,4 +441,5 @@ Each agent can be configured with a different permission mode:
 | Custom agent | Create a definition file in `.claude-yh/agents/*.md` |
 | Specify a model | `Agent({ ..., model: "haiku" })` |
 | Name an agent | `Agent({ ..., name: "researcher" })` |
+
 

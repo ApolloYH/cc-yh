@@ -1,4 +1,4 @@
-# Claude Code Agent Framework Deep Dive
+﻿# Claude Code Agent Framework Deep Dive
 
 > Deconstructing the architecture behind the world's most popular AI code editor — from source code to design philosophy.
 
@@ -788,4 +788,5 @@ query() async generator loop (src/query.ts)
 - [Implementation Details](./02-implementation.md) — Technical deep dive into multi-agent orchestration
 - [Anthropic API Docs](https://docs.anthropic.com/) — Native API capabilities
 - [MCP Protocol Spec](https://modelcontextprotocol.io/) — Model Context Protocol
+
 

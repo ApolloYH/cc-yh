@@ -1,10 +1,9 @@
-# Project Structure
+﻿# Project Structure
 
 
 ```text
 bin/claude-yh          # Entry script
 preload.ts               # Bun preload (sets MACRO globals)
-.env.example             # Environment variable template
 src/
 ├── entrypoints/cli.tsx  # Main CLI entry
 ├── main.tsx             # Main TUI logic (Commander.js + React/Ink)
@@ -20,4 +19,5 @@ src/
 ├── hooks/               # React hooks
 └── utils/               # Utility functions
 ```
+
 

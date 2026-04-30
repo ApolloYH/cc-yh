@@ -1,4 +1,4 @@
-# Computer Use Architecture Deep Dive
+﻿# Computer Use Architecture Deep Dive
 
 > A deep dive into the Computer Use implementation: from MCP tool definitions to Python Bridge, from 9-layer security gates to feature flag bypasses.
 
@@ -600,4 +600,5 @@ bindSessionContext closure
 
 - [Computer Use Guide](./computer-use.md) — Usage, quick start, environment variables
 - [Source Fixes](/en/reference/fixes) — Detailed records of other fixes and patches
+
 

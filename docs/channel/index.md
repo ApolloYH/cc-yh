@@ -1,4 +1,4 @@
-# Channel 源码研究
+﻿# Channel 源码研究
 
 > 这里讲的是 Claude Code 原生的 Channel / MCP 体系。  
 > 如果你要配置当前桌面版的 Telegram / 飞书接入，请先看 [IM 接入文档](../im/)。
@@ -45,4 +45,5 @@
 - 想研究 Claude Code 原生 IM / Channel 思路的开发者
 - 想理解当前仓库 IM 实现为什么没有直接复用 Channel 的贡献者
 - 想做架构对比和二次设计的人
+
 

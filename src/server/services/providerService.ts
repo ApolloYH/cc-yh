@@ -721,10 +721,18 @@ function buildDirectTestRequest(
   const prompt = 'Say "ok" and nothing else.'
 
   if (format === 'openai_chat') {
+    const body: Record<string, unknown> = {
+      model: modelId,
+      max_tokens: 16,
+      messages: [{ role: 'user', content: prompt }],
+    }
+    if (supportsThinkingDisableForProvider(base, modelId)) {
+      body.thinking = { type: 'disabled' }
+    }
     return {
       url: buildVersionedApiUrl(base, 'chat/completions'),
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: { model: modelId, max_tokens: 16, messages: [{ role: 'user', content: prompt }] },
+      body,
     }
   }
   if (format === 'openai_responses') {
@@ -738,8 +746,17 @@ function buildDirectTestRequest(
   return {
     url: buildVersionedApiUrl(base, 'messages'),
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-    body: { model: modelId, max_tokens: 16, messages: [{ role: 'user', content: prompt }] },
+    body: {
+      model: modelId,
+      max_tokens: 16,
+      ...(supportsThinkingDisableForProvider(base, modelId) ? { thinking: { type: 'disabled' } } : {}),
+      messages: [{ role: 'user', content: prompt }],
+    },
   }
+}
+
+function supportsThinkingDisableForProvider(base: string, modelId: string): boolean {
+  return /deepseek|xiaomimimo/i.test(base) || /^(deepseek-|mimo-)/i.test(modelId)
 }
 
 function buildVersionedApiUrl(base: string, endpoint: string): string {

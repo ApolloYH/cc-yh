@@ -1,4 +1,4 @@
-# 飞书接入
+﻿# 飞书接入
 
 > 飞书 Adapter 的接入教程。官方已经提供了**预配好权限的模板机器人**，跟着下面几步点一点就能完成接入。
 
@@ -164,4 +164,5 @@ OpenClaw 官方模板已预配 `im:message`、`im:message:send_as_bot`、`im:res
 - `adapters/common/session-store.ts`
 - `adapters/common/ws-bridge.ts`
 - `adapters/common/http-client.ts`
+
 

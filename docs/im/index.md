@@ -1,4 +1,4 @@
-# IM 接入
+﻿# IM 接入
 
 > 当前可用的 IM 接入方案总览。  
 > 如果你只是想把 Telegram 或飞书接进来，从这篇开始。
@@ -164,4 +164,5 @@ Adapter 不是直接把消息丢给一个全局 Claude 进程，而是：
 
 如果你是要“把 bot 真跑起来”，看本目录。  
 如果你是要研究 Claude Code 原始 Channel 设计，再去看 `docs/channel/`。
+
 

@@ -1,41 +1,34 @@
----
+﻿---
 layout: home
 
 hero:
-  name: Claude YH
-  text: Locally Runnable Claude YH
-  tagline: Repaired from leaked source, supports any Anthropic-compatible API endpoint (MiniMax, OpenRouter, etc.)
-  image:
-    src: /images/banner.jpg
-    alt: Claude YH
+  name: claude-yh
+  text: Local-first agentic coding workspace
+  tagline: CLI, Web UI, and Windows desktop app sharing one configuration, with Jarvis, long-term memory, BrowserControl, Rust Runtime, and IM adapters.
   actions:
     - theme: brand
       text: Quick Start
       link: /en/guide/quick-start
     - theme: alt
       text: GitHub
-      link: https://github.com/NanmiCoder/claude-yh
+      link: https://github.com/ApolloYH/cc-yh
 
 features:
-  - icon: "\U0001F5A5"
-    title: Full TUI Experience
-    details: Ink terminal UI with --print headless mode
-  - icon: "\U0001F9E0"
-    title: Memory System
-    details: Cross-session persistent memory with auto-extraction, smart retrieval, and AutoDream consolidation
-  - icon: "\U0001F916"
-    title: Multi-Agent System
-    details: Agent orchestration, parallel tasks, Teams collaboration, Worktree isolation
-  - icon: "\U0001F9E9"
-    title: Skills System
-    details: Extensible capability plugins, custom workflows, conditional activation
-  - icon: "\U0001F4BB"
-    title: Computer Use
-    details: Desktop control — screenshots, mouse, and keyboard automation
-    link: /en/features/computer-use
-  - icon: "\U0001F310"
-    title: Third-Party Models
-    details: Support for OpenAI, DeepSeek, Ollama, and any compatible model
-    link: /en/guide/third-party-models
+  - icon: 🖥️
+    title: CLI / Web / Windows desktop
+    details: All entrypoints share ~/.claude-yh/settings.json.
+    link: /en/guide/quick-start
+  - icon: 🧠
+    title: L1-L4 memory
+    details: The original memory flow is preserved and enhanced with L1 summaries, L2 facts, L3 SOP/Skills, and L4 session archives.
+  - icon: 📡
+    title: Jarvis
+    details: A long-running proactive assistant that accepts goals, starts Manager CLI tasks, and reports progress.
+  - icon: 🌐
+    title: BrowserControl
+    details: Uses the current Chrome session through the TMWD bridge for tabs, DOM, screenshots, console, and network logs.
+  - icon: 🚀
+    title: Rust Runtime
+    details: Command policy, file safety, search, session indexing, and Jarvis queue recovery can run through the Rust sidecar.
 ---
 

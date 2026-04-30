@@ -1,4 +1,4 @@
-# Quick Start
+﻿# Quick Start
 
 ## 1. Install Bun
 
@@ -19,8 +19,7 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 
 ```bash
 bun install
-cp .env.example .env
-# Edit .env with your API key
+# Runtime config is loaded from ~/.claude-yh/settings.json by default.
 ```
 
 See [Environment Variables](./env-vars.md) for the full reference.
@@ -62,4 +61,5 @@ If the Ink TUI has issues, use the fallback Recovery CLI mode:
 ```bash
 CLAUDE_CODE_FORCE_RECOVERY_CLI=1 ./bin/claude-yh
 ```
+
 

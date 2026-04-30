@@ -1,4 +1,4 @@
-# FAQ
+﻿# FAQ
 
 ## Q: `undefined is not an object (evaluating 'usage.input_tokens')`
 
@@ -18,7 +18,7 @@ Examples:
 
 If you are using an OpenAI-compatible provider directly, configure:
 
-```env
+```text
 CLAUDE_CODE_COMPAT_PROVIDER=openai
 CLAUDE_CODE_OPENAI_COMPAT_MODE=chat_completions
 ANTHROPIC_BASE_URL=https://api.openai.com/v1
@@ -63,4 +63,5 @@ In practice, it usually works when the upstream really implements:
 - Usable streaming and tool-calling behavior
 
 Website login cookies, browser session tokens, and ChatGPT web auth do not count as supported API credentials here.
+
 

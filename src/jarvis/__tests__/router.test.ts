@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test'
-import { enforceRouterInvariants, type JarvisRouterDecision } from '../router.js'
+import {
+  enforceRouterInvariants,
+  routeDeterministicFallback,
+  type JarvisRouterDecision,
+} from '../router.js'
 import type { JarvisModeConfig } from '../types.js'
 
 describe('Jarvis router invariants', () => {
@@ -58,6 +62,19 @@ describe('Jarvis router invariants', () => {
     expect(decision.intent).toBe('control')
     expect(decision.lane).toBe('none')
     expect(decision.controlAction).toBe('mute_reports')
+  })
+
+  it('falls back to a schedule route for explicit relative reminders when the model router is unavailable', () => {
+    const decision = routeDeterministicFallback({
+      message: '三分钟后说我爱你',
+      config: config(),
+    })
+
+    expect(decision?.intent).toBe('schedule')
+    expect(decision?.lane).toBe('none')
+    expect(decision?.schedule?.mode).toBe('reminder')
+    expect(decision?.schedule?.prompt).toBe('我爱你')
+    expect(decision?.schedule?.fireAtIso).toBeTruthy()
   })
 })
 

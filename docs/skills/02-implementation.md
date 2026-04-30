@@ -1,4 +1,4 @@
-# Claude Code Skills 系统 — 实现原理
+﻿# Claude Code Skills 系统 — 实现原理
 
 > 深度剖析 Skills 如何被发现、加载、注入、执行和管理。
 
@@ -895,4 +895,5 @@ addInvokedSkill(name, path, content, agentId)
 | `tengu_skill_tool_slash_prefix` | 模型使用了 / 前缀 |
 | `tengu_dynamic_skills_changed` | 动态 Skills 变化（条件激活/目录发现） |
 | `tengu_skill_descriptions_truncated` | Skill 描述被截断 |
+
 

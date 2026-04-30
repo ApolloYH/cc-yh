@@ -1,4 +1,4 @@
-# Environment Variables
+﻿# Environment Variables
 
 
 | Variable | Required | Description |
@@ -16,15 +16,23 @@
 
 ## Configuration Methods
 
-### Option 1: `.env` File
+### Option 1: `~/.claude-yh/settings.json` (recommended)
 
-```bash
-cp .env.example .env
+```json
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "sk-xxx",
+    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
+    "ANTHROPIC_MODEL": "MiniMax-M2.7-highspeed"
+  }
+}
 ```
 
-Edit `.env` (the example below uses [MiniMax](https://platform.minimaxi.com/subscribe/token-plan?code=1TG2Cseab2&source=link) as the API provider — you can replace it with any compatible service):
+### Option 2: Custom env file (optional)
 
-```env
+The repository no longer ships `.env.example`, so local provider settings do not live in the open-source tree. If you need a temporary override, create any env file and pass it explicitly with `--env-file`:
+
+```text
 # API authentication (choose one)
 ANTHROPIC_API_KEY=sk-xxx          # Standard API key via x-api-key header
 ANTHROPIC_AUTH_TOKEN=sk-xxx       # Bearer token via Authorization header
@@ -46,17 +54,10 @@ DISABLE_TELEMETRY=1
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ```
 
-### Option 2: `~/.claude-yh/settings.json`
-
-```json
-{
-  "env": {
-    "ANTHROPIC_AUTH_TOKEN": "sk-xxx",
-    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
-    "ANTHROPIC_MODEL": "MiniMax-M2.7-highspeed"
-  }
-}
+```bash
+claude-yh --env-file C:\path\to\custom.env
 ```
 
-> Priority: Environment variables > `.env` file > `~/.claude-yh/settings.json`
+> Priority: process environment / explicit `--env-file` > `~/.claude-yh/settings.json`
+
 

@@ -1,4 +1,4 @@
-# Telegram 接入
+﻿# Telegram 接入
 
 > Telegram Adapter 的接入教程。找 BotFather 拿 Token，桌面端填完配对即可。
 
@@ -124,4 +124,5 @@ Webapp 只负责配置，不会自动拉起 `bun run telegram`（桌面端发布
 - `adapters/common/session-store.ts`
 - `adapters/common/ws-bridge.ts`
 - `adapters/common/http-client.ts`
+
 

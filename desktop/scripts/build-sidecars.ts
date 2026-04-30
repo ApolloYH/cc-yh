@@ -1,4 +1,4 @@
-import { mkdir, readdir, stat } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 const desktopRoot = path.resolve(import.meta.dir, '..')
@@ -13,6 +13,8 @@ const targetTriple =
 const bunTarget = mapTargetTripleToBun(targetTriple)
 const sidecarOutfileBase = path.join(binariesDir, `claude-sidecar-${targetTriple}`)
 const sidecarExecutable = bunTarget.includes('windows') ? `${sidecarOutfileBase}.exe` : sidecarOutfileBase
+
+await ensureRuntimeSidecar()
 
 if (await isSidecarFresh(sidecarExecutable)) {
   console.log(`[build-sidecars] Existing sidecar is fresh: ${sidecarExecutable}`)
@@ -120,6 +122,67 @@ async function detectHostTriple() {
   }
 
   return hostLine.replace('host: ', '')
+}
+
+async function ensureRuntimeSidecar() {
+  const platformArch = `${process.platform}-${process.arch}`
+  const runtimeName =
+    process.platform === 'win32'
+      ? 'claude-yh-runtime-sidecar.exe'
+      : 'claude-yh-runtime-sidecar'
+  const runtimeOutDir = path.join(binariesDir, 'native', platformArch)
+  const runtimeOutPath = path.join(runtimeOutDir, runtimeName)
+
+  if (await isRuntimeSidecarFresh(runtimeOutPath)) {
+    console.log(`[build-sidecars] Existing Rust runtime sidecar is fresh: ${runtimeOutPath}`)
+    return
+  }
+
+  console.log('[build-sidecars] building Rust runtime sidecar...')
+  const cargoArgs = [
+    'build',
+    '--manifest-path',
+    path.join(repoRoot, 'rust', 'Cargo.toml'),
+    '--bin',
+    'claude-yh-runtime-sidecar',
+  ]
+  const profile = process.env.CLAUDE_YH_RUST_PROFILE?.trim()
+  if (profile === 'release') {
+    cargoArgs.push('--release')
+  }
+
+  const proc = Bun.spawn(['cargo', ...cargoArgs], {
+    cwd: repoRoot,
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  const exitCode = await proc.exited
+  if (exitCode !== 0) {
+    throw new Error(`[build-sidecars] cargo build failed for Rust runtime sidecar (exit ${exitCode})`)
+  }
+
+  const sourceProfile = profile === 'release' ? 'release' : 'debug'
+  const sourcePath = path.join(
+    repoRoot,
+    'rust',
+    'target',
+    sourceProfile,
+    runtimeName,
+  )
+  await mkdir(runtimeOutDir, { recursive: true })
+  await copyFile(sourcePath, runtimeOutPath)
+  console.log(`[build-sidecars] Rust runtime sidecar -> ${runtimeOutPath}`)
+}
+
+async function isRuntimeSidecarFresh(outputPath: string): Promise<boolean> {
+  const outputStat = await stat(outputPath).catch(() => null)
+  if (!outputStat) return false
+
+  const latestRustMtime = await latestMtime([
+    path.join(repoRoot, 'rust', 'Cargo.toml'),
+    path.join(repoRoot, 'rust', 'crates'),
+  ])
+  return outputStat.mtimeMs >= latestRustMtime
 }
 
 function mapTargetTripleToBun(triple: string): string {

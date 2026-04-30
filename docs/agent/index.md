@@ -1,4 +1,4 @@
-# Claude Code 多 Agent 系统文档
+﻿# Claude Code 多 Agent 系统文档
 
 > 完整的多 Agent 编排使用指南和实现原理文档
 
@@ -123,8 +123,9 @@
 
 - [Claude YH 主页](/)
 - [记忆系统文档](/memory/01-usage-guide)
-- [Agent Tool 源码](https://github.com/NanmiCoder/claude-yh/tree/main/src/tools/AgentTool/)
-- [Swarm 基础设施](https://github.com/NanmiCoder/claude-yh/tree/main/src/utils/swarm/)
-- [任务管理系统](https://github.com/NanmiCoder/claude-yh/tree/main/src/tasks/)
-- [GitHub Issues](https://github.com/NanmiCoder/claude-yh/issues)
+- [Agent Tool 源码](https://github.com/ApolloYH/cc-yh/tree/main/src/tools/AgentTool/)
+- [Swarm 基础设施](https://github.com/ApolloYH/cc-yh/tree/main/src/utils/swarm/)
+- [任务管理系统](https://github.com/ApolloYH/cc-yh/tree/main/src/tasks/)
+- [GitHub Issues](https://github.com/ApolloYH/cc-yh/issues)
+
 

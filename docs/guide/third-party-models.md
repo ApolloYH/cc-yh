@@ -1,4 +1,4 @@
-# 使用第三方模型
+﻿# 使用第三方模型
 
 现在这个项目支持三种接入方式：
 
@@ -35,7 +35,7 @@
 
 也可以直接用环境变量配置：
 
-```env
+```text
 CLAUDE_CODE_COMPAT_PROVIDER=openai
 CLAUDE_CODE_OPENAI_COMPAT_MODE=chat_completions
 ANTHROPIC_BASE_URL=https://api.openai.com/v1
@@ -48,7 +48,7 @@ ANTHROPIC_DEFAULT_OPUS_MODEL=gpt-4o
 
 如果你要走 Responses API，把模式改成：
 
-```env
+```text
 CLAUDE_CODE_OPENAI_COMPAT_MODE=responses
 ```
 
@@ -72,7 +72,7 @@ CLAUDE_CODE_OPENAI_COMPAT_MODE=responses
 
 ### OpenRouter
 
-```env
+```text
 ANTHROPIC_AUTH_TOKEN=sk-or-v1-xxx
 ANTHROPIC_BASE_URL=https://openrouter.ai/api
 ANTHROPIC_MODEL=openai/gpt-4o
@@ -85,7 +85,7 @@ CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
 ### MiniMax
 
-```env
+```text
 ANTHROPIC_AUTH_TOKEN=your_minimax_api_key_here
 ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic
 ANTHROPIC_MODEL=MiniMax-M2.7
@@ -123,7 +123,7 @@ litellm_settings:
 
 然后把本项目指向代理：
 
-```env
+```text
 ANTHROPIC_AUTH_TOKEN=sk-anything
 ANTHROPIC_BASE_URL=http://localhost:4000
 ANTHROPIC_MODEL=gpt-4o
@@ -160,4 +160,5 @@ ANTHROPIC_DEFAULT_OPUS_MODEL=gpt-4o
 - 工具调用已经尽量补齐，但不同提供商在边角行为上仍可能不一致
 - reasoning / thinking 字段会做归一化处理，不保证各家完全同义
 - 如果某家“OpenAI 兼容”只是部分兼容，最容易出错的通常还是流式、工具调用和 schema 细节
+
 

@@ -1,4 +1,4 @@
-# Claude Code Skills System -- Implementation Details
+﻿# Claude Code Skills System -- Implementation Details
 
 > A deep dive into how Skills are discovered, loaded, injected, executed, and managed.
 
@@ -895,4 +895,5 @@ Restored scoped by agentId (prevents cross-agent leakage)
 | `tengu_skill_tool_slash_prefix` | Model used the / prefix |
 | `tengu_dynamic_skills_changed` | Dynamic Skills changed (conditional activation/directory discovery) |
 | `tengu_skill_descriptions_truncated` | Skill descriptions were truncated |
+
 

@@ -1,8 +1,6 @@
-import { defineConfig } from 'vitepress'
+﻿import { defineConfig } from 'vitepress'
 import { withMermaid } from 'vitepress-plugin-mermaid'
 
-// GitHub-compatible slugify (matches github-slugger algorithm)
-// Makes heading anchor IDs consistent between VitePress and GitHub rendering
 function slugify(str: string): string {
   return str
     .replace(/<[^>]*>/g, '')
@@ -15,87 +13,65 @@ function slugify(str: string): string {
     .replace(/ /g, '-')
 }
 
+const repo = 'https://github.com/ApolloYH/cc-yh'
+
 const zhSidebar = [
   {
     text: '快速开始',
     items: [
       { text: '安装与启动', link: '/guide/quick-start' },
-      { text: '环境变量', link: '/guide/env-vars' },
+      { text: '配置说明', link: '/guide/env-vars' },
       { text: '第三方模型', link: '/guide/third-party-models' },
       { text: '全局使用', link: '/guide/global-usage' },
       { text: '常见问题', link: '/guide/faq' },
     ],
   },
   {
-    text: '记忆系统',
+    text: '核心能力',
     collapsed: false,
     items: [
-      { text: '概览', link: '/memory/' },
+      { text: 'Jarvis 常驻智能体', link: '/features/jarvis' },
+      { text: 'BrowserControl', link: '/features/browser-control' },
+      { text: 'Computer Use', link: '/features/computer-use' },
+    ],
+  },
+  {
+    text: '记忆与技能',
+    collapsed: false,
+    items: [
+      { text: '记忆概览', link: '/memory/' },
       { text: '使用指南', link: '/memory/01-usage-guide' },
-      { text: '实现原理', link: '/memory/02-implementation' },
-      { text: 'AutoDream 记忆整合', link: '/memory/03-autodream' },
+      { text: '实现说明', link: '/memory/02-implementation' },
+      { text: 'Skills 使用', link: '/skills/01-usage-guide' },
+      { text: 'Skills 实现', link: '/skills/02-implementation' },
     ],
   },
   {
-    text: '多 Agent 系统',
+    text: '桌面端与 IM',
     collapsed: false,
     items: [
-      { text: '概览', link: '/agent/' },
-      { text: '使用指南', link: '/agent/01-usage-guide' },
-      { text: '实现原理', link: '/agent/02-implementation' },
-      { text: 'Agent 框架解析', link: '/agent/03-agent-framework' },
-    ],
-  },
-  {
-    text: 'Skills 系统',
-    collapsed: false,
-    items: [
-      { text: '使用指南', link: '/skills/01-usage-guide' },
-      { text: '实现原理', link: '/skills/02-implementation' },
-    ],
-  },
-  {
-    text: 'IM 接入',
-    collapsed: false,
-    items: [
-      { text: '总览', link: '/im/' },
+      { text: '桌面端概览', link: '/desktop/' },
+      { text: '桌面端快速上手', link: '/desktop/01-quick-start' },
+      { text: '桌面端架构', link: '/desktop/02-architecture' },
+      { text: '桌面端功能', link: '/desktop/03-features' },
+      { text: '安装与构建', link: '/desktop/04-installation' },
+      { text: 'IM 接入', link: '/im/' },
       { text: 'Telegram', link: '/im/telegram' },
       { text: '飞书', link: '/im/feishu' },
     ],
   },
   {
-    text: 'Channel 源码研究',
-    collapsed: false,
-    items: [
-      { text: '概览', link: '/channel/' },
-      { text: '架构解析', link: '/channel/01-channel-system' },
-    ],
-  },
-  {
-    text: 'Computer Use',
-    collapsed: false,
-    items: [
-      { text: '功能指南', link: '/features/computer-use' },
-      { text: '架构解析', link: '/features/computer-use-architecture' },
-    ],
-  },
-  {
-    text: '桌面端',
-    collapsed: false,
-    items: [
-      { text: '概览', link: '/desktop/' },
-      { text: '快速上手', link: '/desktop/01-quick-start' },
-      { text: '架构设计', link: '/desktop/02-architecture' },
-      { text: '功能详解', link: '/desktop/03-features' },
-      { text: '安装与构建', link: '/desktop/04-installation' },
-    ],
-  },
-  {
-    text: '参考',
+    text: 'Agent 与参考',
     collapsed: true,
     items: [
-      { text: '源码修复记录', link: '/reference/fixes' },
+      { text: '多 Agent 概览', link: '/agent/' },
+      { text: 'Agent 使用指南', link: '/agent/01-usage-guide' },
+      { text: 'Agent 实现原理', link: '/agent/02-implementation' },
+      { text: 'Agent 框架解析', link: '/agent/03-agent-framework' },
       { text: '项目结构', link: '/reference/project-structure' },
+      { text: 'Rust Runtime', link: '/reference/rust-runtime' },
+      { text: '能力接口边界', link: '/reference/runtime-interfaces' },
+      { text: '修复记录', link: '/reference/fixes' },
     ],
   },
 ]
@@ -105,93 +81,64 @@ const enSidebar = [
     text: 'Getting Started',
     items: [
       { text: 'Quick Start', link: '/en/guide/quick-start' },
-      { text: 'Environment Variables', link: '/en/guide/env-vars' },
+      { text: 'Configuration', link: '/en/guide/env-vars' },
       { text: 'Third-Party Models', link: '/en/guide/third-party-models' },
       { text: 'Global Usage', link: '/en/guide/global-usage' },
       { text: 'FAQ', link: '/en/guide/faq' },
     ],
   },
   {
-    text: 'Memory System',
+    text: 'Core Features',
     collapsed: false,
     items: [
-      { text: 'Overview', link: '/en/memory/' },
-      { text: 'Usage Guide', link: '/en/memory/01-usage-guide' },
-      { text: 'Implementation', link: '/en/memory/02-implementation' },
-      { text: 'AutoDream', link: '/en/memory/03-autodream' },
+      { text: 'Jarvis', link: '/features/jarvis' },
+      { text: 'BrowserControl', link: '/features/browser-control' },
+      { text: 'Computer Use', link: '/en/features/computer-use' },
     ],
   },
   {
-    text: 'Multi-Agent System',
+    text: 'Memory and Skills',
     collapsed: false,
     items: [
-      { text: 'Overview', link: '/en/agent/' },
-      { text: 'Usage Guide', link: '/en/agent/01-usage-guide' },
-      { text: 'Implementation', link: '/en/agent/02-implementation' },
-      { text: 'Framework Deep Dive', link: '/en/agent/03-agent-framework' },
+      { text: 'Memory Overview', link: '/en/memory/' },
+      { text: 'Memory Usage', link: '/en/memory/01-usage-guide' },
+      { text: 'Memory Implementation', link: '/en/memory/02-implementation' },
+      { text: 'Skills Usage', link: '/en/skills/01-usage-guide' },
+      { text: 'Skills Implementation', link: '/en/skills/02-implementation' },
     ],
   },
   {
-    text: 'Skills System',
+    text: 'Desktop and IM',
     collapsed: false,
     items: [
-      { text: 'Usage Guide', link: '/en/skills/01-usage-guide' },
-      { text: 'Implementation', link: '/en/skills/02-implementation' },
-    ],
-  },
-  {
-    text: 'Channel System',
-    collapsed: false,
-    items: [
-      { text: 'Overview', link: '/en/channel/' },
-      { text: 'Architecture', link: '/en/channel/01-channel-system' },
-    ],
-  },
-  {
-    text: 'Computer Use',
-    collapsed: false,
-    items: [
-      { text: 'Guide', link: '/en/features/computer-use' },
-      { text: 'Architecture', link: '/en/features/computer-use-architecture' },
-    ],
-  },
-  {
-    text: 'Desktop',
-    collapsed: false,
-    items: [
-      { text: 'Overview', link: '/en/desktop/' },
-      { text: 'Quick Start', link: '/en/desktop/01-quick-start' },
-      { text: 'Architecture', link: '/en/desktop/02-architecture' },
-      { text: 'Features', link: '/en/desktop/03-features' },
-      { text: 'Installation & Build', link: '/en/desktop/04-installation' },
+      { text: 'Desktop Overview', link: '/en/desktop/' },
+      { text: 'Desktop Quick Start', link: '/en/desktop/01-quick-start' },
+      { text: 'Desktop Architecture', link: '/en/desktop/02-architecture' },
+      { text: 'Desktop Features', link: '/en/desktop/03-features' },
+      { text: 'Installation', link: '/en/desktop/04-installation' },
+      { text: 'IM Overview', link: '/im/' },
     ],
   },
   {
     text: 'Reference',
     collapsed: true,
     items: [
-      { text: 'Source Fixes', link: '/en/reference/fixes' },
+      { text: 'Agent Overview', link: '/en/agent/' },
       { text: 'Project Structure', link: '/en/reference/project-structure' },
+      { text: 'Source Fixes', link: '/en/reference/fixes' },
     ],
   },
 ]
 
 export default withMermaid(defineConfig({
-  title: 'Claude YH',
-  description: '基于 Claude Code 泄露源码修复的本地可运行版本，支持接入任意 Anthropic 兼容 API',
+  title: 'claude-yh',
+  description: '本地优先的主动型智能体工作台，支持 CLI、Web、Windows 桌面端、Jarvis、长期记忆、BrowserControl 和 Rust Runtime。',
   lastUpdated: true,
   base: '/',
 
   markdown: {
-    anchor: {
-      slugify,
-    },
+    anchor: { slugify },
   },
-
-  head: [
-    ['script', { async: '', src: 'https://www.googletagmanager.com/gtag/js?id=G-D42DM82263' }],
-    ['script', {}, `window.dataLayer = window.dataLayer || [];\nfunction gtag(){dataLayer.push(arguments);}\ngtag('js', new Date());\ngtag('config', 'G-D42DM82263');`],
-  ],
 
   locales: {
     root: {
@@ -201,6 +148,7 @@ export default withMermaid(defineConfig({
         nav: [
           { text: '首页', link: '/' },
           { text: '快速开始', link: '/guide/quick-start' },
+          { text: 'Jarvis', link: '/features/jarvis' },
         ],
         sidebar: zhSidebar,
         outline: { label: '页面导航' },
@@ -214,15 +162,12 @@ export default withMermaid(defineConfig({
     en: {
       label: 'English',
       lang: 'en-US',
-      description: 'A locally runnable version repaired from the leaked Claude Code source, with support for any Anthropic-compatible API endpoint.',
+      description: 'A local-first agentic coding workspace with CLI, Web UI, Windows desktop app, Jarvis, memory, BrowserControl, and Rust Runtime.',
       themeConfig: {
-        editLink: {
-          pattern: 'https://github.com/NanmiCoder/claude-yh/edit/main/docs/:path',
-          text: 'Edit this page on GitHub',
-        },
         nav: [
           { text: 'Home', link: '/en/' },
           { text: 'Quick Start', link: '/en/guide/quick-start' },
+          { text: 'Jarvis', link: '/features/jarvis' },
         ],
         sidebar: enSidebar,
       },
@@ -231,18 +176,17 @@ export default withMermaid(defineConfig({
 
   themeConfig: {
     editLink: {
-      pattern: 'https://github.com/NanmiCoder/claude-yh/edit/main/docs/:path',
+      pattern: `${repo}/edit/main/docs/:path`,
       text: '在 GitHub 上编辑此页',
     },
-    search: {
-      provider: 'local',
-    },
+    search: { provider: 'local' },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/NanmiCoder/claude-yh' },
+      { icon: 'github', link: repo },
     ],
     footer: {
       message: 'Released under the MIT License.',
-      copyright: 'Copyright 2026 Claude YH Contributors',
+      copyright: 'Copyright 2026 claude-yh contributors',
     },
   },
 }))
+

@@ -1,4 +1,4 @@
-# Computer Use 架构深度解析
+﻿# Computer Use 架构深度解析
 
 > 深入解析 Computer Use 功能的底层实现：从 MCP 工具定义到 Python Bridge，从 9 层安全关卡到灰度控制绕过。
 
@@ -605,4 +605,5 @@ bindSessionContext 闭包
 
 - [Computer Use 功能指南](./computer-use.md) — 使用方式、快速开始、环境变量
 - [源码修复记录](/reference/fixes) — 其他修复和补丁的详细记录
+
 

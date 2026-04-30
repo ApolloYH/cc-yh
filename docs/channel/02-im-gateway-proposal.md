@@ -1,4 +1,4 @@
-# IM Gateway 方案设计 `[历史设计稿]`
+﻿# IM Gateway 方案设计 `[历史设计稿]`
 
 > 像 OpenClaw 一样，让 Claude Code Desktop 快速接入任意 IM 平台
 >
@@ -504,4 +504,5 @@ wscat -c ws://localhost:3456/im/test-adapter
 - [Channel 系统架构解析](./01-channel-system.md) — 源码 Channel 系统文档
 - [Telegraf](https://github.com/telegraf/telegraf) — Telegram Bot Framework
 - [@larksuiteoapi/node-sdk](https://github.com/larksuite/oapi-sdk-nodejs) — 飞书 SDK
+
 

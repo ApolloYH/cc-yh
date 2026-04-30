@@ -1,4 +1,4 @@
-# Channel System Architecture
+﻿# Channel System Architecture
 
 > A deep dive into how Claude Code enables remote Agent control via IM platforms
 
@@ -783,6 +783,7 @@ Through declarative Channel configuration in `plugin.json`, automatic user confi
 | `src/utils/plugins/schemas.ts` | ~700 | Plugin manifest schema (incl. Channel declarations) |
 | `src/bootstrap/state.ts` | — | Global Channel allowlist state |
 | `src/main.tsx` | ~3850 | CLI argument registration and parsing |
+
 
 
 

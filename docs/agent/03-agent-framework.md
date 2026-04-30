@@ -1,4 +1,4 @@
-# Claude Code Agent 框架深度解析
+﻿# Claude Code Agent 框架深度解析
 
 > 从源码视角剖析全球最流行 AI Code Editor 背后的 Agent 架构设计哲学。
 
@@ -788,4 +788,5 @@ query() 异步生成器循环（src/query.ts）
 - [实现原理](./02-implementation.md) — 多 Agent 编排的技术细节
 - [Anthropic API 文档](https://docs.anthropic.com/) — 原生 API 能力
 - [MCP 协议规范](https://modelcontextprotocol.io/) — 模型上下文协议
+
 

@@ -1,4 +1,4 @@
-# Claude Code Multi-Agent System — Implementation Details
+﻿# Claude Code Multi-Agent System — Implementation Details
 
 > A deep dive into the architecture, spawn flow, context passing, and collaboration mechanisms of multi-agent orchestration.
 
@@ -854,4 +854,5 @@ Teammate needs permission
 | `tengu_auto_background_agents` | Auto-background after 120 seconds |
 | `tengu_slim_subagent_claudemd` | Omit CLAUDE.md for read-only agents |
 | `tengu_agent_list_attach` | Inject agent list via attachment |
+
 

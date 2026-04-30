@@ -1,4 +1,4 @@
-# Using Third-Party Models
+﻿# Using Third-Party Models
 
 This project now supports three integration paths:
 
@@ -35,7 +35,7 @@ Example values:
 
 You can also configure the runtime directly through env vars:
 
-```env
+```text
 CLAUDE_CODE_COMPAT_PROVIDER=openai
 CLAUDE_CODE_OPENAI_COMPAT_MODE=chat_completions
 ANTHROPIC_BASE_URL=https://api.openai.com/v1
@@ -48,7 +48,7 @@ ANTHROPIC_DEFAULT_OPUS_MODEL=gpt-4o
 
 For the Responses API, switch:
 
-```env
+```text
 CLAUDE_CODE_OPENAI_COMPAT_MODE=responses
 ```
 
@@ -72,7 +72,7 @@ Some providers already expose an Anthropic-compatible Messages API, so no transl
 
 ### OpenRouter
 
-```env
+```text
 ANTHROPIC_AUTH_TOKEN=sk-or-v1-xxx
 ANTHROPIC_BASE_URL=https://openrouter.ai/api
 ANTHROPIC_MODEL=openai/gpt-4o
@@ -85,7 +85,7 @@ CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
 ### MiniMax
 
-```env
+```text
 ANTHROPIC_AUTH_TOKEN=your_minimax_api_key_here
 ANTHROPIC_BASE_URL=https://api.minimax.io/anthropic
 ANTHROPIC_MODEL=MiniMax-M2.7
@@ -123,7 +123,7 @@ litellm_settings:
 
 Then point this project to the proxy:
 
-```env
+```text
 ANTHROPIC_AUTH_TOKEN=sk-anything
 ANTHROPIC_BASE_URL=http://localhost:4000
 ANTHROPIC_MODEL=gpt-4o
@@ -160,4 +160,5 @@ Only when the upstream is not compatible enough by itself, or when you want prox
 - Tool calling is much better than before, but some providers still diverge on edge cases
 - Reasoning/thinking fields are normalized, not guaranteed to be identical across vendors
 - If a provider's "OpenAI-compatible" API is only partial, failures usually happen around streaming, tools, or schema details
+
 

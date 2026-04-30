@@ -1,33 +1,49 @@
 {
   "name": "claude-yh",
-  "version": "999.0.0-local",
+  "version": "0.1.3",
   "private": false,
   "type": "module",
   "bin": {
     "claude-yh": "./bin/claude-yh.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ApolloYH/cc-yh.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ApolloYH/cc-yh/issues"
+  },
+  "homepage": "https://github.com/ApolloYH/cc-yh#readme",
   "engines": {
     "node": ">=18",
     "bun": ">=1.2.0"
   },
   "files": [
-    "bin",
+    "bin/claude-yh",
+    "bin/claude-yh.cmd",
+    "bin/claude-yh.js",
+    "bin/claude-yh.ps1",
+    "bin/claude-yh.ts",
     "extensions",
     "native",
+    "runtime/mac_helper.py",
+    "runtime/win_helper.py",
+    "runtime/requirements.txt",
+    "runtime/requirements-win.txt",
     "src",
+    "stubs",
     "!src/**/__tests__/**",
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
     "!src/**/*.spec.ts",
     "!src/**/*.spec.tsx",
     "preload.ts",
-    "README.md",
-    "README.en.md",
     "package.json"
   ],
   "scripts": {
     "claude-yh": "node ./bin/claude-yh.js",
     "start": "node ./bin/claude-yh.js",
+    "pack:cli": "npm pack --pack-destination Releases",
     "rust:check": "cargo check --manifest-path rust/Cargo.toml",
     "rust:test": "cargo test --manifest-path rust/Cargo.toml",
     "docs:dev": "vitepress dev docs",

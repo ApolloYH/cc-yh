@@ -13,7 +13,7 @@ $repoRoot = (Resolve-Path (Join-Path $desktopDir '..')).Path
 
 $targetTriple = 'x86_64-pc-windows-msvc'
 $tauriTargetDir = Join-Path $desktopDir 'src-tauri\target'
-$canonicalOutputDir = Join-Path $desktopDir 'build-artifacts\windows-x64'
+$canonicalOutputDir = Join-Path $repoRoot 'Releases'
 $activeOutputDir = $canonicalOutputDir
 
 function Write-Step {
@@ -291,5 +291,5 @@ if ($msiInstaller) {
 Write-Step "Canonical output: $canonicalOutputDir"
 
 if ($env:OPEN_OUTPUT -eq '1') {
-  Invoke-Item $canonicalOutputDir
+  Invoke-Item $activeOutputDir
 }

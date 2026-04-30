@@ -70,7 +70,7 @@ http://localhost:1420
 .\scripts\build-windows-x64.ps1
 ```
 
-构建产物位于 `build-artifacts/` 目录。
+构建产物统一输出到仓库根目录的 `Releases/` 目录。
 
 ## 常见问题
 

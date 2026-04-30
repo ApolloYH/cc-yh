@@ -1,4 +1,4 @@
-# Claude Code Desktop App — 产品需求文档 (PRD)
+﻿# Claude Code Desktop App — 产品需求文档 (PRD)
 
 ## 一、项目概述
 
@@ -408,4 +408,5 @@ type ContentBlock =
 | Diff | `src/components/StructuredDiff.tsx` |
 | 会话管理 | `src/components/LogSelector.tsx` |
 | 服务端 API | `src/server/` |
+
 

@@ -1,4 +1,4 @@
-# 环境变量说明
+﻿# 环境变量说明
 
 
 | 变量 | 必填 | 说明 |
@@ -16,15 +16,23 @@
 
 ## 配置方式
 
-### 方式一：`.env` 文件
+### 方式一：`~/.claude-yh/settings.json`（推荐）
 
-```bash
-cp .env.example .env
+```json
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "sk-xxx",
+    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
+    "ANTHROPIC_MODEL": "MiniMax-M2.7-highspeed"
+  }
+}
 ```
 
-编辑 `.env`（以下示例使用 [MiniMax](https://platform.minimaxi.com/subscribe/token-plan?code=1TG2Cseab2&source=link) 作为 API 提供商，也可替换为其他兼容服务）：
+### 方式二：临时 env 文件（可选）
 
-```env
+仓库不再提供 `.env.example`，避免开源仓库携带本地配置模板。需要临时覆盖时，可以自己创建任意 env 文件并通过 `--env-file` 指定：
+
+```text
 # API 认证（二选一）
 ANTHROPIC_API_KEY=sk-xxx          # 标准 API Key（x-api-key 头）
 ANTHROPIC_AUTH_TOKEN=sk-xxx       # Bearer Token（Authorization 头）
@@ -46,17 +54,10 @@ DISABLE_TELEMETRY=1
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ```
 
-### 方式二：`~/.claude-yh/settings.json`
-
-```json
-{
-  "env": {
-    "ANTHROPIC_AUTH_TOKEN": "sk-xxx",
-    "ANTHROPIC_BASE_URL": "https://api.minimaxi.com/anthropic",
-    "ANTHROPIC_MODEL": "MiniMax-M2.7-highspeed"
-  }
-}
+```bash
+claude-yh --env-file C:\path\to\custom.env
 ```
 
-> 配置优先级：环境变量 > `.env` 文件 > `~/.claude-yh/settings.json`
+> 配置优先级：进程环境变量 / 显式 `--env-file` > `~/.claude-yh/settings.json`
+
 

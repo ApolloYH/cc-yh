@@ -1,4 +1,4 @@
-# Claude Code Skills 系统 — 使用指南
+﻿# Claude Code Skills 系统 — 使用指南
 
 > Skills 是 Claude Code 的扩展能力引擎，让你用 Markdown 文件定义专属的自动化工作流。
 
@@ -391,4 +391,5 @@ EOF
 | Project | 是（默认） | 是 | 是 | 是 |
 | Plugin | 依配置 | 依配置 | 是 | 是 |
 | MCP | 依配置 | 依配置 | 是 | 否（安全限制） |
+
 

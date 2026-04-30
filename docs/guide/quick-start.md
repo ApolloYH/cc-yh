@@ -1,4 +1,4 @@
-# 快速开始
+﻿# 快速开始
 
 ## 1. 安装 Bun
 
@@ -19,8 +19,7 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 
 ```bash
 bun install
-cp .env.example .env
-# 编辑 .env 填入你的 API Key，详见「环境变量」文档
+# 默认读取 ~/.claude-yh/settings.json，详见「环境变量」文档
 ```
 
 环境变量的完整说明请参考 [环境变量配置](./env-vars.md)。
@@ -61,4 +60,5 @@ export PATH="$HOME/path/to/claude-yh/bin:$PATH"
 ```bash
 CLAUDE_CODE_FORCE_RECOVERY_CLI=1 ./bin/claude-yh
 ```
+
 

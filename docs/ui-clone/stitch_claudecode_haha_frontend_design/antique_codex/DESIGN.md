@@ -1,4 +1,4 @@
-# Design System Specification: The Technical Atelier
+﻿# Design System Specification: The Technical Atelier
 
 ## 1. Overview & Creative North Star
 ### The Creative North Star: "The Digital Archivist"
@@ -88,3 +88,4 @@ We reject the "drop shadow" defaults of the web. Depth is an atmospheric quality
 
 ### Accessibility Note
 While we use subtle tonal shifts, always ensure the `on_surface` text vs `surface_container` maintains a minimum 4.5:1 contrast ratio for body text. Use `outline` (#87736D) for iconography to ensure clarity against the warm background.
+

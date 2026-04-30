@@ -35,7 +35,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     name: 'DeepSeek',
     baseUrl: 'https://api.deepseek.com/anthropic',
     apiFormat: 'anthropic',
-    defaultModels: { main: 'DeepSeek-V3.2', haiku: 'DeepSeek-V3.2', sonnet: 'DeepSeek-V3.2', opus: 'DeepSeek-V3.2' },
+    defaultModels: { main: 'deepseek-v4-pro[1m]', haiku: 'deepseek-v4-flash', sonnet: 'deepseek-v4-pro[1m]', opus: 'deepseek-v4-pro[1m]' },
     needsApiKey: true,
     websiteUrl: 'https://platform.deepseek.com',
   },

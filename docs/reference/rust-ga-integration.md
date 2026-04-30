@@ -1,4 +1,4 @@
-
+﻿
 # Rust 与 GenericAgent 能力吸收边界
 
 本文记录 `claude-yh` 从 `claw-code` 和 `GenericAgent` 吸收能力时的落地边界。
@@ -58,7 +58,7 @@ GenericAgent 的 `tmwd_cdp_bridge` 类能力只能作为显式启用的浏览器
 
 - 必须有用户安装/启用动作，不能静默启用。
 - 必须暴露能力清单和风险说明，尤其是 cookies、tabs、debugger、CSP 修改等权限。
-- 必须保留域名 allowlist、审计日志、敏感动作确认。
+- 安全边界以权限模式、审计日志、敏感动作确认和工具层硬校验为准；域名 allowlist 不再作为主要产品概念。
 - 不处理或绕过验证码、登录、2FA、支付、风控验证；遇到这些情况必须交还用户。
 - 现有 MCP/Chrome/browser-control 能力保留，新增后端只能挂在统一 BrowserControl 合约后面。
 
@@ -123,7 +123,7 @@ cd desktop && bun run lint
 - `src/server/services/cronService.ts`: 定时任务可选保存 `awayRunner` 配置。
 - `desktop/src/types/task.ts`: 桌面端任务类型可携带 `awayRunner` 配置。
 
-当前 Away Runner 不会自动接管现有定时任务，也不会改变 scheduler 行为。它只是把“离开后是否能继续执行”的规则从自然语言沉淀成可测试合约。
+当前 Jarvis 不会把提醒类任务交给 Manager CLI sleep，而是写入全局定时任务系统；到点后事件回灌给 Jarvis，再由 Jarvis 主动向用户发送提醒。
 
 验证命令：
 
@@ -160,5 +160,6 @@ bun run rust:test
 1. 建 Rust sidecar JSON 协议和 mock parity harness 骨架。
 2. 建 BrowserControl 抽象和 capability policy。
 3. 增加真实钉钉/企业微信适配器进程，共用现有 adapter common 层。
-4. 增加 Away Runner：预算、检查点、暂停条件、人工确认。
+4. 增加 Jarvis 常驻智能体：预算、检查点、暂停条件、人工确认、主动汇报和 Manager CLI 编排。
 5. 尝试 Rust 加速 session/memory index，保留 TS fallback。
+

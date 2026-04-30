@@ -93,4 +93,31 @@ describe('rust sidecar protocol', () => {
       await fs.rm(root, { recursive: true, force: true })
     }
   })
+
+  it('walks parent directories when discovering a sidecar', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'runtime-sidecar-parent-'))
+    const sidecarName =
+      process.platform === 'win32'
+        ? 'claude-yh-runtime-sidecar.exe'
+        : 'claude-yh-runtime-sidecar'
+    const sidecarPath = path.join(
+      root,
+      'native',
+      `${process.platform}-${process.arch}`,
+      sidecarName,
+    )
+    const nestedRoot = path.join(root, 'desktop', 'src-tauri', 'target', 'debug')
+    await fs.mkdir(path.dirname(sidecarPath), { recursive: true })
+    await fs.mkdir(nestedRoot, { recursive: true })
+    await fs.writeFile(sidecarPath, '', 'utf-8')
+
+    try {
+      expect(getRustSidecarLaunchConfig({}, [nestedRoot])).toEqual({
+        command: sidecarPath,
+        args: [],
+      })
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
 })

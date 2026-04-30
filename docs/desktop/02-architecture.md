@@ -1,4 +1,4 @@
-# 架构设计
+﻿# 架构设计
 
 > 从 Tauri 窗口到 CLI 子进程，桌面端的三层通信架构。
 
@@ -377,4 +377,5 @@ adapters/                             # IM 适配器
 ├── telegram/                        #   Telegram Bot
 └── feishu/                          #   飞书 Bot
 ```
+
 

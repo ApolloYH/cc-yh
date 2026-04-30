@@ -1,4 +1,4 @@
-# Claude Code 多 Agent 系统 — 使用指南
+﻿# Claude Code 多 Agent 系统 — 使用指南
 
 > 让 Claude Code 同时调度多个专业代理，并行处理复杂任务。
 
@@ -441,4 +441,5 @@ maxTurns: 10
 | 自定义 Agent | 在 `.claude-yh/agents/*.md` 创建定义文件 |
 | 指定模型 | `Agent({ ..., model: "haiku" })` |
 | 命名 Agent | `Agent({ ..., name: "researcher" })` |
+
 

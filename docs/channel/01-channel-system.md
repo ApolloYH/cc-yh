@@ -1,4 +1,4 @@
-# Channel 系统架构解析
+﻿# Channel 系统架构解析
 
 > 从源码视角深度剖析 Claude Code 如何通过 IM 平台远程控制 Agent
 
@@ -783,6 +783,7 @@ Channel 失败不会阻断本地工作流。权限中继是多源竞争机制，
 | `src/utils/plugins/schemas.ts` | ~700 | 插件清单 Schema（含 Channel 声明） |
 | `src/bootstrap/state.ts` | - | 全局 Channel 白名单状态 |
 | `src/main.tsx` | ~3850 | CLI 参数注册和解析 |
+
 
 
 

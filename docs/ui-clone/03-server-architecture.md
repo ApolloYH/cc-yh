@@ -1,4 +1,4 @@
-# Claude Code Desktop App — 服务端架构设计
+﻿# Claude Code Desktop App — 服务端架构设计
 
 ## 一、设计原则
 
@@ -270,4 +270,5 @@ class SessionService {
 - 定时任务 CRUD
 - 设置读写
 - 搜索功能
+
 

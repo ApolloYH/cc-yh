@@ -230,7 +230,7 @@ export class JarvisService {
         role: 'jarvis',
         source: 'system',
         title: '新对话已开启',
-        message: `已清空当前 Jarvis 对话；旧记录已备份到：${backupPath}`,
+        message: `已清空当前 Jarvis 对话；旧记录已备份到：\`${backupPath}\``,
         metadata: { backupPath, clientMessageId },
       })
       return this.getStatus()

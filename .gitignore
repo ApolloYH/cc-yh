@@ -1,6 +1,5 @@
 .env
 .env.*
-!.env.example
 node_modules
 .DS_Store
 
@@ -44,6 +43,7 @@ desktop/brand-assets/
 docs/superpowers/
 
 # Temp server/web logs
+tmp/
 .tmp-*.log
 logs/
 *.out.log
@@ -74,3 +74,4 @@ analysis
 progress.md
 task_plan.md
 findings.md
+Releases

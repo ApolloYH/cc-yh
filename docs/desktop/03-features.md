@@ -1,12 +1,10 @@
-# 功能详解
+﻿# 功能详解
 
 > 桌面端核心功能模块一览。
 
 ---
 
 ## 聊天引擎
-
-![任务列表与工具调用](../images/desktop_ui/04_tasktodo_list.png)
 
 聊天引擎是桌面端核心，负责消息收发、流式渲染和工具交互。
 
@@ -54,8 +52,6 @@
 ---
 
 ## 代码展示
-
-![Write 工具 Diff 视图](../images/desktop_ui/02_edit_code.png)
 
 ### CodeViewer
 
@@ -114,8 +110,6 @@
 
 ## 提供商管理
 
-![提供商设置](../images/desktop_ui/05_settings.png)
-
 在设置 → Providers 标签页管理 AI 提供商。
 
 ### 预设
@@ -137,27 +131,62 @@
 
 ---
 
-## 技能与 Agent
+## 技能
 
 ### 技能浏览
 
 设置 → Skills 标签页：
 
-- 按来源分类（bundled / user / project / plugin）
+- 展示 claude-yh 专属 Skill 和可发现的用户 Skill
 - 搜索过滤
 - 详情视图：元数据 + 源代码目录树 + 代码内容
 
-### Agent 定义
+Skill 与 L3 记忆联动：可复用且适合模型主动调用的流程会沉淀为 Skill；普通经验沉淀为 SOP，不会重复进入 L1。
 
-设置 → Agents 标签页：
+---
 
-管理 Agent 类型定义（agentType、description、model、tools、systemPrompt、color），支持 built-in / plugin / userSettings / projectSettings / localSettings 多种来源。
+## Jarvis
+
+Jarvis 页面是常驻智能体主界面：
+
+- 左侧是 Jarvis 对话流，用户消息使用气泡，Jarvis 回复使用 Markdown 渲染。
+- 右侧任务队列展示完整用户目标，不展示内部拆分步骤。
+- 支持暂停、恢复、取消、删除、kill、静音/恢复汇报。
+- 权限模式支持观察、辅助、自主和全自主。
+- 定时任务、IM 消息和 Manager CLI 结果会作为主动事件进入 Jarvis。
+
+完整设计见 [Jarvis 常驻智能体](../features/jarvis.md)。
+
+---
+
+## BrowserControl
+
+设置 → Browser 标签页用于管理当前 Chrome 会话控制能力：
+
+- 启用/禁用 BrowserControl
+- 查看 TMWD bridge 连接状态
+- 配置高权限能力和敏感确认
+- 查看 tab 快照和连接错误
+
+完整设计见 [BrowserControl](../features/browser-control.md)。
+
+---
+
+## 记忆
+
+设置 → 记忆 标签页展示 L1-L4 长期记忆：
+
+- L1 注入摘要
+- L2 facts
+- L3 SOP / Skills
+- L4 会话归档
+- 自动抽取和整理日志
+
+记忆更新是自动化的，普通用户不需要手动点击“生成摘要/候选/应用”。完整设计见 [记忆系统](../memory/)。
 
 ---
 
 ## 定时任务
-
-![定时任务](../images/desktop_ui/08_scheduled_task.png)
 
 侧边栏时钟图标进入，顶部统计卡片（总计/活跃/禁用）。
 
@@ -179,8 +208,6 @@
 ---
 
 ## IM 适配器
-
-![IM 适配器设置](../images/desktop_ui/07_im.png)
 
 设置 → Adapters 标签页，配置 Telegram / 飞书接入。
 
@@ -208,8 +235,6 @@
 ---
 
 ## Computer Use
-
-![Computer Use 设置](../images/desktop_ui/06_settings_computer_use.png)
 
 设置 → Computer Use 标签页，查看和配置 Computer Use 功能状态。
 
@@ -276,4 +301,6 @@ Key 命名空间：`common.*`、`sidebar.*`、`chat.*`、`settings.*`、`status.
 | `Shift + Enter` | 换行 |
 | `/` | 斜杠命令 |
 | `@` | 文件搜索 |
+
+
 
