@@ -78,7 +78,15 @@ if (!existsSync(emptyEnvFile)) {
 
 ensureRuntimeAliases()
 
+const hasBundledRipgrep = existsSync(
+  join(rootDir, 'src', 'utils', 'vendor', 'ripgrep'),
+)
+
 const bunArgs = []
+if (existsSync(join(rootDir, 'preload.ts'))) {
+  bunArgs.push('--preload=./preload.ts')
+}
+
 if (explicitEnvFile && process.env.CLAUDE_YH_SKIP_DOTENV !== '1') {
   bunArgs.push(`--env-file=${explicitEnvFile}`)
 } else if (
@@ -106,6 +114,9 @@ const result = spawnSync('bun', bunArgs, {
     ...(explicitEnvFile || process.env.CLAUDE_YH_USE_DOTENV === '1'
       ? { CLAUDE_YH_EXPLICIT_ENV_FILE: '1' }
       : {}),
+    ...(hasBundledRipgrep
+      ? {}
+      : { USE_BUILTIN_RIPGREP: process.env.USE_BUILTIN_RIPGREP ?? '0' }),
     CLAUDE_CONFIG_DIR:
       process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude-yh'),
   },

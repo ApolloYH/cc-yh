@@ -1,6 +1,6 @@
 {
   "name": "claude-yh",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "private": false,
   "type": "module",
   "bin": {
@@ -24,6 +24,7 @@
     "bin/claude-yh.js",
     "bin/claude-yh.ps1",
     "bin/claude-yh.ts",
+    "bunfig.toml",
     "extensions",
     "native",
     "runtime/mac_helper.py",
