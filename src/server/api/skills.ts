@@ -1,18 +1,19 @@
 /**
  * Skills REST API
  *
- * GET /api/skills              — List all installed skills (metadata only)
- * GET /api/skills/detail       — Full skill data (tree + files)
- *       ?source=user&name=xxx
+ * GET    /api/skills              - List installed user skills
+ * GET    /api/skills/detail       - Full skill data (tree + files)
+ * POST   /api/skills/install      - Import a local skill folder into ~/.claude-yh/skills
+ * POST   /api/skills/create       - Create a new skill scaffold
+ * DELETE /api/skills/:name        - Delete an installed user skill
  */
 
-import * as os from 'os'
-import * as path from 'path'
 import * as fs from 'fs/promises'
+import * as path from 'path'
+import * as os from 'os'
+import { spawn } from 'child_process'
 import { parseFrontmatter } from '../../utils/frontmatterParser.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
-
-// ─── Types ───────────────────────────────────────────────────────────────────
 
 type SkillMeta = {
   name: string
@@ -41,21 +42,45 @@ type SkillFile = {
   isEntry?: boolean
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const MAX_FILES = 50
-const MAX_FILE_SIZE = 100 * 1024 // 100 KB
-const SKIP_ENTRIES = new Set(['node_modules', '.git', '__pycache__', '.DS_Store'])
-
-const LANG_MAP: Record<string, string> = {
-  md: 'markdown', ts: 'typescript', tsx: 'typescript',
-  js: 'javascript', jsx: 'javascript', json: 'json',
-  yaml: 'yaml', yml: 'yaml', sh: 'bash', bash: 'bash',
-  py: 'python', toml: 'toml', css: 'css', html: 'html',
-  txt: 'text', xml: 'xml', sql: 'sql', rs: 'rust', go: 'go',
+type InstallSkillBody = {
+  sourcePath?: string
+  installCommand?: string
+  packageUrl?: string
+  name?: string
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+type CreateSkillBody = {
+  name?: string
+  displayName?: string
+  description?: string
+}
+
+const MAX_FILES = 50
+const MAX_FILE_SIZE = 100 * 1024
+const SKIP_ENTRIES = new Set(['node_modules', '.git', '__pycache__', '.DS_Store'])
+const CLAUDATE_API_BASE = 'https://api.claudate.com/api/packages'
+
+const LANG_MAP: Record<string, string> = {
+  md: 'markdown',
+  ts: 'typescript',
+  tsx: 'typescript',
+  js: 'javascript',
+  jsx: 'javascript',
+  json: 'json',
+  yaml: 'yaml',
+  yml: 'yaml',
+  sh: 'bash',
+  bash: 'bash',
+  py: 'python',
+  toml: 'toml',
+  css: 'css',
+  html: 'html',
+  txt: 'text',
+  xml: 'xml',
+  sql: 'sql',
+  rs: 'rust',
+  go: 'go',
+}
 
 function detectLanguage(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase() || ''
@@ -74,7 +99,284 @@ function normalizeFrontmatter(content: string, sourcePath?: string): {
 }
 
 function getUserSkillsDir(): string {
-  return path.join(os.homedir(), '.claude-yh', 'skills')
+  return (
+    process.env.CLAUDE_YH_SKILLS_DIR ||
+    path.join(os.homedir(), '.claude-yh', 'skills')
+  )
+}
+
+function assertValidSkillName(name: string): void {
+  if (!name || name.includes('..') || name.includes('/') || name.includes('\\')) {
+    throw ApiError.badRequest('Invalid skill name')
+  }
+}
+
+function sanitizeSkillFolderName(name: string): string {
+  const sanitized = name
+    .trim()
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}._-]+/gu, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-_.]+|[-_.]+$/g, '')
+    .toLowerCase()
+
+  if (!sanitized) {
+    throw ApiError.badRequest('Skill name is required')
+  }
+
+  assertValidSkillName(sanitized)
+  return sanitized
+}
+
+async function ensureUserSkillsDir(): Promise<string> {
+  const skillsDir = getUserSkillsDir()
+  await fs.mkdir(skillsDir, { recursive: true })
+  return skillsDir
+}
+
+async function pathExists(targetPath: string): Promise<boolean> {
+  try {
+    await fs.access(targetPath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function readJsonBody<T>(req: Request): Promise<T> {
+  try {
+    return (await req.json()) as T
+  } catch {
+    throw ApiError.badRequest('Invalid JSON request body')
+  }
+}
+
+async function assertSkillSourceDir(sourcePath: string): Promise<string> {
+  if (!sourcePath?.trim()) {
+    throw ApiError.badRequest('sourcePath is required')
+  }
+
+  const resolved = path.resolve(sourcePath.trim())
+  let stat
+  try {
+    stat = await fs.stat(resolved)
+  } catch {
+    throw ApiError.badRequest(`Skill folder does not exist: ${resolved}`)
+  }
+
+  if (!stat.isDirectory()) {
+    throw ApiError.badRequest('Selected path must be a directory')
+  }
+
+  const skillFile = path.join(resolved, 'SKILL.md')
+  if (!(await pathExists(skillFile))) {
+    throw ApiError.badRequest('Selected folder must contain SKILL.md')
+  }
+
+  return resolved
+}
+
+function tokenizeCommand(input: string): string[] {
+  return Array.from(input.matchAll(/"([^"]+)"|'([^']+)'|(\S+)/g)).map(
+    (match) => match[1] ?? match[2] ?? match[3] ?? '',
+  )
+}
+
+function extractFirstUrl(input: string): string | null {
+  const match = input.match(/https?:\/\/[^\s"'<>]+/i)
+  return match?.[0] ?? null
+}
+
+function extractClaudatePackageId(input: string): string | null {
+  try {
+    const parsed = new URL(input)
+    if (parsed.hostname !== 'claudate.com' && parsed.hostname !== 'www.claudate.com' && parsed.hostname !== 'api.claudate.com') {
+      return null
+    }
+
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    const packageIndex = parts.indexOf('package')
+    if (packageIndex >= 0 && parts[packageIndex + 1]) {
+      return decodeURIComponent(parts[packageIndex + 1])
+    }
+
+    const packagesIndex = parts.indexOf('packages')
+    if (packagesIndex >= 0 && parts[packagesIndex + 1]) {
+      return decodeURIComponent(parts[packagesIndex + 1])
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+function parseGithubTreeUrl(input: string): {
+  repoUrl: string
+  branch: string
+  subPath: string
+  fallbackName: string
+} | null {
+  let parsed: URL
+  try {
+    parsed = new URL(input)
+  } catch {
+    return null
+  }
+
+  if (parsed.hostname !== 'github.com' && parsed.hostname !== 'www.github.com') {
+    return null
+  }
+
+  const parts = parsed.pathname.split('/').filter(Boolean)
+  const [owner, repo, marker, branch, ...subPathParts] = parts
+  if (!owner || !repo) return null
+
+  const repoName = repo.replace(/\.git$/i, '')
+  const repoUrl = `https://github.com/${owner}/${repoName}.git`
+
+  if (marker === 'tree' && branch) {
+    const subPath = subPathParts.join('/')
+    return {
+      repoUrl,
+      branch,
+      subPath,
+      fallbackName: subPathParts.at(-1) || repoName,
+    }
+  }
+
+  return {
+    repoUrl,
+    branch: 'main',
+    subPath: '',
+    fallbackName: repoName,
+  }
+}
+
+function parseInstallCommand(input: string): string {
+  const trimmed = input.trim()
+  const url = extractFirstUrl(trimmed)
+  if (url) return url
+
+  const tokens = tokenizeCommand(trimmed)
+  const installIndex = tokens.findIndex((token) => token === 'install')
+  if (installIndex >= 0) {
+    const source = tokens.slice(installIndex + 1).find((token) => !token.startsWith('-'))
+    if (source) return source
+  }
+
+  return trimmed
+}
+
+async function runProcess(
+  command: string,
+  args: string[],
+  options: { cwd?: string } = {},
+): Promise<void> {
+  const child = spawn(command, args, {
+    cwd: options.cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    shell: false,
+  })
+
+  let stderr = ''
+  child.stderr?.on('data', (chunk) => {
+    stderr += String(chunk)
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    child.on('error', reject)
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve()
+        return
+      }
+      reject(new Error(stderr.trim() || `${command} exited with code ${code}`))
+    })
+  })
+}
+
+async function resolveClaudateSource(packageId: string): Promise<{
+  source: string
+  name?: string
+}> {
+  const res = await fetch(`${CLAUDATE_API_BASE}/${encodeURIComponent(packageId)}`, {
+    headers: { Accept: 'application/json' },
+  })
+
+  if (!res.ok) {
+    throw ApiError.badRequest(`Unable to resolve Claudate package: ${packageId}`)
+  }
+
+  const payload = (await res.json()) as {
+    success?: boolean
+    data?: {
+      type?: string
+      name?: string
+      slug?: string
+      source_url?: string
+    }
+  }
+
+  if (!payload.success || !payload.data) {
+    throw ApiError.badRequest(`Invalid Claudate package response: ${packageId}`)
+  }
+
+  if (payload.data.type && payload.data.type !== 'skill') {
+    throw ApiError.badRequest(`Claudate package is not a skill: ${payload.data.type}`)
+  }
+
+  if (!payload.data.source_url) {
+    throw ApiError.badRequest('Claudate package does not expose a source URL')
+  }
+
+  return {
+    source: payload.data.source_url,
+    name: payload.data.name || payload.data.slug,
+  }
+}
+
+async function cloneGithubSkillSource(sourceUrl: string): Promise<{
+  sourcePath: string
+  cleanupPath: string
+  fallbackName: string
+}> {
+  const github = parseGithubTreeUrl(sourceUrl)
+  if (!github) {
+    throw ApiError.badRequest(`Unsupported GitHub source URL: ${sourceUrl}`)
+  }
+
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'claude-yh-skill-git-'))
+  const repoDir = path.join(tmpRoot, 'repo')
+
+  try {
+    await runProcess('git', [
+      'clone',
+      '--depth',
+      '1',
+      '--filter=blob:none',
+      '--sparse',
+      '--branch',
+      github.branch,
+      github.repoUrl,
+      repoDir,
+    ])
+
+    if (github.subPath) {
+      await runProcess('git', ['-C', repoDir, 'sparse-checkout', 'set', github.subPath])
+    }
+
+    return {
+      sourcePath: path.join(repoDir, github.subPath),
+      cleanupPath: tmpRoot,
+      fallbackName: github.fallbackName,
+    }
+  } catch (error) {
+    await fs.rm(tmpRoot, { recursive: true, force: true })
+    throw ApiError.badRequest(
+      `Failed to download GitHub skill source: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
 }
 
 async function loadSkillMeta(
@@ -91,7 +393,7 @@ async function loadSkillMeta(
       (frontmatter.description as string) ||
       body
         .split('\n')
-        .find((l) => l.trim().length > 0)
+        .find((line) => line.trim().length > 0)
         ?.trim() ||
       'No description'
 
@@ -127,7 +429,6 @@ async function buildFileTree(
       return
     }
 
-    // directories first, then alphabetical
     entries.sort((a, b) => {
       if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1
       return a.name.localeCompare(b.name)
@@ -150,39 +451,43 @@ async function buildFileTree(
         nodes.push(node)
         await walk(fullPath, node.children!)
         if (node.children!.length === 0) delete node.children
-      } else if (entry.isFile()) {
-        nodes.push({ name: entry.name, path: relPath, type: 'file' })
+        continue
+      }
 
-        try {
-          const stat = await fs.stat(fullPath)
-          if (stat.size <= MAX_FILE_SIZE) {
-            const content = await fs.readFile(fullPath, 'utf-8')
-            const language = detectLanguage(entry.name)
-            const isEntry = relPath === 'SKILL.md'
+      if (!entry.isFile()) continue
 
-            if (isEntry && language === 'markdown') {
-              const { frontmatter, body } = normalizeFrontmatter(content, fullPath)
-              files.push({
-                path: relPath,
-                content: body,
-                body,
-                frontmatter,
-                language,
-                isEntry: true,
-              })
-            } else {
-              files.push({
-                path: relPath,
-                content,
-                language,
-                isEntry: false,
-              })
-            }
-            fileCount++
-          }
-        } catch {
-          // skip unreadable files
+      nodes.push({ name: entry.name, path: relPath, type: 'file' })
+
+      try {
+        const stat = await fs.stat(fullPath)
+        if (stat.size > MAX_FILE_SIZE) continue
+
+        const content = await fs.readFile(fullPath, 'utf-8')
+        const language = detectLanguage(entry.name)
+        const isEntry = relPath === 'SKILL.md'
+
+        if (isEntry && language === 'markdown') {
+          const { frontmatter, body } = normalizeFrontmatter(content, fullPath)
+          files.push({
+            path: relPath,
+            content: body,
+            body,
+            frontmatter,
+            language,
+            isEntry: true,
+          })
+        } else {
+          files.push({
+            path: relPath,
+            content,
+            language,
+            isEntry: false,
+          })
         }
+
+        fileCount++
+      } catch {
+        // skip unreadable files
       }
     }
   }
@@ -191,7 +496,46 @@ async function buildFileTree(
   return { tree, files }
 }
 
-// ─── Router ──────────────────────────────────────────────────────────────────
+function createSkillTemplate({
+  name,
+  displayName,
+  description,
+}: {
+  name: string
+  displayName?: string
+  description?: string
+}): string {
+  const resolvedDescription =
+    description?.trim() || 'Describe when this skill should be used.'
+  const resolvedDisplayName = displayName?.trim() || name
+
+  return `---
+name: ${resolvedDisplayName}
+version: "0.1.0"
+description: ${resolvedDescription}
+user-invocable: true
+---
+
+# ${resolvedDisplayName}
+
+${resolvedDescription}
+
+## When to use
+
+- Add the conditions that should trigger this skill.
+- Describe the kinds of tasks this skill helps with.
+
+## Workflow
+
+1. Explain the first step the agent should take.
+2. Explain the core execution flow.
+3. Describe how to verify the result.
+
+## Notes
+
+- Add project-specific guidance here.
+`
+}
 
 export async function handleSkillsApi(
   req: Request,
@@ -199,26 +543,42 @@ export async function handleSkillsApi(
   segments: string[],
 ): Promise<Response> {
   try {
-    if (req.method !== 'GET') {
-      throw new ApiError(405, `Method ${req.method} not allowed`, 'METHOD_NOT_ALLOWED')
-    }
-
     const sub = segments[2]
 
-    switch (sub) {
-      case undefined:
-        return await listSkills()
-      case 'detail':
-        return await getSkillDetail(url)
-      default:
-        throw ApiError.notFound(`Unknown skills endpoint: ${sub}`)
+    if (req.method === 'GET') {
+      switch (sub) {
+        case undefined:
+          return await listSkills()
+        case 'detail':
+          return await getSkillDetail(url)
+        default:
+          throw ApiError.notFound(`Unknown skills endpoint: ${sub}`)
+      }
     }
+
+    if (req.method === 'POST') {
+      switch (sub) {
+        case 'install':
+          return await installSkill(req)
+        case 'create':
+          return await createSkill(req)
+        default:
+          throw ApiError.notFound(`Unknown skills endpoint: ${sub}`)
+      }
+    }
+
+    if (req.method === 'DELETE') {
+      if (!sub) {
+        throw ApiError.badRequest('Missing skill name')
+      }
+      return await deleteSkill(sub)
+    }
+
+    throw new ApiError(405, `Method ${req.method} not allowed`, 'METHOD_NOT_ALLOWED')
   } catch (error) {
     return errorResponse(error)
   }
 }
-
-// ─── Handlers ────────────────────────────────────────────────────────────────
 
 async function listSkills(): Promise<Response> {
   const skillsDir = getUserSkillsDir()
@@ -236,11 +596,11 @@ async function listSkills(): Promise<Response> {
       if (meta) skills.push(meta)
     }
   } catch {
-    // skills dir doesn't exist — return empty list
+    // return empty list when skills dir does not exist yet
   }
 
   skills.sort((a, b) => a.name.localeCompare(b.name))
-  return Response.json({ skills })
+  return Response.json({ skills, skillsDir })
 }
 
 async function getSkillDetail(url: URL): Promise<Response> {
@@ -251,10 +611,7 @@ async function getSkillDetail(url: URL): Promise<Response> {
     throw ApiError.badRequest('Missing required query parameters: source, name')
   }
 
-  // Prevent path traversal
-  if (name.includes('..') || name.includes('/') || name.includes('\\')) {
-    throw ApiError.badRequest('Invalid skill name')
-  }
+  assertValidSkillName(name)
 
   let skillDir: string
   if (source === 'user') {
@@ -276,8 +633,146 @@ async function getSkillDetail(url: URL): Promise<Response> {
   }
 
   const { tree, files } = await buildFileTree(skillDir)
+  return Response.json({ detail: { meta, tree, files, skillRoot: skillDir } })
+}
 
-  return Response.json({
-    detail: { meta, tree, files, skillRoot: skillDir },
+async function installSkill(req: Request): Promise<Response> {
+  const body = await readJsonBody<InstallSkillBody>(req)
+  const installSource = await resolveInstallSource(body)
+  try {
+    return await installSkillFromDirectory({
+      sourcePath: installSource.sourcePath,
+      name: body.name || installSource.name,
+    })
+  } finally {
+    if (installSource.cleanupPath) {
+      await fs.rm(installSource.cleanupPath, { recursive: true, force: true })
+    }
+  }
+}
+
+async function resolveInstallSource(body: InstallSkillBody): Promise<{
+  sourcePath: string
+  name?: string
+  cleanupPath?: string
+}> {
+  if (body.sourcePath?.trim()) {
+    return {
+      sourcePath: await assertSkillSourceDir(body.sourcePath),
+      name: body.name,
+    }
+  }
+
+  const rawSource = (body.packageUrl || body.installCommand || '').trim()
+  if (!rawSource) {
+    throw ApiError.badRequest('sourcePath, packageUrl, or installCommand is required')
+  }
+
+  let source = parseInstallCommand(rawSource)
+  let inferredName: string | undefined
+
+  const claudateId = extractClaudatePackageId(source)
+  if (claudateId) {
+    const resolved = await resolveClaudateSource(claudateId)
+    source = resolved.source
+    inferredName = resolved.name
+  } else if (!source.includes('://') && !source.includes('\\') && !source.includes('/')) {
+    const resolved = await resolveClaudateSource(source)
+    source = resolved.source
+    inferredName = resolved.name
+  }
+
+  const github = parseGithubTreeUrl(source)
+  if (github) {
+    const cloned = await cloneGithubSkillSource(source)
+    await assertSkillSourceDir(cloned.sourcePath)
+    return {
+      sourcePath: cloned.sourcePath,
+      cleanupPath: cloned.cleanupPath,
+      name: inferredName || cloned.fallbackName,
+    }
+  }
+
+  if (source.startsWith('http://') || source.startsWith('https://')) {
+    throw ApiError.badRequest(`Unsupported skill source URL: ${source}`)
+  }
+
+  return {
+    sourcePath: await assertSkillSourceDir(source),
+    name: inferredName || body.name,
+  }
+}
+
+async function installSkillFromDirectory({
+  sourcePath,
+  name,
+}: {
+  sourcePath: string
+  name?: string
+}): Promise<Response> {
+  const skillsDir = await ensureUserSkillsDir()
+  const skillName = sanitizeSkillFolderName(name || path.basename(sourcePath))
+  const targetDir = path.join(skillsDir, skillName)
+
+  if (await pathExists(targetDir)) {
+    throw ApiError.conflict(`Skill already exists: ${skillName}`)
+  }
+
+  await fs.cp(sourcePath, targetDir, {
+    recursive: true,
+    force: false,
+    errorOnExist: true,
   })
+
+  const meta = await loadSkillMeta(targetDir, skillName, 'user')
+  if (!meta) {
+    await fs.rm(targetDir, { recursive: true, force: true })
+    throw ApiError.badRequest('Imported folder does not contain a valid SKILL.md')
+  }
+
+  return Response.json({ skill: meta, skillsDir }, { status: 201 })
+}
+
+async function createSkill(req: Request): Promise<Response> {
+  const body = await readJsonBody<CreateSkillBody>(req)
+  const skillName = sanitizeSkillFolderName(body.name || '')
+  const skillsDir = await ensureUserSkillsDir()
+  const targetDir = path.join(skillsDir, skillName)
+
+  if (await pathExists(targetDir)) {
+    throw ApiError.conflict(`Skill already exists: ${skillName}`)
+  }
+
+  await fs.mkdir(targetDir, { recursive: true })
+  await fs.writeFile(
+    path.join(targetDir, 'SKILL.md'),
+    createSkillTemplate({
+      name: skillName,
+      displayName: body.displayName,
+      description: body.description,
+    }),
+    'utf-8',
+  )
+
+  const meta = await loadSkillMeta(targetDir, skillName, 'user')
+  if (!meta) {
+    throw ApiError.internal(`Failed to create skill: ${skillName}`)
+  }
+
+  return Response.json({ skill: meta, skillsDir }, { status: 201 })
+}
+
+async function deleteSkill(skillName: string): Promise<Response> {
+  assertValidSkillName(skillName)
+
+  const targetDir = path.join(getUserSkillsDir(), skillName)
+  try {
+    const stat = await fs.stat(targetDir)
+    if (!stat.isDirectory()) throw new Error()
+  } catch {
+    throw ApiError.notFound(`Skill not found: ${skillName}`)
+  }
+
+  await fs.rm(targetDir, { recursive: true, force: true })
+  return Response.json({ ok: true, name: skillName })
 }

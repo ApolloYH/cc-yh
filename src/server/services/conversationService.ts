@@ -520,6 +520,17 @@ export class ConversationService {
     return {
       ...cleanEnv,
       ...desktopProviderEnv,
+      ...(Object.keys(desktopProviderEnv).length > 0
+        ? {
+            CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST: '1',
+            CLAUDE_YH_DESKTOP_API_FORMAT:
+              desktopProviderEnv.CLAUDE_CODE_COMPAT_PROVIDER === 'openai'
+                ? desktopProviderEnv.CLAUDE_CODE_OPENAI_COMPAT_MODE === 'responses'
+                  ? 'openai_responses'
+                  : 'openai_chat'
+                : 'anthropic',
+          }
+        : {}),
       CLAUDE_CODE_ENABLE_TASKS: '1',
       CALLER_DIR: workDir,
       PWD: workDir,
@@ -527,7 +538,7 @@ export class ConversationService {
       // should come from Desktop-managed config or inherited launch env, not
       // be reintroduced from the repo's .env file.
       CLAUDE_YH_SKIP_DOTENV: '1',
-      // "官方" 模式 (claude-yh/settings.json 没 provider env) 下,把 CLI 标记为
+      // "官方" 模式 (settings.json 没 provider env) 下,把 CLI 标记为
       // managed-OAuth,让它忽略外部 ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN
       // 残留、只走用户 /login 的 OAuth token。自定义 provider 模式绝不能设,
       // 否则 CLI 会忽略 provider 的 AUTH_TOKEN、错误地走 OAuth 打到第三方
@@ -541,24 +552,49 @@ export class ConversationService {
   private getDesktopProviderEnv(): Record<string, string> {
     const configDir =
       process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
-    const settingsPath = path.join(configDir, 'claude-yh', 'settings.json')
+    const unified = this.readProviderEnvFromSettings(
+      path.join(configDir, 'settings.json'),
+    )
+    if (unified.hasUnifiedProviderIndex) {
+      return unified.env
+    }
 
+    // Backward compatibility for users who have not opened the new provider
+    // settings since the single-file migration.
+    const legacy = this.readProviderEnvFromSettings(
+      path.join(configDir, 'claude-yh', 'settings.json'),
+    )
+    return legacy.hasProviderEnv ? legacy.env : unified.env
+  }
+
+  private readProviderEnvFromSettings(settingsPath: string): {
+    env: Record<string, string>
+    hasProviderEnv: boolean
+    hasUnifiedProviderIndex: boolean
+  } {
     try {
       const raw = fs.readFileSync(settingsPath, 'utf-8')
-      const parsed = JSON.parse(raw) as { env?: Record<string, unknown> }
+      const parsed = JSON.parse(raw) as {
+        env?: Record<string, unknown>
+        claudeYhProviders?: unknown
+      }
       const settingsEnv = parsed.env ?? {}
-      const desktopProviderEnv: Record<string, string> = {}
+      const env: Record<string, string> = {}
 
       for (const key of PROVIDER_ENV_KEYS) {
         const value = settingsEnv[key]
         if (typeof value === 'string' && value.trim().length > 0) {
-          desktopProviderEnv[key] = value
+          env[key] = value
         }
       }
 
-      return desktopProviderEnv
+      return {
+        env,
+        hasProviderEnv: Object.keys(env).length > 0,
+        hasUnifiedProviderIndex: parsed.claudeYhProviders !== undefined,
+      }
     } catch {
-      return {}
+      return { env: {}, hasProviderEnv: false, hasUnifiedProviderIndex: false }
     }
   }
 
@@ -612,25 +648,18 @@ export class ConversationService {
       process.env.ANTHROPIC_BASE_URL,
     ].some((value) => typeof value === 'string' && value.trim().length > 0)
 
-    const configDir =
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
-    const settingsPath = path.join(configDir, 'claude-yh', 'settings.json')
-    try {
-      const raw = fs.readFileSync(settingsPath, 'utf-8')
-      const parsed = JSON.parse(raw) as { env?: Record<string, string> }
-      const env = parsed.env ?? {}
-      const hasProviderEnv = [
-        'ANTHROPIC_API_KEY',
-        'ANTHROPIC_AUTH_TOKEN',
-        'ANTHROPIC_BASE_URL',
-      ].some(
-        (key) =>
-          typeof env[key] === 'string' && env[key]!.trim().length > 0,
-      )
-      return !hasProviderEnv && !hasInheritedProviderEnv
-    } catch {
-      return !hasInheritedProviderEnv
-    }
+    const desktopProviderEnv = this.getDesktopProviderEnv()
+    const hasProviderEnv = [
+      'ANTHROPIC_API_KEY',
+      'ANTHROPIC_AUTH_TOKEN',
+      'ANTHROPIC_BASE_URL',
+    ].some(
+      (key) =>
+        typeof desktopProviderEnv[key] === 'string' &&
+        desktopProviderEnv[key]!.trim().length > 0,
+    )
+
+    return !hasProviderEnv && !hasInheritedProviderEnv
   }
 
   private resolveBundledCliPath(): string | null {

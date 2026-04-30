@@ -118,7 +118,7 @@ export function ActiveSession() {
     <div className="flex-1 flex flex-col relative overflow-hidden bg-background text-on-surface">
       {isMemberSession && (
         <div className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-surface-container)]">
-          <div className="mx-auto max-w-[860px] flex items-center justify-between gap-4 px-8 py-2">
+          <div className="mx-auto max-w-[820px] flex items-center justify-between gap-4 px-8 py-2">
             <div className="min-w-0">
               <div className="flex items-center gap-3">
                 {memberInfo?.status === 'running' && (
@@ -201,7 +201,7 @@ export function ActiveSession() {
       ) : (
         <>
           {!isMemberSession && (
-            <div className="mx-auto flex w-full max-w-[860px] items-center px-8 pb-3 pt-3">
+            <div className="mx-auto flex w-full max-w-[820px] items-center px-8 pb-3 pt-3">
               <div className="flex-1 min-w-0">
                 <h1 className="text-lg font-bold font-headline text-on-surface leading-tight">
                   {sessionTitle}

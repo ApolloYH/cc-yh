@@ -93,12 +93,27 @@ function filterSettingsEnv(
 }
 
 /**
- * Read env vars from ~/.claude-yh/settings.json (Haha-specific provider
- * config). This file is written by ProviderService.syncToSettings() and
- * contains ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, model defaults, etc.
- * Returns an empty object if the file doesn't exist or is invalid.
+ * Legacy provider env fallback from ~/.claude-yh/claude-yh/settings.json.
+ * New installs use the unified ~/.claude-yh/settings.json, which is already
+ * loaded through userSettings. This fallback keeps old installations working
+ * until ProviderService migrates them into the unified file.
  */
-function getCcHahaSettingsEnv(): Record<string, string> {
+function getLegacyCcHahaSettingsEnv(): Record<string, string> {
+  try {
+    const unifiedSettings = join(getClaudeConfigHomeDir(), 'settings.json')
+    const unifiedRaw = readFileSync(unifiedSettings, 'utf-8')
+    const unifiedParsed = JSON.parse(unifiedRaw) as { env?: Record<string, string> }
+    if (
+      Object.keys(unifiedParsed.env ?? {}).some((key) =>
+        isProviderManagedEnvVar(key),
+      )
+    ) {
+      return {}
+    }
+  } catch {
+    // Missing/invalid unified settings should not block legacy fallback.
+  }
+
   try {
     const ccHahaSettings = join(getClaudeConfigHomeDir(), 'claude-yh', 'settings.json')
     const raw = readFileSync(ccHahaSettings, 'utf-8')
@@ -167,11 +182,10 @@ export function applySafeConfigEnvironmentVariables(): void {
     )
   }
 
-  // claude-yh provider isolation: apply env from ~/.claude-yh/settings.json
-  // AFTER userSettings so Haha-specific provider config takes priority over
-  // the original Claude Code's settings. This prevents Haha from polluting
-  // ~/.claude-yh/settings.json while still allowing it to override provider vars.
-  Object.assign(process.env, filterSettingsEnv(getCcHahaSettingsEnv()))
+  // Legacy migration fallback: old builds stored provider env in
+  // ~/.claude-yh/claude-yh/settings.json. New builds use unified
+  // ~/.claude-yh/settings.json, already applied by userSettings above.
+  Object.assign(process.env, filterSettingsEnv(getLegacyCcHahaSettingsEnv()))
 
   // Compute remote-managed-settings eligibility now, with userSettings and
   // flagSettings env applied. Eligibility reads CLAUDE_CODE_USE_BEDROCK,
@@ -214,9 +228,8 @@ export function applyConfigEnvironmentVariables(): void {
 
   Object.assign(process.env, filterSettingsEnv(getSettings_DEPRECATED()?.env))
 
-  // claude-yh provider isolation: same as in applySafeConfigEnvironmentVariables,
-  // apply Haha-specific env last so it overrides the original settings.
-  Object.assign(process.env, filterSettingsEnv(getCcHahaSettingsEnv()))
+  // Legacy fallback for old ~/.claude-yh/claude-yh/settings.json provider env.
+  Object.assign(process.env, filterSettingsEnv(getLegacyCcHahaSettingsEnv()))
 
   // Clear caches so agents are rebuilt with the new env vars
   clearCACertsCache()

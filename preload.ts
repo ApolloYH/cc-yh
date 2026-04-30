@@ -61,6 +61,11 @@ if (process.env.CALLER_DIR) {
 export {}
 
 function bootstrapEnvFromNearestDotEnv() {
+  if (process.env.CLAUDE_YH_SKIP_DOTENV === '1') {
+    sanitizeDesktopManagedProviderEnv();
+    return;
+  }
+
   const envPath = findNearestDotEnv();
   if (!envPath) return;
 
@@ -68,6 +73,17 @@ function bootstrapEnvFromNearestDotEnv() {
     if (process.env[key] === undefined) {
       process.env[key] = value;
     }
+  }
+
+  sanitizeDesktopManagedProviderEnv();
+}
+
+function sanitizeDesktopManagedProviderEnv() {
+  if (process.env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST !== '1') return;
+
+  if (process.env.CLAUDE_YH_DESKTOP_API_FORMAT === 'anthropic') {
+    delete process.env.CLAUDE_CODE_COMPAT_PROVIDER;
+    delete process.env.CLAUDE_CODE_OPENAI_COMPAT_MODE;
   }
 }
 

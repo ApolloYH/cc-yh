@@ -102,20 +102,20 @@
   --color-on-surface: #1F1F23;
   --color-on-surface-variant: #5F646C;
 
-  --color-surface: #F7F7F8;
-  --color-surface-bright: #FCFCFD;
-  --color-surface-dim: #ECECF1;
-  --color-surface-container: #F1F1F4;
-  --color-surface-container-low: #F5F5F7;
-  --color-surface-container-high: #ECEDF1;
-  --color-surface-container-highest: #E5E7EB;
+  --color-surface: #FFFFFF;
+  --color-surface-bright: #FFFFFF;
+  --color-surface-dim: #F7F7F8;
+  --color-surface-container: #F7F7F8;
+  --color-surface-container-low: #FAFAFA;
+  --color-surface-container-high: #ECEDEF;
+  --color-surface-container-highest: #E3E5E8;
   --color-surface-container-lowest: #FFFFFF;
-  --color-surface-variant: #ECECF1;
+  --color-surface-variant: #F4F4F5;
 
-  --color-background: #F7F7F8;
+  --color-background: #FFFFFF;
 
-  --color-outline: #8A8F98;
-  --color-outline-variant: #DDDFE4;
+  --color-outline: #8E8E93;
+  --color-outline-variant: #E5E5E7;
 
   --color-secondary: #2D628F;
   --color-secondary-container: #9ACBFE;
@@ -146,9 +146,9 @@
   --statusbar-height: 36px;
 
   /* Surface aliases */
-  --color-surface-sidebar: var(--color-surface-container-low);
-  --color-surface-hover: var(--color-surface-container-high);
-  --color-surface-selected: var(--color-surface-container);
+  --color-surface-sidebar: #F7F7F8;
+  --color-surface-hover: #ECEDEF;
+  --color-surface-selected: #E9EAEC;
 
   /* Border aliases */
   --color-border: var(--color-outline-variant);
@@ -168,7 +168,7 @@
   --color-text-accent: var(--color-secondary);
 
   /* Shadows */
-  --shadow-dropdown: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.08);
+  --shadow-dropdown: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 36px rgba(15, 23, 42, 0.10);
 
   /* Button colors */
   --color-btn-primary-bg: var(--color-primary);
@@ -177,7 +177,7 @@
   --color-btn-primary-bg-active: var(--color-primary);
 
   /* User message bubble */
-  --color-surface-user-msg: var(--color-surface-container);
+  --color-surface-user-msg: #F4F4F4;
 
   /* Radii */
   --radius-sm: 4px;

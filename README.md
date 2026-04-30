@@ -140,27 +140,62 @@ bun --env-file=.env ./src/entrypoints/cli.tsx
 export PATH="$HOME/path/to/claude-yh/bin:$PATH"
 ```
 
-### 5. 桌面端联调（Desktop）
+### 5. Web 端和桌面端启动
 
-如果你在开发或测试 `desktop/` 前端，需要同时启动 API 服务端和桌面前端。
+`cc-yh` 有两种图形界面启动方式：
 
-#### 5.1 启动服务端
+- **Web 开发模式**：浏览器打开 React 前端，适合调试 UI。
+- **桌面壳 / Tauri 模式**：启动真正的桌面应用窗口，适合测试目录选择、系统弹窗、sidecar、桌面图标等能力。
 
-```bash
-cd /Users/nanmi/workspace/myself_code/claude-yh
-SERVER_PORT=3456 bun run src/server/index.ts
+两种方式都建议先在项目根目录安装依赖，并准备好 `.env`：
+
+```powershell
+cd C:\Users\y1513\Desktop\cc\cc-yh
+bun install
+```
+
+#### 5.1 启动后端服务
+
+Web 模式需要单独启动后端。Tauri 模式通常会通过 sidecar 拉起后端，但开发排障时也可以手动先启动根目录后端。
+
+```powershell
+cd C:\Users\y1513\Desktop\cc\cc-yh
+bun --env-file=.env run src/server/index.ts
+```
+
+后端默认监听：
+
+```text
+http://127.0.0.1:3456
 ```
 
 可选自检：
 
-```bash
-curl http://127.0.0.1:3456/health
+```powershell
+Invoke-RestMethod http://127.0.0.1:3456/health
 ```
 
-#### 5.2 启动桌面前端
+如果提示 `EADDRINUSE`，说明 `3456` 已经被旧进程占用。Windows 下可以这样查并停止：
+
+```powershell
+Get-NetTCPConnection -LocalPort 3456 -State Listen | Select-Object LocalAddress,LocalPort,State,OwningProcess
+Stop-Process -Id <PID> -Force
+```
+
+macOS / Linux 可用：
 
 ```bash
-cd /Users/nanmi/workspace/myself_code/claude-yh/desktop
+lsof -nP -iTCP:3456 -sTCP:LISTEN
+kill <PID>
+```
+
+#### 5.2 启动 Web 前端
+
+另开一个终端：
+
+```powershell
+cd C:\Users\y1513\Desktop\cc\cc-yh\desktop
+bun install
 bun run dev --host 127.0.0.1 --port 2024
 ```
 
@@ -170,10 +205,44 @@ bun run dev --host 127.0.0.1 --port 2024
 http://127.0.0.1:2024
 ```
 
-#### 5.3 常见注意事项
+Web 前端只负责页面展示和交互，真实会话、模型调用、文件浏览、Skills 管理、IM 适配器等能力仍然走 `3456` 后端。
 
-- 如果 `3456` 端口已经被旧服务端占用，先执行 `lsof -nP -iTCP:3456 -sTCP:LISTEN` 找到 PID，再 `kill <PID>`。
-- 测试聊天时建议新建一个 session，并重新选择一个真实存在的工作目录。
+#### 5.3 启动桌面壳 / Tauri
+
+桌面壳需要本机有 Rust / Cargo。Windows 上如果还没安装，可以先安装 Rust：
+
+```powershell
+winget install Rustlang.Rustup
+```
+
+如果下载依赖较慢，可以在启动前设置代理：
+
+```powershell
+$env:HTTP_PROXY  = "http://127.0.0.1:7897"
+$env:HTTPS_PROXY = "http://127.0.0.1:7897"
+$env:ALL_PROXY   = "http://127.0.0.1:7897"
+$env:NO_PROXY    = "localhost,127.0.0.1"
+```
+
+启动桌面壳：
+
+```powershell
+cd C:\Users\y1513\Desktop\cc\cc-yh\desktop
+$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+bun run tauri dev
+```
+
+`tauri dev` 会先执行 `bun run build:sidecars && bun run dev`，再打开 `Claude YH` 桌面窗口。开发模式前端地址通常是：
+
+```text
+http://localhost:1420
+```
+
+#### 5.4 常见注意事项
+
+- 修改根目录 `.env` 后，建议重启后端或 Tauri 桌面壳。
+- 如果桌面端模型没有读取 `.env`，先确认是从项目根目录的 `.env` 启动，或者重启 `tauri dev`。
+- 测试聊天时建议新建一个 session，并选择一个真实存在的工作目录。
 - 如果某个旧 session 绑定的目录已被删除，服务端会返回 `Working directory does not exist`，这和服务端是否启动是两回事。
 
 ---

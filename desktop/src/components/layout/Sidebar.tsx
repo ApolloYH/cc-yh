@@ -134,7 +134,7 @@ export function Sidebar() {
   const sidebarToggleLabel = sidebarOpen ? t('sidebar.collapse') : t('sidebar.expand')
 
   return (
-    <aside onMouseDown={handleSidebarDrag} className="w-[var(--sidebar-width)] h-full flex flex-col bg-[var(--color-surface-sidebar)] border-r border-[var(--color-border)] select-none transition-[width] duration-200">
+    <aside onMouseDown={handleSidebarDrag} className="w-[var(--sidebar-width)] h-full flex flex-col bg-[var(--color-surface-sidebar)] border-r border-[var(--color-border)] shadow-[1px_0_18px_rgba(15,23,42,0.045)] select-none transition-[width] duration-200">
       {/* Brand logo — extra top padding in desktop to clear macOS traffic lights (not needed on Windows) */}
       <div className={`px-3 pb-1.5 flex items-center ${sidebarOpen ? 'justify-between gap-2' : 'justify-center'} ${isTauri && !isWindows ? 'pt-[44px]' : 'pt-3'}`}>
         {sidebarOpen && (

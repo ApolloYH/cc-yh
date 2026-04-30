@@ -104,8 +104,8 @@ export function MessageList() {
   }, [messages])
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4">
-      <div className="mx-auto max-w-[860px]">
+    <div className="flex-1 overflow-y-auto bg-[var(--color-background)] px-6 py-6">
+      <div className="mx-auto max-w-[820px]">
         {renderItems.map((item) => {
           if (item.kind === 'tool_group') {
             return (

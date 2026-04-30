@@ -25,5 +25,12 @@
       "react-dom",
       "vitest/globals"
     ]
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "desktop/node_modules",
+    "desktop/src-tauri/target",
+    "desktop/dist",
+    "dist"
+  ]
 }

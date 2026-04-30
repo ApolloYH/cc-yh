@@ -1,9 +1,9 @@
 /**
  * Provider Service — preset-based provider configuration
  *
- * Storage: ~/.claude-yh/providers.json (lightweight index)
- * Active provider env vars written to ~/.claude-yh/settings.json
- * (isolated from the original Claude Code's ~/.claude-yh/settings.json)
+ * Storage: ~/.claude-yh/settings.json
+ * - claudeYhProviders: saved provider index
+ * - env: active provider env vars consumed by the CLI
  */
 
 import * as fs from 'fs/promises'
@@ -26,6 +26,7 @@ import type {
   ProviderTestStepResult,
   ApiFormat,
 } from '../types/provider.js'
+import { ProvidersIndexSchema } from '../types/provider.js'
 
 const MANAGED_ENV_KEYS = [
   'ANTHROPIC_BASE_URL',
@@ -39,6 +40,22 @@ const MANAGED_ENV_KEYS = [
 ] as const
 
 const DEFAULT_INDEX: ProvidersIndex = { activeId: null, providers: [] }
+const PROVIDERS_SETTINGS_KEY = 'claudeYhProviders'
+
+function normalizeEnv(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object') return {}
+  const env: Record<string, string> = {}
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw === 'string') env[key] = raw
+  }
+  return env
+}
+
+function hasManagedEnv(env: Record<string, string>): boolean {
+  return MANAGED_ENV_KEYS.some(
+    (key) => typeof env[key] === 'string' && env[key].trim().length > 0,
+  )
+}
 
 type AuthStatusSource = 'claude-yh-provider' | 'original-settings' | 'env' | 'none'
 
@@ -135,48 +152,25 @@ export class ProviderService {
     return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   }
 
-  private getClaudeYhDir(): string {
+  private getLegacyClaudeYhDir(): string {
     return path.join(this.getConfigDir(), 'claude-yh')
   }
 
-  private getIndexPath(): string {
-    return path.join(this.getClaudeYhDir(), 'providers.json')
+  private getLegacyIndexPath(): string {
+    return path.join(this.getLegacyClaudeYhDir(), 'providers.json')
+  }
+
+  private getLegacySettingsPath(): string {
+    return path.join(this.getLegacyClaudeYhDir(), 'settings.json')
   }
 
   private getSettingsPath(): string {
-    return path.join(this.getClaudeYhDir(), 'settings.json')
+    return path.join(this.getConfigDir(), 'settings.json')
   }
 
-  private async readIndex(): Promise<ProvidersIndex> {
+  private async readJsonFile(filePath: string): Promise<Record<string, unknown>> {
     try {
-      const raw = await fs.readFile(this.getIndexPath(), 'utf-8')
-      return JSON.parse(raw) as ProvidersIndex
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        return { ...DEFAULT_INDEX, providers: [] }
-      }
-      throw ApiError.internal(`Failed to read providers index: ${err}`)
-    }
-  }
-
-  private async writeIndex(index: ProvidersIndex): Promise<void> {
-    const filePath = this.getIndexPath()
-    const dir = path.dirname(filePath)
-    await fs.mkdir(dir, { recursive: true })
-
-    const tmpFile = `${filePath}.tmp.${Date.now()}`
-    try {
-      await fs.writeFile(tmpFile, JSON.stringify(index, null, 2) + '\n', 'utf-8')
-      await fs.rename(tmpFile, filePath)
-    } catch (err) {
-      await fs.unlink(tmpFile).catch(() => {})
-      throw ApiError.internal(`Failed to write providers index: ${err}`)
-    }
-  }
-
-  private async readSettings(): Promise<Record<string, unknown>> {
-    try {
-      const raw = await fs.readFile(this.getSettingsPath(), 'utf-8')
+      const raw = await fs.readFile(filePath, 'utf-8')
       return JSON.parse(raw) as Record<string, unknown>
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
@@ -184,18 +178,92 @@ export class ProviderService {
     }
   }
 
-  private async writeSettings(settings: Record<string, unknown>): Promise<void> {
-    const filePath = this.getSettingsPath()
+  private async writeJsonFile(filePath: string, data: Record<string, unknown>): Promise<void> {
     const dir = path.dirname(filePath)
     await fs.mkdir(dir, { recursive: true })
 
     const tmpFile = `${filePath}.tmp.${Date.now()}`
     try {
-      await fs.writeFile(tmpFile, JSON.stringify(settings, null, 2) + '\n', 'utf-8')
+      await fs.writeFile(tmpFile, JSON.stringify(data, null, 2) + '\n', 'utf-8')
       await fs.rename(tmpFile, filePath)
     } catch (err) {
       await fs.unlink(tmpFile).catch(() => {})
       throw ApiError.internal(`Failed to write settings.json: ${err}`)
+    }
+  }
+
+  private async readSettings(): Promise<Record<string, unknown>> {
+    const settings = await this.readJsonFile(this.getSettingsPath())
+    const migrated = await this.mergeLegacyProviderSettings(settings)
+    if (migrated.changed) {
+      await this.writeJsonFile(this.getSettingsPath(), migrated.settings)
+    }
+    return migrated.settings
+  }
+
+  private async writeSettings(settings: Record<string, unknown>): Promise<void> {
+    await this.writeJsonFile(this.getSettingsPath(), settings)
+  }
+
+  private async readIndex(): Promise<ProvidersIndex> {
+    const settings = await this.readSettings()
+    const parsed = ProvidersIndexSchema.safeParse(settings[PROVIDERS_SETTINGS_KEY])
+    if (parsed.success) {
+      return parsed.data
+    }
+    return { ...DEFAULT_INDEX, providers: [] }
+  }
+
+  private async writeIndex(index: ProvidersIndex): Promise<void> {
+    const settings = await this.readSettings()
+    settings[PROVIDERS_SETTINGS_KEY] = index
+    await this.writeSettings(settings)
+  }
+
+  private async mergeLegacyProviderSettings(
+    settings: Record<string, unknown>,
+  ): Promise<{ settings: Record<string, unknown>; changed: boolean }> {
+    let changed = false
+    const next: Record<string, unknown> = { ...settings }
+    const hasUnifiedIndex = ProvidersIndexSchema.safeParse(
+      next[PROVIDERS_SETTINGS_KEY],
+    ).success
+
+    if (!hasUnifiedIndex) {
+      const legacyIndex = await this.readLegacyIndex()
+      if (legacyIndex) {
+        next[PROVIDERS_SETTINGS_KEY] = legacyIndex
+        changed = true
+      }
+    }
+
+    const legacySettings = await this.readJsonFile(this.getLegacySettingsPath())
+    const legacyEnv = normalizeEnv(legacySettings.env)
+    if (hasManagedEnv(legacyEnv) && (!hasUnifiedIndex || !hasManagedEnv(normalizeEnv(next.env)))) {
+      const currentEnv = normalizeEnv(next.env)
+      for (const key of MANAGED_ENV_KEYS) {
+        delete currentEnv[key]
+      }
+      for (const key of MANAGED_ENV_KEYS) {
+        const value = legacyEnv[key]
+        if (typeof value === 'string' && value.trim().length > 0) {
+          currentEnv[key] = value
+        }
+      }
+      next.env = currentEnv
+      changed = true
+    }
+
+    return { settings: next, changed }
+  }
+
+  private async readLegacyIndex(): Promise<ProvidersIndex | null> {
+    try {
+      const raw = await fs.readFile(this.getLegacyIndexPath(), 'utf-8')
+      const parsed = ProvidersIndexSchema.safeParse(JSON.parse(raw))
+      return parsed.success ? parsed.data : null
+    } catch {
+      return null
     }
   }
 
@@ -391,11 +459,9 @@ export class ProviderService {
       }
     }
 
-    // 3. Check original ~/.claude-yh/settings.json
+    // 3. Check unified ~/.claude-yh/settings.json
     try {
-      const originalPath = path.join(this.getConfigDir(), 'settings.json')
-      const raw = await fs.readFile(originalPath, 'utf-8')
-      const settings = JSON.parse(raw) as { env?: Record<string, string> }
+      const settings = await this.readSettings() as { env?: Record<string, string> }
       const env = settings.env ?? {}
       if (env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_API_KEY) {
         const effectiveProvider = resolveEffectiveProvider(env, 'original-settings')

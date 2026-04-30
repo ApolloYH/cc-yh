@@ -55,18 +55,15 @@ function makeRequest(method: string, urlStr: string, body?: Record<string, unkno
 
 async function readCcHahaSettings() {
   const raw = await fs.readFile(
-    path.join(tmpDir, 'claude-yh', 'settings.json'),
+    path.join(tmpDir, 'settings.json'),
     'utf-8',
   )
   return JSON.parse(raw)
 }
 
 async function readProvidersIndex() {
-  const raw = await fs.readFile(
-    path.join(tmpDir, 'claude-yh', 'providers.json'),
-    'utf-8',
-  )
-  return JSON.parse(raw)
+  const settings = await readCcHahaSettings()
+  return settings.claudeYhProviders
 }
 
 describe('ProviderService', () => {
@@ -93,7 +90,7 @@ describe('ProviderService', () => {
     expect(result.providers).toHaveLength(1)
   })
 
-  test('activateProvider writes env into claude-yh/settings.json', async () => {
+  test('activateProvider writes env into unified settings.json', async () => {
     const svc = new ProviderService()
     const provider = await svc.addProvider(sampleInput())
     await svc.activateProvider(provider.id)

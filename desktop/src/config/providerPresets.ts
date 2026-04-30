@@ -60,8 +60,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'minimax',
     name: 'MiniMax',
-    baseUrl: 'https://api.minimaxi.com/v1',
-    apiFormat: 'openai_chat',
+    baseUrl: 'https://api.minimaxi.com/anthropic',
+    apiFormat: 'anthropic',
     defaultModels: { main: 'MiniMax-M2.7', haiku: 'MiniMax-M2.7', sonnet: 'MiniMax-M2.7', opus: 'MiniMax-M2.7' },
     needsApiKey: true,
     websiteUrl: 'https://platform.minimaxi.com',

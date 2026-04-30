@@ -34,7 +34,7 @@ describe('ProviderService direct OpenAI compat env sync', () => {
 
   async function readSettings() {
     const raw = await fs.readFile(
-      path.join(tmpDir, 'claude-yh', 'settings.json'),
+      path.join(tmpDir, 'settings.json'),
       'utf-8',
     )
     return JSON.parse(raw) as { env?: Record<string, string> }

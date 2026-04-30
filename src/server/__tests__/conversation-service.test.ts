@@ -90,7 +90,46 @@ describe('ConversationService', () => {
     expect(env.ANTHROPIC_MODEL).toBe('desktop-provider-model')
     expect(env.CLAUDE_CODE_COMPAT_PROVIDER).toBe('openai')
     expect(env.CLAUDE_CODE_OPENAI_COMPAT_MODE).toBe('responses')
+    expect(env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST).toBe('1')
+    expect(env.CLAUDE_YH_DESKTOP_API_FORMAT).toBe('openai_responses')
     expect(env.CLAUDE_YH_SKIP_DOTENV).toBe('1')
+  })
+
+  test('desktop anthropic provider blocks stale OpenAI compat from user settings', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'settings.json'),
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://api.minimaxi.com/v1',
+          CLAUDE_CODE_COMPAT_PROVIDER: 'openai',
+          CLAUDE_CODE_OPENAI_COMPAT_MODE: 'chat_completions',
+        },
+      }),
+      'utf-8',
+    )
+
+    const ccHahaDir = path.join(tmpDir, 'claude-yh')
+    await fs.mkdir(ccHahaDir, { recursive: true })
+    await fs.writeFile(
+      path.join(ccHahaDir, 'settings.json'),
+      JSON.stringify({
+        env: {
+          ANTHROPIC_AUTH_TOKEN: 'desktop-provider-token',
+          ANTHROPIC_BASE_URL: 'https://api.minimaxi.com/anthropic',
+          ANTHROPIC_MODEL: 'MiniMax-M2.7',
+        },
+      }),
+      'utf-8',
+    )
+
+    const service = new ConversationService() as any
+    const env = (await service.buildChildEnv('/tmp')) as Record<string, string>
+
+    expect(env.ANTHROPIC_BASE_URL).toBe('https://api.minimaxi.com/anthropic')
+    expect(env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST).toBe('1')
+    expect(env.CLAUDE_YH_DESKTOP_API_FORMAT).toBe('anthropic')
+    expect(env.CLAUDE_CODE_COMPAT_PROVIDER).toBeUndefined()
+    expect(env.CLAUDE_CODE_OPENAI_COMPAT_MODE).toBeUndefined()
   })
 
   test('buildChildEnv injects CLAUDE_CODE_OAUTH_TOKEN when official mode + haha oauth token exists', async () => {

@@ -3,6 +3,7 @@ import { useSkillStore } from '../../stores/skillStore'
 import { useTranslation } from '../../i18n'
 import { MarkdownRenderer } from '../markdown/MarkdownRenderer'
 import { CodeViewer } from '../chat/CodeViewer'
+import { Button } from '../shared/Button'
 import type { FileTreeNode, SkillFrontmatter } from '../../types/skill'
 
 const META_PRIORITY = [
@@ -20,7 +21,13 @@ const META_PRIORITY = [
 ] as const
 
 export function SkillDetail() {
-  const { selectedSkill, isDetailLoading, clearSelection } = useSkillStore()
+  const {
+    selectedSkill,
+    isDetailLoading,
+    isMutating,
+    deleteSkill,
+    clearSelection,
+  } = useSkillStore()
   const t = useTranslation()
   const [selectedFile, setSelectedFile] = useState<string>('SKILL.md')
 
@@ -46,9 +53,45 @@ export function SkillDetail() {
   const frontmatter = currentFile?.frontmatter
   const metaEntries = getMetaEntries(frontmatter)
 
+  const handleOpenSkillFolder = async () => {
+    if (!selectedSkill.skillRoot) return
+
+    const isTauri =
+      typeof window !== 'undefined' &&
+      ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+
+    if (isTauri) {
+      try {
+        const { open } = await import('@tauri-apps/plugin-shell')
+        await open(selectedSkill.skillRoot)
+        return
+      } catch (err) {
+        console.error('[SkillDetail] Failed to open skill folder:', err)
+      }
+    }
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(selectedSkill.skillRoot)
+        return
+      } catch {
+        // fall through to prompt fallback
+      }
+    }
+
+    window.prompt(t('settings.skills.pathPrompt'), selectedSkill.skillRoot)
+  }
+
+  const handleDelete = async () => {
+    if (!window.confirm(t('settings.skills.confirmDelete', { name: meta.displayName || meta.name }))) {
+      return
+    }
+    await deleteSkill(meta.name)
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 min-w-0">
-      <div>
+      <div className="flex items-center justify-between gap-3">
         <button
           onClick={clearSelection}
           className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]"
@@ -56,6 +99,18 @@ export function SkillDetail() {
           <span className="material-symbols-outlined text-[16px]">arrow_back</span>
           {t('settings.skills.back')}
         </button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={() => void handleOpenSkillFolder()}>
+            <span className="material-symbols-outlined text-[15px]">folder_open</span>
+            {t('settings.skills.openSkillDir')}
+          </Button>
+          {meta.source === 'user' && (
+            <Button variant="secondary" size="sm" onClick={() => void handleDelete()} loading={isMutating}>
+              <span className="material-symbols-outlined text-[15px]">delete</span>
+              {t('common.delete')}
+            </Button>
+          )}
+        </div>
       </div>
 
       <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] overflow-hidden">

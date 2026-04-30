@@ -1,6 +1,6 @@
 import '../test/setupDom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen } from '../test/testingLibrary'
+import { fireEvent, render, screen, waitFor } from '../test/testingLibrary'
 import '@testing-library/jest-dom'
 
 import { Settings } from '../pages/Settings'
@@ -52,6 +52,7 @@ vi.mock('../components/chat/CodeViewer', () => ({
 const MOCK_FETCH_SKILLS = vi.fn()
 const MOCK_FETCH_SKILL_DETAIL = vi.fn()
 const MOCK_CLEAR_SELECTION = vi.fn()
+const MOCK_INSTALL_SKILL = vi.fn()
 
 function switchToSkillsTab() {
   fireEvent.click(screen.getByText('Skills'))
@@ -66,9 +67,12 @@ describe('Settings > Skills tab', () => {
       selectedSkill: null,
       isLoading: false,
       isDetailLoading: false,
+      isMutating: false,
       error: null,
+      operationMessage: null,
       fetchSkills: MOCK_FETCH_SKILLS,
       fetchSkillDetail: MOCK_FETCH_SKILL_DETAIL,
+      installSkill: MOCK_INSTALL_SKILL,
       clearSelection: MOCK_CLEAR_SELECTION,
     })
   })
@@ -157,5 +161,32 @@ describe('Settings > Skills tab', () => {
     expect(screen.getByText('Read, Edit')).toBeInTheDocument()
     expect(screen.getByText('Hello')).toBeInTheDocument()
     expect(screen.queryByText(/^---$/)).not.toBeInTheDocument()
+  })
+
+  it('installs a skill from a Claudate-style command', async () => {
+    MOCK_INSTALL_SKILL.mockResolvedValue({
+      name: 'async-python-patterns',
+      description: 'Async Python',
+      source: 'user',
+      userInvocable: true,
+      contentLength: 100,
+      hasDirectory: true,
+    })
+
+    render(<Settings />)
+    switchToSkillsTab()
+
+    fireEvent.click(screen.getByText('Install skill'))
+    fireEvent.input(screen.getByLabelText('Package URL or install command'), {
+      target: { value: 'claude-yh skill install async-python-patterns-mi0sl0gx' },
+    })
+    fireEvent.click(screen.getByText('Install'))
+
+    await waitFor(() => {
+      expect(MOCK_INSTALL_SKILL).toHaveBeenCalledWith({
+      installCommand: 'claude-yh skill install async-python-patterns-mi0sl0gx',
+      name: undefined,
+      })
+    })
   })
 })

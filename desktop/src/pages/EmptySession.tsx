@@ -358,11 +358,11 @@ export function EmptySession() {
         </div>
       </div>
 
-      <div className="absolute bottom-4 left-0 right-0 flex justify-center px-8">
-        <div className="flex w-full max-w-3xl flex-col gap-2">
+      <div className="absolute bottom-5 left-0 right-0 flex justify-center px-8">
+        <div className="flex w-full max-w-[820px] flex-col gap-2">
           <div
-            className="relative flex flex-col gap-3 rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-container-lowest)] p-4"
-            style={{ boxShadow: 'var(--shadow-dropdown)' }}
+            className="relative flex flex-col gap-3 rounded-[28px] border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] p-4"
+            style={{ boxShadow: '0 2px 10px rgba(15, 23, 42, 0.08), 0 16px 42px rgba(15, 23, 42, 0.10)' }}
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleDrop}
           >
@@ -424,7 +424,7 @@ export function EmptySession() {
                 onChange={(event) => handleInputChange(event.target.value, event.target.selectionStart ?? event.target.value.length)}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                className="flex-1 resize-none border-none bg-transparent py-2 leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]/60"
+                className="flex-1 resize-none border-none bg-transparent py-2 text-[15px] leading-7 text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)]/60"
                 style={{ fontFamily: "'Inter', sans-serif" }}
                 placeholder={t('empty.placeholder')}
                 rows={2}

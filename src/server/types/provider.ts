@@ -1,8 +1,8 @@
 /**
  * Provider types — preset-based provider configuration.
  *
- * Providers are stored in ~/.claude-yh/providers.json as a lightweight index.
- * The active provider's env vars are written to ~/.claude-yh/settings.json.
+ * Providers are stored in ~/.claude-yh/settings.json under claudeYhProviders.
+ * The active provider's env vars are written to the same file's env object.
  */
 
 import { z } from 'zod'

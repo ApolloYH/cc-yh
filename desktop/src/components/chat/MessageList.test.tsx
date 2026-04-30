@@ -74,7 +74,7 @@ describe('MessageList nested tool calls', () => {
 
     const { container } = render(<MessageList />)
 
-    expect(screen.getAllByText('Running').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('进行中').length).toBeGreaterThan(0)
     expect(screen.getByText(/Read .*example\.ts.*done/i)).toBeTruthy()
     expect(container.textContent).toContain('Agent')
   })
@@ -153,7 +153,7 @@ describe('MessageList nested tool calls', () => {
 
     render(<MessageList />)
 
-    expect(screen.getByText('Failed')).toBeTruthy()
+    expect(screen.getByText('失败')).toBeTruthy()
     expect(screen.getByText('Explore agent unavailable in this session')).toBeTruthy()
   })
 
@@ -190,10 +190,10 @@ describe('MessageList nested tool calls', () => {
 
     render(<MessageList />)
 
-    expect(screen.getByText('Done')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'View result' })).toBeTruthy()
+    expect(screen.getByText('完成')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '查看结果' })).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'View result' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看结果' }))
 
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByText(/第二段补充内容用于验证 dialog 展示的是完整结果而不是截断摘要。/)).toBeTruthy()
@@ -229,9 +229,9 @@ describe('MessageList nested tool calls', () => {
 
     render(<MessageList />)
 
-    expect(screen.getAllByText('Running').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Done')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'View result' })).toBeNull()
+    expect(screen.getAllByText('进行中').length).toBeGreaterThan(0)
+    expect(screen.queryByText('完成')).toBeNull()
+    expect(screen.queryByRole('button', { name: '查看结果' })).toBeNull()
   })
 
   it('renders copy controls for user messages and scopes assistant copy to a single reply', async () => {
@@ -303,7 +303,7 @@ describe('MessageList nested tool calls', () => {
 
     render(<MessageList />)
 
-    expect(screen.getByText('Failed to start CLI process.')).toBeTruthy()
+    expect(screen.getByText('CLI 进程启动失败。')).toBeTruthy()
     expect(
       screen.getByText(
         'CLI exited during startup (code 1): Claude Code on Windows requires git-bash (https://git-scm.com/downloads/win).',

@@ -11,17 +11,14 @@ export function UserMessage({ content, attachments }: Props) {
   const hasText = content.trim().length > 0
 
   return (
-    <div className="group mb-5 flex items-end justify-end gap-1.5">
-      <div className="min-w-0 max-w-[82%] space-y-2">
+    <div className="group mb-7 flex items-end justify-end gap-2">
+      <div className="min-w-0 max-w-[72%] space-y-2">
         {attachments && attachments.length > 0 && (
           <AttachmentGallery attachments={attachments} variant="message" />
         )}
 
         {hasText && (
-          <div
-            className="bg-[var(--color-surface-user-msg)] px-4 py-3 text-sm leading-relaxed text-[var(--color-text-primary)] whitespace-pre-wrap break-words"
-            style={{ borderRadius: '18px 4px 18px 18px' }}
-          >
+          <div className="rounded-[26px] bg-[var(--color-surface-user-msg)] px-5 py-3 text-[15px] leading-7 text-[var(--color-text-primary)] whitespace-pre-wrap break-words">
             {content}
           </div>
         )}

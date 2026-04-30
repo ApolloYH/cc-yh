@@ -391,11 +391,11 @@ export function ChatInput() {
   }
 
   return (
-    <div className="bg-[var(--color-background)] px-4 py-4">
-      <div className="mx-auto max-w-[860px]">
+    <div className="bg-[var(--color-background)] px-4 pb-5 pt-3">
+      <div className="mx-auto max-w-[820px]">
         <div
-          className="relative rounded-xl border border-[var(--color-border)]/60 bg-[var(--color-surface-container-lowest)] p-4 transition-colors focus-within:border-[var(--color-border-focus)]"
-          style={{ boxShadow: 'var(--shadow-dropdown)' }}
+          className="relative rounded-[28px] border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] p-4 transition-colors focus-within:border-[var(--color-outline)]"
+          style={{ boxShadow: '0 2px 10px rgba(15, 23, 42, 0.08), 0 16px 42px rgba(15, 23, 42, 0.10)' }}
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         >
@@ -485,10 +485,10 @@ export function ChatInput() {
             }
             disabled={isWorkspaceMissing}
             rows={1}
-            className="w-full resize-none bg-transparent py-2 pb-12 text-sm leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] disabled:opacity-50"
+            className="w-full resize-none bg-transparent py-2 pb-12 text-[15px] leading-7 text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] disabled:opacity-50"
           />
 
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between border-t border-[var(--color-border)]/60 px-3 py-3">
+          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between border-t border-[var(--color-border)]/70 px-4 py-3">
             <div className="flex items-center gap-2">
               {!isMemberSession && (
                 <>
