@@ -24,6 +24,7 @@ describe('runtime fs search fallback', () => {
     await writeFixtureFile('src/second.ts', 'const target = "two"\n')
     await writeFixtureFile('src/readme.md', 'target in markdown\n')
     await writeFixtureFile('ignored.ts', 'const target = "ignored"\n')
+    await writeFixtureFile('.secret.ts', 'const target = "hidden"\n')
     await writeFixtureFile('node_modules/pkg/index.ts', 'const target = "dependency"\n')
     await writeFixtureFile('dist/bundle.ts', 'const target = "bundle"\n')
   })
@@ -40,9 +41,42 @@ describe('runtime fs search fallback', () => {
 
     expect(result.source).toBe('typescript')
     expect(result.cwd).toBe(await fs.realpath(tmpDir))
-    expect(relativeFiles(result.files)).toEqual(['src/app.ts', 'src/second.ts'])
-    expect(result.total).toBe(2)
+    expect(relativeFiles(result.files)).toEqual([
+      '.secret.ts',
+      'src/app.ts',
+      'src/second.ts',
+    ])
+    expect(result.total).toBe(3)
     expect(result.truncated).toBe(false)
+  })
+
+  it('can mirror CLI glob behavior without gitignore or default directory exclusions', async () => {
+    const result = await buildRuntimeGlob({
+      cwd: tmpDir,
+      pattern: '**/*.ts',
+      respectGitignore: false,
+      excludeDefaultDirs: false,
+      excludeGlobs: ['dist/**'],
+    })
+
+    expect(relativeFiles(result.files)).toEqual([
+      '.secret.ts',
+      'ignored.ts',
+      'node_modules/pkg/index.ts',
+      'src/app.ts',
+      'src/second.ts',
+    ])
+    expect(result.total).toBe(5)
+  })
+
+  it('can exclude hidden files when requested', async () => {
+    const result = await buildRuntimeGlob({
+      cwd: tmpDir,
+      pattern: '**/*.ts',
+      hidden: false,
+    })
+
+    expect(relativeFiles(result.files)).toEqual(['src/app.ts', 'src/second.ts'])
   })
 
   it('greps matching lines with glob filtering and pagination', async () => {
@@ -54,10 +88,10 @@ describe('runtime fs search fallback', () => {
     })
 
     expect(result.source).toBe('typescript')
-    expect(result.total).toBe(2)
+    expect(result.total).toBe(3)
     expect(result.truncated).toBe(true)
     expect(result.matches).toHaveLength(1)
-    expect(relativeFiles([result.matches[0]!.filePath])).toEqual(['src/app.ts'])
-    expect(result.matches[0]!.lineNumber).toBe(2)
+    expect(relativeFiles([result.matches[0]!.filePath])).toEqual(['.secret.ts'])
+    expect(result.matches[0]!.lineNumber).toBe(1)
   })
 })

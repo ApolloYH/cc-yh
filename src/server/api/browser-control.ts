@@ -2,6 +2,8 @@ import {
   assessBrowserControlAction,
   BROWSER_CONTROL_BACKENDS,
   executeBrowserControl,
+  getBrowserControlDiagnostics,
+  smokeBrowserControlCurrentChrome,
   readBrowserControlPolicy,
   updateBrowserControlPolicy,
   type BrowserControlAction,
@@ -22,6 +24,7 @@ export async function handleBrowserControlApi(
       return Response.json({
         policy: await readBrowserControlPolicy(),
         backends: BROWSER_CONTROL_BACKENDS,
+        diagnostics: await getBrowserControlDiagnostics(),
       })
     }
 
@@ -30,6 +33,7 @@ export async function handleBrowserControlApi(
       return Response.json({
         policy: await updateBrowserControlPolicy(body),
         backends: BROWSER_CONTROL_BACKENDS,
+        diagnostics: await getBrowserControlDiagnostics(),
       })
     }
 
@@ -71,6 +75,11 @@ export async function handleBrowserControlApi(
       return Response.json(result, {
         status,
       })
+    }
+
+    if (method === 'POST' && action === 'smoke') {
+      const result = await smokeBrowserControlCurrentChrome()
+      return Response.json(result, { status: result.ok ? 200 : 503 })
     }
 
     throw new ApiError(

@@ -13,7 +13,9 @@ import {
   type MemoryV2DistillCandidate,
   type MemoryV2WriteInput,
 } from '../../memoryV2/index.js'
+import { getMemoryEmbeddingConfig } from '../../memoryV2/embeddingProvider.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
+import { SettingsService } from '../services/settingsService.js'
 
 export async function handleMemoryV2Api(
   req: Request,
@@ -98,6 +100,25 @@ export async function handleMemoryV2Api(
       return Response.json({ entries: await detectMemoryV2Stale() })
     }
 
+    if (method === 'GET' && action === 'embedding') {
+      return Response.json({ config: publicEmbeddingConfig(await getMemoryEmbeddingConfig()) })
+    }
+
+    if (method === 'PUT' && action === 'embedding') {
+      const body = await parseJsonBody(req)
+      const service = new SettingsService()
+      const current = await service.getUserSettings()
+      const currentEmbedding = current.memoryEmbedding && typeof current.memoryEmbedding === 'object'
+        ? current.memoryEmbedding as Record<string, unknown>
+        : {}
+      const next = {
+        ...currentEmbedding,
+        ...sanitizeEmbeddingSettings(body),
+      }
+      await service.updateUserSettings({ memoryEmbedding: next })
+      return Response.json({ config: publicEmbeddingConfig(await getMemoryEmbeddingConfig()) })
+    }
+
     if (method === 'POST' && action === 'distill') {
       const body: Record<string, unknown> = await parseJsonBody(req).catch(() => ({}))
       const limit = readOptionalNumber(body.limit) ?? 10
@@ -148,4 +169,42 @@ function readOptionalNumber(value: unknown): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined
   }
   return undefined
+}
+
+function sanitizeEmbeddingSettings(body: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = {}
+  if (typeof body.provider === 'string') {
+    const provider = body.provider.trim()
+    if (!['dashscope', 'openai-compatible', 'local'].includes(provider)) {
+      throw ApiError.badRequest('provider must be dashscope, openai-compatible, or local')
+    }
+    next.provider = provider
+  }
+  for (const key of ['baseUrl', 'model', 'apiKeyEnv'] as const) {
+    if (typeof body[key] === 'string' && body[key].trim()) next[key] = body[key].trim()
+  }
+  if (typeof body.apiKey === 'string' && body.apiKey.trim()) {
+    next.apiKey = body.apiKey.trim()
+  }
+  for (const key of ['dimensions', 'batchSize', 'timeoutMs'] as const) {
+    const value = readOptionalNumber(body[key])
+    if (value !== undefined && value > 0) next[key] = value
+  }
+  if (typeof body.enabled === 'boolean') next.enabled = body.enabled
+  return next
+}
+
+function publicEmbeddingConfig(config: Awaited<ReturnType<typeof getMemoryEmbeddingConfig>>) {
+  return {
+    provider: config.provider,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    dimensions: config.dimensions,
+    batchSize: config.batchSize,
+    timeoutMs: config.timeoutMs,
+    enabled: config.enabled,
+    hasApiKey: config.hasApiKey,
+    method: config.method,
+    source: config.source,
+  }
 }

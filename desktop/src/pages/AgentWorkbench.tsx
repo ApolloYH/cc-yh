@@ -22,7 +22,7 @@ type WorkbenchStep = {
 const initialSteps: WorkbenchStep[] = [
   { id: 'diagnostics', label: 'Runtime diagnostics', status: 'idle', detail: 'Waiting' },
   { id: 'runtime', label: 'Rust/TS runtime search', status: 'idle', detail: 'Waiting' },
-  { id: 'memory', label: 'MemoryV2 promotion', status: 'idle', detail: 'Waiting' },
+  { id: 'memory', label: 'Memory L1-L4 promotion', status: 'idle', detail: 'Waiting' },
   { id: 'skill', label: 'Reviewed Skill distillation', status: 'idle', detail: 'Waiting' },
   { id: 'browser', label: 'BrowserControl policy', status: 'idle', detail: 'Waiting' },
   { id: 'jarvis', label: 'Jarvis checkpoint', status: 'idle', detail: 'Waiting' },
@@ -120,7 +120,7 @@ export function AgentWorkbench() {
         content: [
           '1. Open Agent Workbench.',
           '2. Run the integrated task.',
-          '3. Confirm Runtime search, MemoryV2, Skill distillation, BrowserControl, and Jarvis all pass.',
+          '3. Confirm Runtime search, Memory L1-L4, Skill distillation, BrowserControl, and Jarvis all pass.',
         ].join('\n'),
       })
       setMemoryEntry(fact.entry)
@@ -217,7 +217,7 @@ export function AgentWorkbench() {
               <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Agent Workbench</h1>
             </div>
             <p className="max-w-3xl text-sm leading-6 text-[var(--color-text-secondary)]">
-              Run the integrated Rust runtime, MemoryV2, Skill distillation, BrowserControl policy, and Jarvis checkpoint flow from the web UI.
+              Run the integrated Rust runtime, Memory L1-L4, Skill distillation, BrowserControl policy, and Jarvis checkpoint flow from the web UI.
             </p>
           </div>
           <Button

@@ -1,6 +1,20 @@
 import { jarvisService } from '../services/jarvisService.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 import type { JarvisModeConfig } from '../../jarvis/types.js'
+import { getJarvisAutostartStatus, setJarvisAutostart } from '../../jarvis/autostart.js'
+import {
+  appendJarvisEvent,
+  readJarvisConfig,
+  updateJarvisCloudToken,
+  updateJarvisConfig,
+  verifyJarvisCloudToken,
+} from '../../jarvis/store.js'
+import {
+  claimNextJarvisTask,
+  enqueueJarvisTask,
+  listJarvisQueue,
+  updateJarvisQueueItem,
+} from '../../jarvis/queue.js'
 
 export async function handleJarvisApi(
   req: Request,
@@ -34,6 +48,144 @@ export async function handleJarvisApi(
       return Response.json({ event, status })
     }
 
+    if (method === 'POST' && action === 'task') {
+      const body = await parseJsonBody(req)
+      const goal = typeof body.goal === 'string'
+        ? body.goal.trim()
+        : typeof body.prompt === 'string'
+          ? body.prompt.trim()
+          : ''
+      if (!goal) throw ApiError.badRequest('goal is required')
+      const status = await jarvisService.submitGoal(
+        goal,
+        typeof body.priority === 'number' ? body.priority : undefined,
+      )
+      return Response.json({ status }, { status: 202 })
+    }
+
+    if (method === 'GET' && action === 'queue') {
+      return Response.json({ items: await listJarvisQueue() })
+    }
+
+    if (method === 'POST' && action === 'queue') {
+      const body = await parseJsonBody(req)
+      const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : ''
+      if (!prompt) throw ApiError.badRequest('prompt is required')
+      const status = await jarvisService.submitGoal(
+        prompt,
+        typeof body.priority === 'number' ? body.priority : undefined,
+      )
+      return Response.json({ status }, { status: 202 })
+    }
+
+    if (method === 'POST' && action === 'queue-action') {
+      const body = await parseJsonBody(req)
+      const id = typeof body.id === 'string' ? body.id : ''
+      const queueAction = body.action
+      if (!id || !['pause', 'resume', 'approve', 'checkpoint'].includes(String(queueAction))) {
+        throw ApiError.badRequest('id and action=pause|resume|approve|checkpoint are required')
+      }
+      if (queueAction === 'checkpoint') {
+        const item = (await listJarvisQueue()).find(entry => entry.id === id)
+        if (!item) throw ApiError.notFound(`Queue item not found: ${id}`)
+        return Response.json({ item, checkpoint: item.checkpoint ?? null })
+      }
+      const patch = {
+        status: queueAction === 'pause' ? 'paused' as const : 'pending' as const,
+        checkpoint: `${queueAction} from API`,
+        ...(queueAction === 'approve' ? { approvalState: 'approved' as const } : {}),
+      }
+      const item = await updateJarvisQueueItem(id, patch)
+      if (!item) {
+        throw ApiError.notFound(`Queue item not found: ${id}`)
+      }
+      return Response.json({ item })
+    }
+
+    if (method === 'GET' && action === 'autostart') {
+      return Response.json(await getJarvisAutostartStatus())
+    }
+
+    if (method === 'PUT' && action === 'autostart') {
+      const body = await parseJsonBody(req)
+      return Response.json(await setJarvisAutostart(body.enabled === true))
+    }
+
+    if (method === 'GET' && action === 'cloud') {
+      const config = await readJarvisConfig()
+      return Response.json({ cloud: config.cloud })
+    }
+
+    if (method === 'PUT' && action === 'cloud') {
+      const body = await parseJsonBody(req)
+      const current = await readJarvisConfig()
+      const cloud = {
+        ...current.cloud,
+        ...(typeof body.enabled === 'boolean' ? { enabled: body.enabled } : {}),
+        ...(typeof body.endpoint === 'string' ? { endpoint: body.endpoint.trim() || undefined } : {}),
+        ...(typeof body.runnerId === 'string' && body.runnerId.trim() ? { runnerId: body.runnerId.trim() } : {}),
+        ...(typeof body.syncQueue === 'boolean' ? { syncQueue: body.syncQueue } : {}),
+        ...(typeof body.heartbeatIntervalMs === 'number' ? { heartbeatIntervalMs: body.heartbeatIntervalMs } : {}),
+      }
+      if (typeof body.token === 'string') {
+        await updateJarvisCloudToken(body.token)
+        cloud.tokenSet = Boolean(body.token.trim())
+      }
+      const status = await jarvisService.updateConfig({ cloud })
+      return Response.json({ cloud: status.cloud })
+    }
+
+    if (method === 'POST' && action === 'cloud-heartbeat') {
+      await requireCloudAuth(req)
+      const body = await parseJsonBody(req)
+      const runnerId = typeof body.runnerId === 'string' ? body.runnerId : 'cloud-runner'
+      const runnerStatus = typeof body.status === 'string' ? body.status : 'running'
+      const current = await readJarvisConfig()
+      await updateJarvisConfig({
+        cloud: {
+          ...current.cloud,
+          lastHeartbeatAt: new Date().toISOString(),
+          lastRunnerStatus: runnerStatus,
+        },
+      })
+      const event = await appendJarvisEvent({
+        type: 'heartbeat',
+        title: 'Jarvis cloud runner heartbeat',
+        message: `${runnerId}: ${runnerStatus}`,
+      })
+      return Response.json({ ok: true, event })
+    }
+
+    if (method === 'POST' && action === 'cloud-claim') {
+      await requireCloudAuth(req)
+      const item = await claimNextJarvisTask()
+      return Response.json({ item })
+    }
+
+    if (method === 'POST' && action === 'cloud-report') {
+      await requireCloudAuth(req)
+      const body = await parseJsonBody(req)
+      const id = typeof body.id === 'string' ? body.id : ''
+      if (!id) throw ApiError.badRequest('id is required')
+      const nextStatus = ['pending', 'running', 'paused', 'completed', 'failed'].includes(String(body.status))
+        ? body.status as 'pending' | 'running' | 'paused' | 'completed' | 'failed'
+        : undefined
+      const item = await updateJarvisQueueItem(id, {
+        ...(nextStatus ? { status: nextStatus } : {}),
+        checkpoint: typeof body.checkpoint === 'string' ? body.checkpoint : undefined,
+        error: typeof body.error === 'string' ? body.error : undefined,
+        runId: typeof body.runId === 'string' ? body.runId : undefined,
+      })
+      if (!item) throw ApiError.notFound(`Queue item not found: ${id}`)
+      await appendJarvisEvent({
+        type: nextStatus === 'completed' ? 'checkpoint' : nextStatus === 'failed' ? 'error' : 'heartbeat',
+        severity: nextStatus === 'failed' ? 'error' : 'info',
+        title: 'Jarvis cloud runner report',
+        message: `${item.id}: ${item.status}`,
+      })
+      return Response.json({ item })
+    }
+
     throw new ApiError(
       405,
       `Method ${method} not allowed on /api/jarvis${action ? `/${action}` : ''}`,
@@ -41,6 +193,12 @@ export async function handleJarvisApi(
     )
   } catch (error) {
     return errorResponse(error)
+  }
+}
+
+async function requireCloudAuth(req: Request): Promise<void> {
+  if (!(await verifyJarvisCloudToken(req.headers.get('authorization')))) {
+    throw new ApiError(401, 'Invalid Jarvis cloud runner token', 'UNAUTHORIZED')
   }
 }
 

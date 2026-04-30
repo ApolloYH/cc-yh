@@ -62,6 +62,7 @@ export function buildExtractAutoOnlyPrompt(
         ...MEMORY_FRONTMATTER_EXAMPLE,
         '',
         '- Organize memory semantically by topic, not chronologically',
+        '- Save stable L2 facts under `facts/` and verified L3 SOP/Skill procedures under `sops/` inside the memory directory. Writes outside `MEMORY.md`, `facts/`, `sops/`, and `sessions/` will be denied.',
         '- Update or remove memories that turn out to be wrong or outdated',
         '- Do not write duplicate memories. First check if there is an existing memory you can update before writing a new one.',
       ]
@@ -78,6 +79,7 @@ export function buildExtractAutoOnlyPrompt(
         '',
         '- `MEMORY.md` is always loaded into your system prompt — lines after 200 will be truncated, so keep the index concise',
         '- Organize memory semantically by topic, not chronologically',
+        '- Save stable L2 facts under `facts/` and verified L3 SOP/Skill procedures under `sops/` inside the memory directory. Writes outside `MEMORY.md`, `facts/`, `sops/`, and `sessions/` will be denied.',
         '- Update or remove memories that turn out to be wrong or outdated',
         '- Do not write duplicate memories. First check if there is an existing memory you can update before writing a new one.',
       ]
@@ -122,6 +124,7 @@ export function buildExtractCombinedPrompt(
         ...MEMORY_FRONTMATTER_EXAMPLE,
         '',
         '- Organize memory semantically by topic, not chronologically',
+        '- Save stable L2 facts under `facts/` and verified L3 SOP/Skill procedures under `sops/` inside the chosen memory directory. Writes outside `MEMORY.md`, `facts/`, `sops/`, and `sessions/` will be denied.',
         '- Update or remove memories that turn out to be wrong or outdated',
         '- Do not write duplicate memories. First check if there is an existing memory you can update before writing a new one.',
       ]
@@ -138,6 +141,7 @@ export function buildExtractCombinedPrompt(
         '',
         '- Both `MEMORY.md` indexes are loaded into your system prompt — lines after 200 will be truncated, so keep them concise',
         '- Organize memory semantically by topic, not chronologically',
+        '- Save stable L2 facts under `facts/` and verified L3 SOP/Skill procedures under `sops/` inside the chosen memory directory. Writes outside `MEMORY.md`, `facts/`, `sops/`, and `sessions/` will be denied.',
         '- Update or remove memories that turn out to be wrong or outdated',
         '- Do not write duplicate memories. First check if there is an existing memory you can update before writing a new one.',
       ]

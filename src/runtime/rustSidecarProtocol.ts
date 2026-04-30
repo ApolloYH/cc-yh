@@ -1,3 +1,7 @@
+import { existsSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 export const RUST_SIDECAR_PROTOCOL_VERSION = 1
 
 export type RustSidecarMethod =
@@ -6,6 +10,9 @@ export type RustSidecarMethod =
   | 'session.index'
   | 'fs.glob'
   | 'fs.grep'
+  | 'fs.read'
+  | 'fs.write'
+  | 'shell.classify'
   | 'parity.manifest'
   | (string & {})
 
@@ -42,6 +49,11 @@ export type RustSidecarLaunchConfig = {
   command: string
   args: string[]
 }
+
+const SIDECAR_BASENAME =
+  process.platform === 'win32'
+    ? 'claude-yh-runtime-sidecar.exe'
+    : 'claude-yh-runtime-sidecar'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -110,8 +122,32 @@ export function encodeRustSidecarRequest(request: RustSidecarRequest): string {
 
 export function getRustSidecarLaunchConfig(
   env: NodeJS.ProcessEnv = process.env,
+  searchRoots = defaultRustSidecarSearchRoots(),
 ): RustSidecarLaunchConfig | null {
   const command = env.CLAUDE_YH_RUST_SIDECAR_PATH?.trim()
-  if (!command) return null
-  return { command, args: [] }
+  if (command) return { command, args: [] }
+
+  if (env.CLAUDE_YH_DISABLE_RUST_SIDECAR === '1') return null
+
+  for (const root of searchRoots) {
+    const found = findRustSidecarUnder(root)
+    if (found) return { command: found, args: [] }
+  }
+  return null
+}
+
+function defaultRustSidecarSearchRoots(): string[] {
+  const moduleDir = dirname(fileURLToPath(import.meta.url))
+  const packageRoot = resolve(moduleDir, '..', '..')
+  return Array.from(new Set([process.cwd(), packageRoot]))
+}
+
+function findRustSidecarUnder(root: string): string | null {
+  const candidates = [
+    join(root, 'native', `${process.platform}-${process.arch}`, SIDECAR_BASENAME),
+    join(root, 'bin', 'native', `${process.platform}-${process.arch}`, SIDECAR_BASENAME),
+    join(root, 'rust', 'target', 'release', SIDECAR_BASENAME),
+    join(root, 'rust', 'target', 'debug', SIDECAR_BASENAME),
+  ]
+  return candidates.find(candidate => existsSync(candidate)) ?? null
 }

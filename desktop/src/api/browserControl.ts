@@ -13,6 +13,21 @@ export type BrowserControlStatus = {
     risk: 'low' | 'medium' | 'high'
     capabilities: string[]
   }>
+  diagnostics?: {
+    tmwd: {
+      wsUrl: string
+      status: 'running' | 'unavailable'
+      connected: boolean
+      connectedTabs: number
+      installPath: string
+      extensionIdHint: string
+      guidance: string[]
+    }
+    recovery: {
+      savedTabs: number
+      lastUpdatedAt?: string
+    }
+  }
 }
 
 export const browserControlApi = {

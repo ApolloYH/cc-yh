@@ -13,6 +13,7 @@ import {
   type MemoryV2DistillCandidate,
   type MemoryV2Entry,
 } from '../../memoryV2/index.js'
+import { getMemoryEmbeddingConfig } from '../../memoryV2/embeddingProvider.js'
 
 export async function runMemoryCli(args: string): Promise<string> {
   const tokens = args.trim().split(/\s+/).filter(Boolean)
@@ -65,6 +66,21 @@ export async function runMemoryCli(args: string): Promise<string> {
           ...entries.map(entry => `- ${entry.layer}/${entry.id}: ${entry.stale?.reason}`),
         ].join('\n')
       : 'No stale memory entries detected.'
+  }
+
+  if (action === 'embedding') {
+    const config = await getMemoryEmbeddingConfig()
+    return [
+      'Memory embedding provider',
+      `Provider: ${config.provider}`,
+      `Method: ${config.method}`,
+      `Base URL: ${config.baseUrl}`,
+      `Model: ${config.model}`,
+      `Dimensions: ${config.dimensions}`,
+      `Batch size: ${config.batchSize}`,
+      `API key: ${config.hasApiKey ? 'configured' : 'missing'}`,
+      `Source: ${config.source}`,
+    ].join('\n')
   }
 
   if (action === 'distill') {
@@ -124,9 +140,11 @@ export async function runMemoryCli(args: string): Promise<string> {
 
 function formatStatus(status: Awaited<ReturnType<typeof getMemoryV2Status>>): string {
   return [
-    'MemoryV2',
+    'Memory L1-L4',
     `Root: ${status.root}`,
     `Vector index: ${status.vectorIndexPath}`,
+    `Embedding: ${status.embeddingMethod} model=${status.embeddingModel} dimensions=${status.embeddingDimensions}`,
+    `FAISS: ${status.faissIndexPath}`,
     `Distill candidates: ${status.candidatePath}`,
     '',
     ...status.layers.map(layer => [
@@ -169,6 +187,7 @@ function usage(): string {
     '/memory search <query>',
     '/memory summarize [limit]',
     '/memory stale',
+    '/memory embedding',
     '/memory distill',
     '/memory distill apply',
     '/memory fact <title> <content>',

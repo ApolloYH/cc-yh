@@ -7,6 +7,7 @@ import { appendBrowserControlAuditEvent } from './audit.js'
 import { BROWSER_CONTROL_BACKENDS } from './backends.js'
 import { assessBrowserControlAction } from './policy.js'
 import { readBrowserControlPolicy } from './store.js'
+import { recordBrowserTabRecoverySnapshot } from './tabRecovery.js'
 import { getLocalTmwdBridge } from './tmwdBridgeServer.js'
 import type {
   BrowserControlBackend,
@@ -160,6 +161,14 @@ async function executeChromeDevtools(
           input.text ?? '',
           input.submit ?? false,
         )
+      case 'files.upload':
+        return uploadCdpFile(
+          session,
+          requiredString(input.selector, 'selector'),
+          requiredString(input.filePath, 'filePath'),
+        )
+      case 'downloads.save':
+        return configureCdpDownload(session, input)
       case 'page.read_console':
         return readCdpConsole(session)
       case 'page.read_network':
@@ -228,6 +237,10 @@ async function executeTmwdBridge(
         ),
         timeoutMs,
       )
+    case 'files.upload':
+      return uploadTmwdFile(endpoint, sessionId, input, timeoutMs)
+    case 'downloads.save':
+      return configureTmwdDownload(endpoint, sessionId, input, timeoutMs)
     case 'page.read_console':
       return executeTmwdJs(endpoint, sessionId, jsConsoleBuffer(), timeoutMs)
     case 'page.read_network':
@@ -317,6 +330,16 @@ async function executeLocalTmwdBridge(
         ),
         timeoutMs,
       })
+    case 'files.upload':
+      return uploadLocalTmwdFile(
+        bridge,
+        selectedTab.id,
+        requiredString(input.selector, 'selector'),
+        requiredString(input.filePath, 'filePath'),
+        timeoutMs,
+      )
+    case 'downloads.save':
+      return configureLocalTmwdDownload(bridge, selectedTab.id, input, timeoutMs)
     case 'page.screenshot':
       return bridge.execute({
         tabId: selectedTab.id,
@@ -370,6 +393,77 @@ async function executeLocalTmwdBridge(
         `tmwd_local_operation_unsupported:${input.action.capability}`,
       )
   }
+}
+
+async function uploadLocalTmwdFile(
+  bridge: ReturnType<typeof getLocalTmwdBridge>,
+  tabId: number,
+  selector: string,
+  filePath: string,
+  timeoutMs: number,
+): Promise<unknown> {
+  const document = await bridge.execute({
+    tabId,
+    code: {
+      cmd: 'cdp',
+      tabId,
+      method: 'DOM.getDocument',
+      params: { depth: 1 },
+    },
+    timeoutMs,
+  })
+  const rootNodeId = Number(asRecord(asRecord(document).root).nodeId)
+  const query = await bridge.execute({
+    tabId,
+    code: {
+      cmd: 'cdp',
+      tabId,
+      method: 'DOM.querySelector',
+      params: { nodeId: rootNodeId, selector },
+    },
+    timeoutMs,
+  })
+  const nodeId = Number(asRecord(query).nodeId)
+  if (!Number.isFinite(nodeId) || nodeId <= 0) throw new Error('selector_not_found')
+  await bridge.execute({
+    tabId,
+    code: {
+      cmd: 'cdp',
+      tabId,
+      method: 'DOM.setFileInputFiles',
+      params: { nodeId, files: [filePath] },
+    },
+    timeoutMs,
+  })
+  return { uploaded: true, selector, filePath }
+}
+
+async function configureLocalTmwdDownload(
+  bridge: ReturnType<typeof getLocalTmwdBridge>,
+  tabId: number,
+  input: BrowserControlExecuteRequest,
+  timeoutMs: number,
+): Promise<unknown> {
+  const downloadPath = input.downloadPath || path.join(getClaudeConfigHomeDir(), 'downloads')
+  await fs.mkdir(downloadPath, { recursive: true })
+  await bridge.execute({
+    tabId,
+    code: {
+      cmd: 'cdp',
+      tabId,
+      method: 'Browser.setDownloadBehavior',
+      params: { behavior: 'allow', downloadPath },
+    },
+    timeoutMs,
+  })
+  if (input.selector) {
+    await bridge.execute({
+      tabId,
+      code: jsClickSelector(input.selector),
+      timeoutMs,
+    })
+  }
+  return { downloadBehavior: 'allow', downloadPath, clicked: Boolean(input.selector) }
 }
 
 async function executeHttpBridge(
@@ -675,6 +769,46 @@ async function typeCdpSelector(
   return { typed: true, selector, length: text.length, submitted: submit }
 }
 
+async function uploadCdpFile(
+  session: CdpSession,
+  selector: string,
+  filePath: string,
+): Promise<unknown> {
+  const root = await session.send('DOM.getDocument', { depth: 1 })
+  const rootNodeId = Number(asRecord(root.root).nodeId)
+  if (!Number.isFinite(rootNodeId)) throw new Error('dom_root_not_found')
+  const query = await session.send('DOM.querySelector', {
+    nodeId: rootNodeId,
+    selector,
+  })
+  const nodeId = Number(query.nodeId)
+  if (!Number.isFinite(nodeId) || nodeId <= 0) throw new Error('selector_not_found')
+  await session.send('DOM.setFileInputFiles', {
+    nodeId,
+    files: [filePath],
+  })
+  return { uploaded: true, selector, filePath }
+}
+
+async function configureCdpDownload(
+  session: CdpSession,
+  input: BrowserControlExecuteRequest,
+): Promise<unknown> {
+  const downloadPath = input.downloadPath || path.join(getClaudeConfigHomeDir(), 'downloads')
+  await fs.mkdir(downloadPath, { recursive: true })
+  await session.send('Browser.setDownloadBehavior', {
+    behavior: 'allow',
+    downloadPath,
+  }).catch(() => session.send('Page.setDownloadBehavior', {
+    behavior: 'allow',
+    downloadPath,
+  }))
+  if (input.selector) {
+    await clickCdpSelector(session, input.selector)
+  }
+  return { downloadBehavior: 'allow', downloadPath, clicked: Boolean(input.selector) }
+}
+
 async function readCdpConsole(session: CdpSession): Promise<unknown> {
   return evaluateCdp(session, jsConsoleBuffer())
 }
@@ -828,6 +962,58 @@ async function executeTmwdJs(
   return result
 }
 
+async function uploadTmwdFile(
+  endpoint: string,
+  sessionId: string,
+  input: BrowserControlExecuteRequest,
+  timeoutMs: number,
+): Promise<unknown> {
+  const selector = requiredString(input.selector, 'selector')
+  const filePath = requiredString(input.filePath, 'filePath')
+  const document = await postTmwd(endpoint, {
+    cmd: 'cdp',
+    sessionId,
+    method: 'DOM.getDocument',
+    params: { depth: 1 },
+  }, timeoutMs)
+  const rootNodeId = Number(asRecord(asRecord(document.r ?? document.data).root).nodeId)
+  const query = await postTmwd(endpoint, {
+    cmd: 'cdp',
+    sessionId,
+    method: 'DOM.querySelector',
+    params: { nodeId: rootNodeId, selector },
+  }, timeoutMs)
+  const nodeId = Number(asRecord(query.r ?? query.data).nodeId)
+  if (!Number.isFinite(nodeId) || nodeId <= 0) throw new Error('selector_not_found')
+  await postTmwd(endpoint, {
+    cmd: 'cdp',
+    sessionId,
+    method: 'DOM.setFileInputFiles',
+    params: { nodeId, files: [filePath] },
+  }, timeoutMs)
+  return { uploaded: true, selector, filePath }
+}
+
+async function configureTmwdDownload(
+  endpoint: string,
+  sessionId: string,
+  input: BrowserControlExecuteRequest,
+  timeoutMs: number,
+): Promise<unknown> {
+  const downloadPath = input.downloadPath || path.join(getClaudeConfigHomeDir(), 'downloads')
+  await fs.mkdir(downloadPath, { recursive: true })
+  await postTmwd(endpoint, {
+    cmd: 'cdp',
+    sessionId,
+    method: 'Browser.setDownloadBehavior',
+    params: { behavior: 'allow', downloadPath },
+  }, timeoutMs)
+  if (input.selector) {
+    await executeTmwdJs(endpoint, sessionId, jsClickSelector(input.selector), timeoutMs)
+  }
+  return { downloadBehavior: 'allow', downloadPath, clicked: Boolean(input.selector) }
+}
+
 async function postTmwd(
   endpoint: string,
   body: Record<string, unknown>,
@@ -965,6 +1151,7 @@ async function finalizeExecution(params: {
     dataSummary: summarizeExecutionData(params.data),
   })
   if (params.ok) {
+    await recordRecoverySnapshot(params.backend.id, params.input, params.data)
     return {
       ok: true,
       backendId: params.backend.id,
@@ -980,6 +1167,29 @@ async function finalizeExecution(params: {
     auditId,
     error: params.error ?? 'browser_control_failed',
     statusCode: params.statusCode,
+  }
+}
+
+async function recordRecoverySnapshot(
+  backendId: string,
+  input: BrowserControlExecuteRequest,
+  data: unknown,
+): Promise<void> {
+  try {
+    const record = isRecord(data) ? data : {}
+    const tabs = Array.isArray(record.tabs)
+      ? record.tabs as Array<{ id?: unknown; url?: unknown; title?: unknown; active?: unknown }>
+      : Array.isArray(record.sessions)
+        ? record.sessions as Array<{ id?: unknown; url?: unknown; title?: unknown; active?: unknown }>
+        : undefined
+    await recordBrowserTabRecoverySnapshot({
+      backendId,
+      tabs,
+      tabId: input.tabId,
+      url: input.action.url,
+    })
+  } catch {
+    // Recovery snapshots are best-effort and must not fail browser execution.
   }
 }
 

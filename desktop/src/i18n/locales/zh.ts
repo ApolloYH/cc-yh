@@ -56,7 +56,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.tab.general': '通用',
   'settings.tab.skills': '技能',
   'settings.tab.browser': 'Browser',
-  'settings.tab.memory': 'Memory',
+  'settings.tab.memory': '记忆',
 
   // Settings > Claude Official Login
   'settings.claudeOfficialLogin.intro': '使用官方 Claude 模型需要登录你的 Claude.ai 账号。点击下方按钮,浏览器会打开 Claude 官方登录页面,授权后自动回到这里。',

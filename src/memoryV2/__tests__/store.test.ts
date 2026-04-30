@@ -13,20 +13,43 @@ import {
   writeMemoryFact,
   writeMemorySop,
 } from '../store.js'
+import { getAutoMemPath } from '../../memdir/paths.js'
 
 let tmpDir: string
 let originalConfigDir: string | undefined
+let originalMemoryOverride: string | undefined
+let originalEmbeddingApiKey: string | undefined
+let originalEmbeddingProvider: string | undefined
+let originalDisableMainModel: string | undefined
 
 describe('MemoryV2 store', () => {
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memory-v2-'))
     originalConfigDir = process.env.CLAUDE_CONFIG_DIR
+    originalMemoryOverride = process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
+    originalEmbeddingApiKey = process.env.CLAUDE_YH_EMBEDDING_API_KEY
+    originalEmbeddingProvider = process.env.CLAUDE_YH_EMBEDDING_PROVIDER
+    originalDisableMainModel = process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION
     process.env.CLAUDE_CONFIG_DIR = tmpDir
+    process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = path.join(tmpDir, 'project-memory')
+    delete process.env.CLAUDE_YH_EMBEDDING_API_KEY
+    delete process.env.CLAUDE_YH_EMBEDDING_PROVIDER
+    process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION = '1'
+    getAutoMemPath.cache.clear?.()
   })
 
   afterEach(async () => {
     if (originalConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR
     else process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+    if (originalMemoryOverride === undefined) delete process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
+    else process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = originalMemoryOverride
+    if (originalEmbeddingApiKey === undefined) delete process.env.CLAUDE_YH_EMBEDDING_API_KEY
+    else process.env.CLAUDE_YH_EMBEDDING_API_KEY = originalEmbeddingApiKey
+    if (originalEmbeddingProvider === undefined) delete process.env.CLAUDE_YH_EMBEDDING_PROVIDER
+    else process.env.CLAUDE_YH_EMBEDDING_PROVIDER = originalEmbeddingProvider
+    if (originalDisableMainModel === undefined) delete process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION
+    else process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION = originalDisableMainModel
+    getAutoMemPath.cache.clear?.()
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
@@ -46,7 +69,12 @@ describe('MemoryV2 store', () => {
 
     const status = await getMemoryV2Status()
     expect(status.entries).toHaveLength(2)
-    const index = await fs.readFile(path.join(tmpDir, 'memory', 'index.md'), 'utf-8')
+    expect(status.vectorProvider).toBe('faiss')
+    expect(status.embeddingProvider).toBe('local')
+    expect(status.embeddingMethod).toBe('faiss-local-embedding')
+    expect(status.root).toBe(path.join(tmpDir, 'project-memory'))
+    expect(status.indexPath).toBe(path.join(tmpDir, 'project-memory', 'MEMORY.md'))
+    const index = await fs.readFile(status.indexPath, 'utf-8')
     expect(index).toContain('L2: [Provider base URL]')
     expect(index).toContain('L3: [Provider smoke test]')
     expect(index).not.toContain('OpenAI-compatible providers require')
@@ -92,7 +120,9 @@ describe('MemoryV2 store', () => {
 
     const search = await searchMemoryV2('browser workflow')
     expect(search.length).toBeGreaterThan(0)
-    expect(search[0].method).toBe('local-token-vector')
+    expect(search[0].method).toBe('faiss-local-embedding')
+    const status = await getMemoryV2Status()
+    await expect(fs.stat(status.faissMetaPath)).resolves.toBeTruthy()
 
     const stale = await detectMemoryV2Stale()
     expect(stale.some(entry => entry.layer === 'L4')).toBe(true)

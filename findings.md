@@ -15,6 +15,7 @@
 - Away Runner now has a disabled-by-default policy contract for budgets, checkpoints, pause reasons, and risk levels.
 - Away Session now has a 24h Jarvis Mode surface: shared config in `settings.json`, JSONL checkpoint history, server daemon, REST API, `/jarvis` CLI command, desktop/web page, and DingTalk/WeCom checkpoint notification hooks.
 - Rust runtime sidecar now has a read-only `session.index` method with TypeScript fallback, query filtering, and a server API.
+- Rust runtime sidecar now also owns parity-tested `fs.glob` / `fs.grep` walk options (`hidden`, `.gitignore`, default directory exclusions, deny glob exclusions). CLI GlobTool, web APIs, and desktop/web workbench can use the same Rust-backed runtime path with TypeScript fallback.
 - BrowserControl now persists policy, defaults to enabled, exposes action assessment/execution, has a `/browser` CLI surface, has web/desktop Settings > Browser controls, and can execute through a GA-compatible local TMWD bridge connected to the user's current Chrome extension session.
 - Skill distillation now has a reviewed-save server API that writes real `SKILL.md` files to user or project scope.
 - MemoryV2 now has an actual store/API for L1 pointer index, L2 facts, L3 SOPs, L4 session summaries/raw archives, verified-only promotion, stale checks, local token-vector search, and distillation candidates.
@@ -22,11 +23,11 @@
 ## Gaps To Address
 - Skill distillation now has a web/desktop Agent Workbench path that can save a reviewed project-scope `SKILL.md`; broader dedicated review UX can still be improved later.
 - MemoryV2 now has both an Agent Workbench path and a Settings > Memory path. CLI `/memory` also supports listing, showing, searching, summarizing, stale checks, and distillation. Existing legacy memory paths still need gradual product integration.
-- Existing scheduled tasks are not the same as GA-style away-mode autonomous execution with checkpoints, budgets, and pause conditions.
+- Scheduled tasks now evaluate Away Runner policy before execution, write initial/final Jarvis events, and wrap prompts with budget/stop-condition instructions when Away Runner is enabled.
 - Browser automation now has a stable policy/execution contract, a GA-compatible `tmwd-cdp-bridge` current-Chrome path, a Chrome DevTools fallback, audit logging, a bundled browser Skill prompt, a `/browser` CLI command, and a web/desktop Settings surface. It is default-on, with sensitive confirmation and denied-domain controls still available.
-- DingTalk / WeCom still require real inbound adapter processes and event verification before they can be used as full chat task channels.
-- Jarvis Mode is user-facing for observation/checkpoints, outbound notifications, and manual web checkpoint triggering; approved execution handoff remains a future safety-sensitive extension.
-- Rust session index and fs search have real sidecar smoke tests; MemoryV2 can consume the session index for L4 summaries. Broader Rust parity is still needed before replacing more TypeScript session/memory paths.
+- DingTalk / WeCom now have a unified inbound HTTP task bridge in addition to outbound robot notifications; platform-native event signature verification and long-poll/stream processes still remain future hardening.
+- Jarvis Mode now supports a continuous task prompt in assisted/autonomous mode; each checkpoint can hand off one guarded background task through Away Runner. It is still intentionally paused for login, captcha, payment, secrets, and irreversible user decisions.
+- Rust session index, fs search, file read/write runtime API, and shell risk classification have real sidecar tests. MemoryV2 consumes the session index for L4 summaries, and CLI GlobTool/GrepTool route through Rust runtime where parity is covered.
 - Personal WeChat requires careful permission/compliance boundaries.
 
 ## Risk Notes

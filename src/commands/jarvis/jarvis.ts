@@ -3,8 +3,11 @@ import {
   appendJarvisEvent,
   getJarvisSettingsPath,
   readJarvisConfig,
+  updateJarvisCloudToken,
   updateJarvisConfig,
 } from '../../jarvis/store.js'
+import { getJarvisAutostartStatus, setJarvisAutostart } from '../../jarvis/autostart.js'
+import { listJarvisQueue, updateJarvisQueueItem } from '../../jarvis/queue.js'
 import type { JarvisRiskMode } from '../../jarvis/types.js'
 
 export const call: LocalCommandCall = async (args) => {
@@ -46,10 +49,125 @@ export const call: LocalCommandCall = async (args) => {
 
   if (action === 'mode') {
     if (!isRiskMode(value)) {
-      return text('Usage: /jarvis mode observe|assisted.')
+      return text('Usage: /jarvis mode observe|assisted|autonomous.')
     }
     await updateJarvisConfig({ riskMode: value })
     return text(await formatStatus(`Jarvis mode set to ${value}.`))
+  }
+
+  if (action === 'companion' || action === 'lobster' || action === 'xiaolongxia') {
+    if (value !== 'on' && value !== 'off') {
+      return text('Usage: /jarvis companion on|off')
+    }
+    await updateJarvisConfig(value === 'on'
+      ? {
+          companionModeEnabled: true,
+          enabled: true,
+          riskMode: 'autonomous',
+        }
+      : { companionModeEnabled: false })
+    return text(await formatStatus(`Jarvis companion mode ${value}.`))
+  }
+
+  if (action === 'task') {
+    const taskPrompt = args.slice(action.length).trim()
+    if (!taskPrompt) {
+      await updateJarvisConfig({ taskPrompt: undefined })
+      return text(await formatStatus('Jarvis continuous task cleared.'))
+    }
+    return text('Use `/jarvis enqueue <goal>` to hand work to the Jarvis background agent. Continuous prompt storage is kept for compatibility only.')
+  }
+
+  if (action === 'enqueue') {
+    const prompt = args.slice(action.length).trim()
+    if (!prompt) return text('Usage: /jarvis enqueue <task prompt>')
+    const { jarvisService } = await import('../../server/services/jarvisService.js')
+    const status = await jarvisService.submitGoal(prompt, 70)
+    return text(`Jarvis accepted the goal. Queue pending=${status.queue?.pending ?? 0}, running=${status.queue?.running ?? 0}.`)
+  }
+
+  if (action === 'queue') {
+    const items = await listJarvisQueue()
+    return text([
+      `Jarvis queue: ${items.length}`,
+      ...items.slice(0, 20).map(item =>
+        `${item.status.padEnd(9)} p=${item.priority} attempts=${item.attempts}/${item.maxAttempts} ${item.id} ${item.prompt.slice(0, 80)}`,
+      ),
+    ].join('\n'))
+  }
+
+  if (action === 'pause' || action === 'resume') {
+    const id = value
+    if (!id) return text(`Usage: /jarvis ${action} <queue-id>`)
+    const item = await updateJarvisQueueItem(id, {
+      status: action === 'pause' ? 'paused' : 'pending',
+      checkpoint: action === 'pause' ? 'Paused from CLI.' : 'Resumed from CLI.',
+    })
+    return text(item ? `Jarvis task ${id} ${action}d.` : `Jarvis task not found: ${id}`)
+  }
+
+  if (action === 'checkpoint') {
+    const id = value
+    if (!id) return text('Usage: /jarvis checkpoint <queue-id>')
+    const item = (await listJarvisQueue()).find(entry => entry.id === id)
+    return text(item?.checkpoint || `No checkpoint found for ${id}.`)
+  }
+
+  if (action === 'autostart') {
+    if (value !== 'on' && value !== 'off' && value !== 'status') {
+      return text('Usage: /jarvis autostart on|off|status')
+    }
+    const status = value === 'status'
+      ? await getJarvisAutostartStatus()
+      : await setJarvisAutostart(value === 'on')
+    return text([
+      `Autostart: ${status.enabled ? 'on' : 'off'}`,
+      `Supported: ${status.supported ? 'yes' : 'no'}`,
+      `Path: ${status.targetPath}`,
+      `Command: ${status.command}`,
+      ...(status.note ? [`Note: ${status.note}`] : []),
+    ].join('\n'))
+  }
+
+  if (action === 'cloud') {
+    const sub = value
+    const rest = tokens.slice(2).join(' ')
+    const config = await readJarvisConfig()
+    if (!sub || sub === 'status') {
+      return text([
+        `Cloud runner: ${config.cloud.enabled ? 'on' : 'off'}`,
+        `Endpoint: ${config.cloud.endpoint || '(none)'}`,
+        `Runner ID: ${config.cloud.runnerId}`,
+        `Sync queue: ${config.cloud.syncQueue ? 'on' : 'off'}`,
+        `Token: ${config.cloud.tokenSet ? 'set' : 'not set'}`,
+        `Last heartbeat: ${config.cloud.lastHeartbeatAt || '(none)'}`,
+        `Last status: ${config.cloud.lastRunnerStatus || '(none)'}`,
+      ].join('\n'))
+    }
+    if (sub === 'on' || sub === 'off') {
+      await updateJarvisConfig({
+        cloud: {
+          ...config.cloud,
+          enabled: sub === 'on',
+        },
+      })
+      return text(await formatStatus(`Jarvis cloud runner ${sub}.`))
+    }
+    if (sub === 'endpoint') {
+      await updateJarvisConfig({
+        cloud: {
+          ...config.cloud,
+          endpoint: rest || undefined,
+        },
+      })
+      return text(await formatStatus('Jarvis cloud endpoint updated.'))
+    }
+    if (sub === 'token') {
+      if (!rest) return text('Usage: /jarvis cloud token <secret>')
+      await updateJarvisCloudToken(rest)
+      return text('Jarvis cloud token saved. It will not be printed by status commands.')
+    }
+    return text('Usage: /jarvis cloud status|on|off|endpoint <url>|token <secret>')
   }
 
   if (action === 'source') {
@@ -74,7 +192,15 @@ export const call: LocalCommandCall = async (args) => {
       '/jarvis on',
       '/jarvis off',
       '/jarvis interval <minutes>',
-      '/jarvis mode observe|assisted',
+      '/jarvis mode observe|assisted|autonomous',
+      '/jarvis companion on|off',
+      '/jarvis enqueue <goal>',
+      '/jarvis queue',
+      '/jarvis pause <queue-id>',
+      '/jarvis resume <queue-id>',
+      '/jarvis checkpoint <queue-id>',
+      '/jarvis autostart on|off|status',
+      '/jarvis cloud status|on|off|endpoint <url>|token <secret>',
       '/jarvis source scheduledTasks|sessions|git on|off',
       '',
       `Config file: ${getJarvisSettingsPath()}`,
@@ -84,6 +210,7 @@ export const call: LocalCommandCall = async (args) => {
 
 async function formatStatus(prefix?: string): Promise<string> {
   const config = await readJarvisConfig()
+  const autostart = await getJarvisAutostartStatus()
   const sources = Object.entries(config.sources)
     .filter(([, enabled]) => enabled)
     .map(([source]) => source)
@@ -92,10 +219,15 @@ async function formatStatus(prefix?: string): Promise<string> {
     ...(prefix ? [prefix, ''] : []),
     `Jarvis Mode: ${config.enabled ? 'on' : 'off'}`,
     `Mode: ${config.riskMode}`,
+    `Companion: ${config.companionModeEnabled ? 'on' : 'off'}`,
     `Interval: ${Math.round(config.intervalMs / 60_000)} minute(s)`,
     `Sources: ${sources || 'none'}`,
     `Notifications: ${config.notificationChannels.join(', ')}`,
     `Approval guard: ${config.requireApprovalForExternalActions ? 'on' : 'off'}`,
+    `Autostart: ${autostart.enabled ? 'on' : 'off'}${autostart.supported ? '' : ' (unsupported)'}`,
+    `Watchdog: ${autostart.watchdogPath}`,
+    `Cloud runner: ${config.cloud.enabled ? 'on' : 'off'}${config.cloud.endpoint ? ` (${config.cloud.endpoint})` : ''}`,
+    `Continuous task: ${config.taskPrompt ? config.taskPrompt.slice(0, 80) : '(none)'}`,
     `Config file: ${getJarvisSettingsPath()}`,
   ]
   return lines.join('\n')
@@ -106,7 +238,7 @@ function text(value: string) {
 }
 
 function isRiskMode(value: string | undefined): value is JarvisRiskMode {
-  return value === 'observe' || value === 'assisted'
+  return value === 'observe' || value === 'assisted' || value === 'autonomous'
 }
 
 function isSource(

@@ -25,7 +25,7 @@ import { useUpdateStore } from '../stores/updateStore'
 import { providersApi, type AuthStatusResponse } from '../api/providers'
 import { browserControlApi } from '../api/browserControl'
 import type { BrowserControlPolicy, BrowserControlExecutionResult } from '../api/agentWorkbench'
-import { memoryApi, type MemoryLayer, type MemoryV2Entry, type MemoryV2SearchResult } from '../api/memory'
+import { memoryApi, type MemoryEmbeddingConfig, type MemoryLayer, type MemoryV2Entry, type MemoryV2SearchResult } from '../api/memory'
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers')
@@ -98,6 +98,7 @@ function TabButton({ icon, label, active, onClick }: { icon: string; label: stri
 function BrowserSettings() {
   const [policy, setPolicy] = useState<BrowserControlPolicy | null>(null)
   const [tabsResult, setTabsResult] = useState<BrowserControlExecutionResult | null>(null)
+  const [diagnostics, setDiagnostics] = useState<Awaited<ReturnType<typeof browserControlApi.status>>['diagnostics'] | null>(null)
   const [allowedDomains, setAllowedDomains] = useState('*')
   const [deniedDomains, setDeniedDomains] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -112,6 +113,7 @@ function BrowserSettings() {
       .then(result => {
         if (cancelled) return
         setPolicy(result.policy)
+        setDiagnostics(result.diagnostics ?? null)
         setAllowedDomains(result.policy.allowedDomains.join('\n') || '*')
         setDeniedDomains((result.policy.deniedDomains ?? []).join('\n'))
       })
@@ -130,6 +132,7 @@ function BrowserSettings() {
     try {
       const result = await browserControlApi.updatePolicy(patch)
       setPolicy(result.policy)
+      setDiagnostics(result.diagnostics ?? null)
       setAllowedDomains(result.policy.allowedDomains.join('\n') || '*')
       setDeniedDomains((result.policy.deniedDomains ?? []).join('\n'))
     } catch (err) {
@@ -193,8 +196,26 @@ function BrowserSettings() {
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
                 <div className="text-xs uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">{t('settings.browser.backend')}</div>
                 <div className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">tmwd-cdp-bridge</div>
-                <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">ws://127.0.0.1:18765</div>
+                <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">{diagnostics?.tmwd.wsUrl ?? 'ws://127.0.0.1:18765'}</div>
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">TMWD 连接状态</h3>
+              <span className={`rounded-full px-2 py-1 text-xs ${diagnostics?.tmwd.connected ? 'bg-emerald-500/10 text-emerald-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                {diagnostics?.tmwd.connected ? '已连接' : '未连接'}
+              </span>
+            </div>
+            <div className="grid gap-2 text-xs text-[var(--color-text-tertiary)]">
+              <div>扩展目录：{diagnostics?.tmwd.installPath ?? 'extensions/tmwd_cdp_bridge'}</div>
+              <div>恢复快照：{diagnostics?.recovery.savedTabs ?? 0} 个 tab{diagnostics?.recovery.lastUpdatedAt ? `，最近 ${diagnostics.recovery.lastUpdatedAt}` : ''}</div>
+              {(diagnostics?.tmwd.guidance ?? []).map(item => (
+                <div key={item} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+                  {item}
+                </div>
+              ))}
             </div>
           </section>
 
@@ -269,6 +290,32 @@ function extractTabs(data: unknown): Array<{ id: number; title?: string; url?: s
 
 // ─── Provider Settings ──────────────────────────────────────
 
+function memoryLayerLabel(layer: MemoryLayer): string {
+  switch (layer) {
+    case 'L1':
+      return 'L1 索引'
+    case 'L2':
+      return 'L2 事实'
+    case 'L3':
+      return 'L3 SOP 和 Skill'
+    case 'L4':
+      return 'L4 会话归档'
+  }
+}
+
+function memoryFreshnessLabel(entry: MemoryV2Entry): string {
+  if (!entry.stale) return '未知'
+  const age = `${entry.stale.ageDays ?? 0} 天`
+  switch (entry.stale.severity) {
+    case 'fresh':
+      return `新鲜（${age}）`
+    case 'watch':
+      return `需要复核（${age}）`
+    case 'stale':
+      return `已陈旧（${age}）`
+  }
+}
+
 function MemorySettings() {
   const [status, setStatus] = useState<Awaited<ReturnType<typeof memoryApi.status>> | null>(null)
   const [selected, setSelected] = useState<{ layer: MemoryLayer; id: string } | null>(null)
@@ -276,6 +323,8 @@ function MemorySettings() {
   const [content, setContent] = useState('')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<MemoryV2SearchResult[]>([])
+  const [embeddingConfig, setEmbeddingConfig] = useState<MemoryEmbeddingConfig | null>(null)
+  const [embeddingApiKey, setEmbeddingApiKey] = useState('')
   const [message, setMessage] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isWorking, setIsWorking] = useState(false)
@@ -284,6 +333,8 @@ function MemorySettings() {
   const reload = async () => {
     const next = await memoryApi.status()
     setStatus(next)
+    const embedding = await memoryApi.embedding()
+    setEmbeddingConfig(embedding.config)
     if (!selected) {
       const first = next.layers[0]?.entries[0]
       if (first) setSelected({ layer: first.layer, id: first.id })
@@ -292,11 +343,12 @@ function MemorySettings() {
 
   useEffect(() => {
     let cancelled = false
-    memoryApi.status()
+    Promise.all([memoryApi.status(), memoryApi.embedding()])
       .then(next => {
         if (cancelled) return
-        setStatus(next)
-        const first = next.layers[0]?.entries[0]
+        setStatus(next[0])
+        setEmbeddingConfig(next[1].config)
+        const first = next[0].layers[0]?.entries[0]
         if (first) setSelected({ layer: first.layer, id: first.id })
       })
       .catch(err => {
@@ -349,7 +401,7 @@ function MemorySettings() {
       })
       setEntry(result.entry)
       setContent(result.entry.content || '')
-      return `Saved ${result.entry.layer}/${result.entry.id}`
+      return `已保存 ${result.entry.layer}/${result.entry.id}`
     })
   }
 
@@ -360,7 +412,7 @@ function MemorySettings() {
     try {
       const result = await memoryApi.search(query)
       setResults(result.results)
-      setMessage(`Search returned ${result.results.length} result(s).`)
+      setMessage(`搜索返回 ${result.results.length} 条结果。`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -368,18 +420,37 @@ function MemorySettings() {
     }
   }
 
+  const saveEmbeddingConfig = async () => {
+    if (!embeddingConfig) return
+    await runAction(async () => {
+      const result = await memoryApi.updateEmbedding({
+        provider: embeddingConfig.provider,
+        baseUrl: embeddingConfig.baseUrl,
+        model: embeddingConfig.model,
+        dimensions: embeddingConfig.dimensions,
+        batchSize: embeddingConfig.batchSize,
+        timeoutMs: embeddingConfig.timeoutMs,
+        enabled: embeddingConfig.enabled,
+        apiKey: embeddingApiKey,
+      })
+      setEmbeddingConfig(result.config)
+      setEmbeddingApiKey('')
+      return 'Embedding 配置已保存。'
+    })
+  }
+
   return (
     <div className="max-w-6xl">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Memory</h2>
-          <p className="mt-1 text-sm leading-6 text-[var(--color-text-tertiary)]">L1 index, L2 facts, L3 SOPs and Skills, L4 session archive with summary, vector search, stale checks, and distillation.</p>
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">记忆</h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-text-tertiary)]">L1 索引、L2 事实、L3 SOP 和 Skill、L4 会话归档；支持摘要、向量搜索、陈旧检测和沉淀候选。</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => void runAction(async () => `Summarized ${(await memoryApi.summarize(20)).entries.length} L4 session(s).`)} loading={isWorking}>Summarize</Button>
-          <Button size="sm" onClick={() => void runAction(async () => `Stale entries: ${(await memoryApi.stale()).entries.length}`)} loading={isWorking}>Stale</Button>
-          <Button size="sm" onClick={() => void runAction(async () => `Candidates: ${(await memoryApi.distill(false)).candidates.length}`)} loading={isWorking}>Distill</Button>
-          <Button size="sm" onClick={() => void runAction(async () => `Applied: ${(await memoryApi.distill(true)).applied?.length ?? 0}`)} loading={isWorking}>Apply</Button>
+          <Button size="sm" onClick={() => void runAction(async () => `已生成 ${(await memoryApi.summarize(20)).entries.length} 条 L4 会话摘要。`)} loading={isWorking}>生成摘要</Button>
+          <Button size="sm" onClick={() => void runAction(async () => `发现 ${(await memoryApi.stale()).entries.length} 条陈旧记忆。`)} loading={isWorking}>陈旧检测</Button>
+          <Button size="sm" onClick={() => void runAction(async () => `生成 ${(await memoryApi.distill(false)).candidates.length} 条沉淀候选。`)} loading={isWorking}>生成候选</Button>
+          <Button size="sm" onClick={() => void runAction(async () => `已应用 ${(await memoryApi.distill(true)).applied?.length ?? 0} 条候选。`)} loading={isWorking}>应用候选</Button>
         </div>
       </div>
 
@@ -387,22 +458,74 @@ function MemorySettings() {
       {message && <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">{message}</div>}
 
       {isLoading || !status ? (
-        <div className="py-8 text-sm text-[var(--color-text-tertiary)]">Loading...</div>
+        <div className="py-8 text-sm text-[var(--color-text-tertiary)]">加载中...</div>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid gap-4">
+          <section className="grid gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4 md:grid-cols-4">
+            <MemoryMeta label="向量方式" value={status.embeddingMethod} />
+            <MemoryMeta label="模型" value={status.embeddingModel} />
+            <MemoryMeta label="维度" value={String(status.embeddingDimensions)} />
+            <MemoryMeta label="FAISS" value={status.vectorProvider === 'faiss' ? '已启用' : '本地回退'} />
+          </section>
+          {embeddingConfig && (
+            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Embedding Provider</h3>
+                  <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">API Key 留空会保留当前配置，不会回显。</p>
+                </div>
+                <Button size="sm" onClick={() => void saveEmbeddingConfig()} loading={isWorking}>保存 Embedding</Button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
+                  Provider
+                  <select
+                    value={embeddingConfig.provider}
+                    onChange={event => setEmbeddingConfig({ ...embeddingConfig, provider: event.target.value as MemoryEmbeddingConfig['provider'] })}
+                    className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none"
+                  >
+                    <option value="dashscope">dashscope</option>
+                    <option value="openai-compatible">openai-compatible</option>
+                    <option value="local">local</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
+                  Base URL
+                  <Input value={embeddingConfig.baseUrl} onChange={event => setEmbeddingConfig({ ...embeddingConfig, baseUrl: event.target.value })} />
+                </label>
+                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
+                  Model
+                  <Input value={embeddingConfig.model} onChange={event => setEmbeddingConfig({ ...embeddingConfig, model: event.target.value })} />
+                </label>
+                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
+                  Dimensions
+                  <Input value={String(embeddingConfig.dimensions)} onChange={event => setEmbeddingConfig({ ...embeddingConfig, dimensions: Number.parseInt(event.target.value, 10) || embeddingConfig.dimensions })} />
+                </label>
+                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
+                  Batch Size
+                  <Input value={String(embeddingConfig.batchSize)} onChange={event => setEmbeddingConfig({ ...embeddingConfig, batchSize: Number.parseInt(event.target.value, 10) || embeddingConfig.batchSize })} />
+                </label>
+                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
+                  API Key
+                  <Input type="password" value={embeddingApiKey} placeholder={embeddingConfig.hasApiKey ? '已配置，留空保持不变' : '未配置'} onChange={event => setEmbeddingApiKey(event.target.value)} />
+                </label>
+              </div>
+            </section>
+          )}
+          <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-3">
             <div className="mb-3 flex gap-2">
-              <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search memory..." />
+              <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索记忆..." />
               <Button size="sm" onClick={() => void doSearch()} loading={isWorking}>
                 <span className="material-symbols-outlined text-[16px]">search</span>
               </Button>
             </div>
             {results.length > 0 && (
               <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
-                <div className="mb-1 text-xs font-medium text-[var(--color-text-tertiary)]">Vector search</div>
+                <div className="mb-1 text-xs font-medium text-[var(--color-text-tertiary)]">向量搜索</div>
                 {results.slice(0, 5).map(result => (
                   <button key={`${result.entry.layer}-${result.entry.id}`} onClick={() => setSelected({ layer: result.entry.layer, id: result.entry.id })} className="block w-full truncate rounded-md px-2 py-1 text-left text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">
-                    {result.entry.layer}/{result.entry.id} · {result.score.toFixed(2)}
+                    {result.entry.layer}/{result.entry.id} · 得分 {result.score.toFixed(2)}
                   </button>
                 ))}
               </div>
@@ -411,7 +534,7 @@ function MemorySettings() {
               {status.layers.map(layer => (
                 <div key={layer.layer}>
                   <div className="mb-1 flex items-center justify-between text-xs font-semibold text-[var(--color-text-tertiary)]">
-                    <span>{layer.title}</span>
+                    <span>{memoryLayerLabel(layer.layer)}</span>
                     <span>{layer.entries.length}</span>
                   </div>
                   <div className="space-y-1">
@@ -422,7 +545,7 @@ function MemorySettings() {
                         className={`block w-full rounded-lg border px-3 py-2 text-left ${selected?.layer === item.layer && selected.id === item.id ? 'border-[var(--color-brand)] bg-[var(--color-primary-fixed)]' : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)]'}`}
                       >
                         <div className="truncate text-sm font-medium text-[var(--color-text-primary)]">{item.title}</div>
-                        <div className="mt-0.5 truncate text-xs text-[var(--color-text-tertiary)]">{item.id}{item.stale?.severity === 'stale' ? ' · stale' : ''}</div>
+                        <div className="mt-0.5 truncate text-xs text-[var(--color-text-tertiary)]">{item.id}{item.stale?.severity === 'stale' ? ' · 已陈旧' : ''}</div>
                       </button>
                     ))}
                   </div>
@@ -442,13 +565,13 @@ function MemorySettings() {
                   </div>
                   <Button size="sm" onClick={() => void saveEntry()} loading={isWorking}>
                     <span className="material-symbols-outlined text-[16px]">save</span>
-                    Save
+                    保存
                   </Button>
                 </div>
                 <div className="mb-3 grid gap-2 md:grid-cols-3">
-                  <MemoryMeta label="Verified" value={entry.verified ? 'yes' : 'no'} />
-                  <MemoryMeta label="Freshness" value={entry.stale ? `${entry.stale.severity} (${entry.stale.ageDays ?? 0}d)` : 'unknown'} />
-                  <MemoryMeta label="Updated" value={entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : 'unknown'} />
+                  <MemoryMeta label="已验证" value={entry.verified ? '是' : '否'} />
+                  <MemoryMeta label="新鲜度" value={memoryFreshnessLabel(entry)} />
+                  <MemoryMeta label="更新时间" value={entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : '未知'} />
                 </div>
                 {entry.summary && <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-secondary)]">{entry.summary}</div>}
                 <textarea
@@ -458,9 +581,10 @@ function MemorySettings() {
                 />
               </div>
             ) : (
-              <div className="py-8 text-sm text-[var(--color-text-tertiary)]">Select a memory entry.</div>
+              <div className="py-8 text-sm text-[var(--color-text-tertiary)]">请选择一条记忆。</div>
             )}
           </section>
+        </div>
         </div>
       )}
     </div>

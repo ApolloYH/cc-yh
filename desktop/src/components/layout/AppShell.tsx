@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useUIStore, type SettingsTab } from '../../stores/uiStore'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { initializeDesktopServerUrl } from '../../lib/desktopRuntime'
+import { WindowControls, showWindowControls } from './WindowControls'
 import { useTabStore, SETTINGS_TAB_ID } from '../../stores/tabStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useTranslation } from '../../i18n'
@@ -159,12 +160,27 @@ export function AppShell() {
     '--sidebar-width': sidebarOpen ? '280px' : '72px',
   } as CSSProperties
 
-  return (
-    <div className="cc-app-shell-enter flex h-screen min-h-0 min-w-0 overflow-hidden" style={shellStyle}>
+  const appContent = (
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <Sidebar />
       <main id="content-area" className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <ContentRouter />
       </main>
+    </div>
+  )
+
+  return (
+    <div className="cc-app-shell-enter flex h-screen min-h-0 min-w-0 flex-col overflow-hidden" style={shellStyle}>
+      {showWindowControls && (
+        <div
+          data-tauri-drag-region
+          className="flex h-[28px] flex-shrink-0 items-stretch border-b border-[var(--color-border)] bg-[var(--color-surface-container)] select-none"
+        >
+          <div className="min-w-0 flex-1" data-tauri-drag-region />
+          <WindowControls />
+        </div>
+      )}
+      {appContent}
       <ToastContainer />
       <UpdateChecker />
     </div>

@@ -1,19 +1,27 @@
 import { z } from 'zod/v4'
+import { isAbsolute, join } from 'node:path'
 import type { ValidationResult } from '../../Tool.js'
 import { buildTool, type ToolDef } from '../../Tool.js'
 import { getCwd } from '../../utils/cwd.js'
+import { isEnvTruthy } from '../../utils/envUtils.js'
 import { isENOENT } from '../../utils/errors.js'
 import {
   FILE_NOT_FOUND_CWD_NOTE,
   suggestPathUnderCwd,
 } from '../../utils/file.js'
 import { getFsImplementation } from '../../utils/fsOperations.js'
-import { glob } from '../../utils/glob.js'
+import { extractGlobBaseDirectory } from '../../utils/glob.js'
 import { lazySchema } from '../../utils/lazySchema.js'
 import { expandPath, toRelativePath } from '../../utils/path.js'
-import { checkReadPermissionForTool } from '../../utils/permissions/filesystem.js'
+import {
+  checkReadPermissionForTool,
+  getFileReadIgnorePatterns,
+  normalizePatternsToPath,
+} from '../../utils/permissions/filesystem.js'
 import type { PermissionDecision } from '../../utils/permissions/PermissionResult.js'
 import { matchWildcardPattern } from '../../utils/permissions/shellRuleMatching.js'
+import { getGlobExclusionsForPluginCache } from '../../utils/plugins/orphanedPluginFilter.js'
+import { runtimeGlob } from '../../runtime/fsSearchService.js'
 import { DESCRIPTION, GLOB_TOOL_NAME } from './prompt.js'
 import {
   getToolUseSummary,
@@ -155,15 +163,41 @@ export const GlobTool = buildTool({
     const start = Date.now()
     const appState = getAppState()
     const limit = globLimits?.maxResults ?? 100
-    const { files, truncated } = await glob(
-      input.pattern,
-      GlobTool.getPath(input),
-      { limit, offset: 0 },
-      abortController.signal,
-      appState.toolPermissionContext,
+    let searchDir = GlobTool.getPath(input)
+    let searchPattern = input.pattern
+
+    if (isAbsolute(input.pattern)) {
+      const { baseDir, relativePattern } = extractGlobBaseDirectory(input.pattern)
+      if (baseDir) {
+        searchDir = baseDir
+        searchPattern = relativePattern
+      }
+    }
+
+    const ignorePatterns = normalizeRuntimeExcludeGlobs(
+      normalizePatternsToPath(
+        getFileReadIgnorePatterns(appState.toolPermissionContext),
+        searchDir,
+      ),
     )
+    const pluginExclusions = await getGlobExclusionsForPluginCache(searchDir)
+    const noIgnore = isEnvTruthy(process.env.CLAUDE_CODE_GLOB_NO_IGNORE || 'true')
+    const hidden = isEnvTruthy(process.env.CLAUDE_CODE_GLOB_HIDDEN || 'true')
+    const { files, truncated } = await runtimeGlob({
+      cwd: searchDir,
+      pattern: searchPattern,
+      limit,
+      offset: 0,
+      hidden,
+      respectGitignore: !noIgnore,
+      excludeDefaultDirs: false,
+      excludeGlobs: [...ignorePatterns, ...pluginExclusions],
+    })
+    abortController.signal.throwIfAborted()
     // Relativize paths under cwd to save tokens (same as GrepTool)
-    const filenames = files.map(toRelativePath)
+    const filenames = files.map(file =>
+      isAbsolute(file) ? file : join(searchDir, file),
+    ).map(toRelativePath)
     const output: Output = {
       filenames,
       durationMs: Date.now() - start,
@@ -196,3 +230,9 @@ export const GlobTool = buildTool({
     }
   },
 } satisfies ToolDef<InputSchema, Output>)
+
+function normalizeRuntimeExcludeGlobs(patterns: string[]): string[] {
+  return patterns.map(pattern =>
+    pattern.replace(/^!/, '').replace(/^[/\\]+/, '').replace(/\\/g, '/'),
+  )
+}

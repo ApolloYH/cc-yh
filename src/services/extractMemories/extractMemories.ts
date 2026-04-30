@@ -15,7 +15,7 @@
  */
 
 import { feature } from 'bun:bundle'
-import { basename } from 'path'
+import { basename, relative } from 'path'
 import { getIsRemoteMode } from '../../bootstrap/state.js'
 import type { CanUseToolFn } from '../../hooks/useCanUseTool.js'
 import { ENTRYPOINT_NAME } from '../../memdir/memdir.js'
@@ -169,7 +169,10 @@ function denyAutoMemTool(tool: Tool, reason: string) {
  * read-only Bash commands, and Edit/Write only for paths within the
  * auto-memory directory. Shared by extractMemories and autoDream.
  */
-export function createAutoMemCanUseTool(memoryDir: string): CanUseToolFn {
+export function createAutoMemCanUseTool(
+  memoryDir: string,
+  options: { enforceLayeredWrites?: boolean } = {},
+): CanUseToolFn {
   return async (tool: Tool, input: Record<string, unknown>) => {
     // Allow REPL — when REPL mode is enabled (ant-default), primitive tools
     // are hidden from the tool list so the forked agent calls REPL instead.
@@ -211,6 +214,15 @@ export function createAutoMemCanUseTool(memoryDir: string): CanUseToolFn {
     ) {
       const filePath = input.file_path
       if (typeof filePath === 'string' && isAutoMemPath(filePath)) {
+        if (
+          options.enforceLayeredWrites &&
+          !isLayeredMemoryWritePath(memoryDir, filePath)
+        ) {
+          return denyAutoMemTool(
+            tool,
+            `Memory writes must target MEMORY.md, facts/, sops/, or sessions/ inside ${memoryDir}`,
+          )
+        }
         return { behavior: 'allow' as const, updatedInput: input }
       }
     }
@@ -220,6 +232,17 @@ export function createAutoMemCanUseTool(memoryDir: string): CanUseToolFn {
       `only ${FILE_READ_TOOL_NAME}, ${GREP_TOOL_NAME}, ${GLOB_TOOL_NAME}, read-only ${BASH_TOOL_NAME}, and ${FILE_EDIT_TOOL_NAME}/${FILE_WRITE_TOOL_NAME} within ${memoryDir} are allowed`,
     )
   }
+}
+
+function isLayeredMemoryWritePath(memoryDir: string, filePath: string): boolean {
+  const rel = relative(memoryDir, filePath).replace(/\\/g, '/')
+  if (!rel || rel.startsWith('..') || rel.includes('../')) return false
+  if (rel === ENTRYPOINT_NAME) return true
+  return (
+    rel.startsWith('facts/') ||
+    rel.startsWith('sops/') ||
+    rel.startsWith('sessions/')
+  )
 }
 
 // ============================================================================
@@ -369,7 +392,9 @@ export function initExtractMemories(): void {
       false,
     )
 
-    const canUseTool = createAutoMemCanUseTool(memoryDir)
+    const canUseTool = createAutoMemCanUseTool(memoryDir, {
+      enforceLayeredWrites: true,
+    })
     const cacheSafeParams = createCacheSafeParams(context)
 
     // Only run extraction every N eligible turns (tengu_bramble_lintel, default 1).

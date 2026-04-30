@@ -3,8 +3,10 @@ import {
   DEFAULT_BROWSER_CONTROL_POLICY,
   executeBrowserControl,
   getBrowserControlAuditPath,
+  getBrowserControlDiagnostics,
   getLocalTmwdBridge,
   readBrowserControlPolicy,
+  smokeBrowserControlCurrentChrome,
   updateBrowserControlPolicy,
   type BrowserControlPolicy,
 } from '../../browserControl/index.js'
@@ -46,6 +48,22 @@ export const call: LocalCommandCall = async (args) => {
       `Tabs: ${tabs.length}`,
       '',
       ...tabs.map((tab, index) => `${index + 1}. [${tab.id}] ${tab.title || '(untitled)'}\n   ${tab.url || ''}`),
+    ].join('\n'))
+  }
+
+  if (action === 'smoke' || action === 'test') {
+    const viaServer = await executeSmokeViaServer()
+    const result = viaServer ?? await smokeBrowserControlCurrentChrome()
+    return text([
+      `BrowserControl smoke: ${result.ok ? 'passed' : 'failed'}`,
+      `Connected tabs: ${result.connectedTabs}`,
+      '',
+      ...result.checks.map(check =>
+        `- ${check.name}: ${check.ok ? 'ok' : `failed (${check.error || 'unknown'})`}`,
+      ),
+      '',
+      'TMWD guidance:',
+      ...result.guidance.map(item => `- ${item}`),
     ].join('\n'))
   }
 
@@ -96,6 +114,7 @@ export const call: LocalCommandCall = async (args) => {
     '/browser off',
     '/browser defaults',
     '/browser tabs',
+    '/browser smoke',
     '/browser allow <domain...>',
     '/browser deny <domain...>',
     '/browser high-risk on|off',
@@ -103,6 +122,21 @@ export const call: LocalCommandCall = async (args) => {
     '',
     'Default policy is enabled, allowedDomains=["*"], high-risk backend/capabilities on, with confirmation still required for sensitive actions.',
   ].join('\n'))
+}
+
+async function executeSmokeViaServer() {
+  try {
+    const health = await fetch(`${LOCAL_API}/health`, { signal: AbortSignal.timeout(700) })
+    if (!health.ok) return null
+    const response = await fetch(`${LOCAL_API}/api/browser-control/smoke`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) return null
+    return await response.json()
+  } catch {
+    return null
+  }
 }
 
 async function executeTabsRead() {
@@ -139,6 +173,7 @@ async function formatStatus(prefix?: string, policy?: BrowserControlPolicy): Pro
   const current = policy ?? serverStatus?.policy ?? await readBrowserControlPolicy()
   const bridge = getLocalTmwdBridge()
   const state = await bridge.ensureStarted()
+  const diagnostics = await getBrowserControlDiagnostics()
   const connected = state.status === 'running' ? bridge.hasClients() : false
   const serverBridgeActive = state.status !== 'running' && Boolean(serverStatus)
   return [
@@ -153,7 +188,11 @@ async function formatStatus(prefix?: string, policy?: BrowserControlPolicy): Pro
     `Local bridge: ${state.status === 'running' ? `ws://127.0.0.1:${state.port}` : serverBridgeActive ? `${LOCAL_API} owns ws://127.0.0.1:18765` : `unavailable (${state.error})`}`,
     `Extension connected: ${connected ? 'yes' : serverBridgeActive ? 'check with /browser tabs' : 'no'}`,
     `Current process tabs: ${bridge.listTabs().length}`,
+    `Extension path: ${diagnostics.tmwd.installPath}`,
     `Audit log: ${getBrowserControlAuditPath()}`,
+    '',
+    'TMWD guidance:',
+    ...diagnostics.tmwd.guidance.map(item => `- ${item}`),
   ].join('\n')
 }
 

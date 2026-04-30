@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'bun:test'
+import * as fs from 'node:fs/promises'
+import * as os from 'node:os'
+import * as path from 'node:path'
 import {
   createRustSidecarRequest,
   encodeRustSidecarRequest,
@@ -49,15 +52,45 @@ describe('rust sidecar protocol', () => {
     ).toThrow()
   })
 
-  it('is disabled unless an explicit sidecar path is configured', () => {
-    expect(getRustSidecarLaunchConfig({})).toBeNull()
+  it('uses an explicit sidecar path when configured', () => {
+    expect(getRustSidecarLaunchConfig({}, [])).toBeNull()
     expect(
       getRustSidecarLaunchConfig({
         CLAUDE_YH_RUST_SIDECAR_PATH: 'C:\\tools\\claude-yh-runtime.exe',
-      }),
+      }, []),
     ).toEqual({
       command: 'C:\\tools\\claude-yh-runtime.exe',
       args: [],
     })
+  })
+
+  it('can discover a bundled sidecar when no env path is set', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'runtime-sidecar-'))
+    const sidecarName =
+      process.platform === 'win32'
+        ? 'claude-yh-runtime-sidecar.exe'
+        : 'claude-yh-runtime-sidecar'
+    const sidecarPath = path.join(
+      root,
+      'native',
+      `${process.platform}-${process.arch}`,
+      sidecarName,
+    )
+    await fs.mkdir(path.dirname(sidecarPath), { recursive: true })
+    await fs.writeFile(sidecarPath, '', 'utf-8')
+
+    try {
+      expect(getRustSidecarLaunchConfig({}, [root])).toEqual({
+        command: sidecarPath,
+        args: [],
+      })
+      expect(
+        getRustSidecarLaunchConfig({
+          CLAUDE_YH_DISABLE_RUST_SIDECAR: '1',
+        }, [root]),
+      ).toBeNull()
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
   })
 })

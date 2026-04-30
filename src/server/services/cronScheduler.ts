@@ -15,6 +15,14 @@ import * as crypto from 'crypto'
 import { CronService, type CronTask } from './cronService.js'
 import { SessionService } from './sessionService.js'
 import { sendTaskNotification } from './notificationService.js'
+import {
+  DEFAULT_AWAY_RUNNER_CONFIG,
+  evaluateAwayRunner,
+  normalizeAwayRunnerConfig,
+  type AwayRunnerCheckpoint,
+  type AwayRunnerConfig,
+} from '../../awayRunner/index.js'
+import { appendJarvisEvent } from '../../jarvis/store.js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -408,11 +416,25 @@ export class CronScheduler {
     const cliPath = path.join(projectRoot, 'src/entrypoints/cli.tsx')
     const preloadPath = path.join(projectRoot, 'preload.ts')
 
+    const away = await this.prepareAwayRunner(task)
+    if (away.status === 'deny' || away.status === 'pause') {
+      const pausedRun: TaskRun = {
+        ...run,
+        completedAt: new Date().toISOString(),
+        status: 'failed',
+        error: `Away Runner paused before execution: ${away.reasons.join(', ')}`,
+        durationMs: Date.now() - new Date(startedAt).getTime(),
+      }
+      await updateRun(pausedRun)
+      return pausedRun
+    }
+
+    const prompt = away.prompt ?? task.prompt
     const inputPayload = JSON.stringify({
       type: 'user',
       message: {
         role: 'user',
-        content: [{ type: 'text', text: task.prompt }],
+        content: [{ type: 'text', text: prompt }],
       },
       parent_tool_use_id: null,
       session_id: sessionId || '',
@@ -432,7 +454,7 @@ export class CronScheduler {
         'stream-json',
         ...(sessionId ? ['--session-id', sessionId] : []),
         ...(task.model ? ['--model', task.model] : []),
-        ...(task.permissionMode ? ['--permission-mode', task.permissionMode] : []),
+        ...(this.resolvePermissionMode(task, away.config) ? ['--permission-mode', this.resolvePermissionMode(task, away.config)!] : []),
       ],
       {
         stdin: 'pipe',
@@ -526,6 +548,7 @@ export class CronScheduler {
       }
 
       await updateRun(completedRun)
+      await this.recordAwayRunnerCompletion(task, completedRun)
 
       // Send IM notification if configured
       if (task.notification?.enabled && task.notification.channels.length > 0) {
@@ -557,9 +580,125 @@ export class CronScheduler {
       }
 
       await updateRun(failedRun)
+      await this.recordAwayRunnerCompletion(task, failedRun)
 
       return failedRun
     }
+  }
+
+  private async prepareAwayRunner(task: CronTask): Promise<{
+    status: 'allow' | 'deny' | 'pause' | 'disabled'
+    reasons: string[]
+    prompt?: string
+    config?: AwayRunnerConfig
+  }> {
+    if (!task.awayRunner?.enabled) {
+      return { status: 'disabled', reasons: [] }
+    }
+
+    const config = normalizeAwayRunnerConfig({
+      ...DEFAULT_AWAY_RUNNER_CONFIG,
+      ...task.awayRunner,
+    })
+    const now = new Date().toISOString()
+    const checkpoints: AwayRunnerCheckpoint[] = []
+    const initial = evaluateAwayRunner(config, {
+      startedAt: now,
+      now,
+      turns: 0,
+      toolCalls: 0,
+      costUsd: 0,
+      requestedRisk: config.allowedRisk,
+      checkpoints,
+    })
+
+    if (initial.status === 'disabled') {
+      return { status: 'disabled', reasons: [] }
+    }
+
+    if (initial.status === 'pause' || initial.status === 'deny') {
+      await appendJarvisEvent({
+        type: 'paused',
+        severity: 'warn',
+        title: `Away Runner paused: ${task.name || task.id}`,
+        message: initial.reasons.join(', '),
+      }).catch(() => {})
+      return { status: initial.status, reasons: initial.reasons, config }
+    }
+
+    if (initial.status === 'checkpoint_required') {
+      checkpoints.push({
+        id: `checkpoint-${Date.now()}`,
+        createdAt: now,
+        label: 'initial',
+        summary: `Starting task ${task.name || task.id} with Away Runner mode=${config.mode}.`,
+      })
+      await appendJarvisEvent({
+        type: 'checkpoint',
+        title: `Away Runner initial checkpoint: ${task.name || task.id}`,
+        message: checkpoints[0]!.summary,
+      }).catch(() => {})
+    }
+
+    const decision = evaluateAwayRunner(config, {
+      startedAt: now,
+      now,
+      turns: 0,
+      toolCalls: 0,
+      costUsd: 0,
+      requestedRisk: config.allowedRisk,
+      checkpoints,
+    })
+
+    if (decision.status !== 'allow') {
+      await appendJarvisEvent({
+        type: 'paused',
+        severity: 'warn',
+        title: `Away Runner blocked: ${task.name || task.id}`,
+        message: decision.reasons.join(', '),
+      }).catch(() => {})
+      return {
+        status: decision.status === 'disabled' ? 'disabled' : 'pause',
+        reasons: decision.reasons,
+        config,
+      }
+    }
+
+    return {
+      status: 'allow',
+      reasons: [],
+      config,
+      prompt: buildAwayRunnerPrompt(task.prompt, config, checkpoints),
+    }
+  }
+
+  private resolvePermissionMode(
+    task: CronTask,
+    config?: AwayRunnerConfig,
+  ): string | undefined {
+    if (task.permissionMode) return task.permissionMode
+    if (!config || !config.enabled) return undefined
+    if (config.mode === 'autonomous' && config.allowedRisk === 'low') {
+      return 'acceptEdits'
+    }
+    return undefined
+  }
+
+  private async recordAwayRunnerCompletion(
+    task: CronTask,
+    run: TaskRun,
+  ): Promise<void> {
+    if (!task.awayRunner?.enabled) return
+    await appendJarvisEvent({
+      type: run.status === 'completed' ? 'checkpoint' : 'paused',
+      severity: run.status === 'completed' ? 'info' : 'warn',
+      title: `Away Runner ${run.status}: ${task.name || task.id}`,
+      message: [
+        `Run ${run.id} finished with status=${run.status}.`,
+        run.output ? `Output: ${run.output.slice(0, 1000)}` : '',
+        run.error ? `Error: ${run.error.slice(0, 1000)}` : '',
+      ].filter(Boolean).join('\n\n'),
+    }).catch(() => {})
   }
 
   // ─── Cleanup ───────────────────────────────────────────────────────────────
@@ -624,3 +763,25 @@ export class CronScheduler {
 // ─── Singleton export ──────────────────────────────────────────────────────────
 
 export const cronScheduler = new CronScheduler()
+
+function buildAwayRunnerPrompt(
+  prompt: string,
+  config: AwayRunnerConfig,
+  checkpoints: AwayRunnerCheckpoint[],
+): string {
+  return [
+    'You are running under claude-yh Away Runner.',
+    '',
+    `Mode: ${config.mode}`,
+    `Allowed risk: ${config.allowedRisk}`,
+    `Budget: maxTurns=${config.budget.maxTurns ?? 'unset'}, maxToolCalls=${config.budget.maxToolCalls ?? 'unset'}, maxRuntimeMs=${config.budget.maxRuntimeMs ?? 'unset'}`,
+    'Stop and report instead of continuing if the task needs login, captcha, 2FA, payment confirmation, destructive external action, secret access, or an irreversible user decision.',
+    'Write a concise checkpoint before major irreversible steps and a final report at completion.',
+    checkpoints.length > 0
+      ? `Initial checkpoint: ${checkpoints[0]!.summary}`
+      : 'Initial checkpoint: not required by policy.',
+    '',
+    'Original task:',
+    prompt,
+  ].join('\n')
+}

@@ -7,6 +7,7 @@ import type {
   JarvisEventSeverity,
   JarvisEventType,
   JarvisModeConfig,
+  JarvisCloudConfig,
   JarvisNotificationChannel,
   JarvisRiskMode,
   JarvisSourceKey,
@@ -19,6 +20,7 @@ export type JarvisConfigPatch = Partial<Omit<JarvisModeConfig, 'sources'>> & {
 const SETTINGS_FILE = 'settings.json'
 const EVENTS_FILE = 'jarvis_events.jsonl'
 const SETTINGS_KEY = 'jarvisMode'
+const CLOUD_SECRET_KEY = 'jarvisCloudSecret'
 const DEFAULT_INTERVAL_MS = 5 * 60 * 1000
 const MIN_INTERVAL_MS = 60 * 1000
 const MAX_INTERVAL_MS = 24 * 60 * 60 * 1000
@@ -28,6 +30,9 @@ export const DEFAULT_JARVIS_CONFIG: JarvisModeConfig = {
   enabled: false,
   intervalMs: DEFAULT_INTERVAL_MS,
   riskMode: 'observe',
+  companionModeEnabled: false,
+  autoResumeQueue: true,
+  watchdogEnabled: true,
   sources: {
     scheduledTasks: true,
     sessions: true,
@@ -36,6 +41,28 @@ export const DEFAULT_JARVIS_CONFIG: JarvisModeConfig = {
   notificationChannels: ['desktop'],
   maxEventsPerHour: 12,
   requireApprovalForExternalActions: true,
+  taskPrompt: undefined,
+  cloud: {
+    enabled: false,
+    endpoint: undefined,
+    runnerId: 'local-' + osSafeHostname(),
+    syncQueue: true,
+    heartbeatIntervalMs: DEFAULT_INTERVAL_MS,
+    tokenSet: false,
+    lastHeartbeatAt: undefined,
+    lastRunnerStatus: undefined,
+  },
+  boundaries: {
+    allowedWorkdirs: [],
+    allowedDomains: ['*'],
+    blockedActions: ['payment', 'captcha', '2fa', 'credential-exfiltration', 'irreversible-external-send'],
+    budgetMinutes: 60,
+    maxToolCalls: 80,
+    pauseOnSecrets: true,
+    pauseOnExternalSend: true,
+    pauseOnPayment: true,
+    pauseOnLogin: true,
+  },
 }
 
 export function getJarvisSettingsPath(): string {
@@ -62,6 +89,18 @@ export function normalizeJarvisConfig(input: unknown): JarvisModeConfig {
     riskMode: isRiskMode(raw.riskMode)
       ? raw.riskMode
       : DEFAULT_JARVIS_CONFIG.riskMode,
+    companionModeEnabled:
+      typeof raw.companionModeEnabled === 'boolean'
+        ? raw.companionModeEnabled
+        : DEFAULT_JARVIS_CONFIG.companionModeEnabled,
+    autoResumeQueue:
+      typeof raw.autoResumeQueue === 'boolean'
+        ? raw.autoResumeQueue
+        : DEFAULT_JARVIS_CONFIG.autoResumeQueue,
+    watchdogEnabled:
+      typeof raw.watchdogEnabled === 'boolean'
+        ? raw.watchdogEnabled
+        : DEFAULT_JARVIS_CONFIG.watchdogEnabled,
     sources: {
       scheduledTasks: readSourceFlag(sources, 'scheduledTasks'),
       sessions: readSourceFlag(sources, 'sessions'),
@@ -76,6 +115,12 @@ export function normalizeJarvisConfig(input: unknown): JarvisModeConfig {
       typeof raw.requireApprovalForExternalActions === 'boolean'
         ? raw.requireApprovalForExternalActions
         : DEFAULT_JARVIS_CONFIG.requireApprovalForExternalActions,
+    taskPrompt:
+      typeof raw.taskPrompt === 'string' && raw.taskPrompt.trim()
+        ? raw.taskPrompt.trim()
+        : undefined,
+    cloud: normalizeJarvisCloudConfig(raw.cloud),
+    boundaries: normalizeJarvisBoundaries(raw.boundaries),
   }
 }
 
@@ -103,10 +148,47 @@ export async function updateJarvisConfig(
     sources: patch.sources
       ? { ...current.sources, ...patch.sources }
       : current.sources,
+    cloud: patch.cloud
+      ? { ...current.cloud, ...patch.cloud }
+      : current.cloud,
+    boundaries: patch.boundaries
+      ? { ...current.boundaries, ...patch.boundaries }
+      : current.boundaries,
     notificationChannels:
       patch.notificationChannels ?? current.notificationChannels,
   })
   return writeJarvisConfig(merged)
+}
+
+export async function readJarvisCloudToken(): Promise<string | null> {
+  const settings = await readSettings()
+  return typeof settings[CLOUD_SECRET_KEY] === 'string'
+    ? settings[CLOUD_SECRET_KEY] as string
+    : null
+}
+
+export async function updateJarvisCloudToken(token: string | undefined): Promise<void> {
+  const settings = await readSettings()
+  if (token && token.trim()) {
+    settings[CLOUD_SECRET_KEY] = token.trim()
+  } else {
+    delete settings[CLOUD_SECRET_KEY]
+  }
+  await writeSettings(settings)
+  const config = await readJarvisConfig()
+  await writeJarvisConfig({
+    ...config,
+    cloud: {
+      ...config.cloud,
+      tokenSet: Boolean(token?.trim()),
+    },
+  })
+}
+
+export async function verifyJarvisCloudToken(authHeader: string | null): Promise<boolean> {
+  const token = await readJarvisCloudToken()
+  if (!token) return false
+  return authHeader === `Bearer ${token}`
 }
 
 export async function appendJarvisEvent(input: {
@@ -236,7 +318,7 @@ function clampNumber(
 }
 
 function isRiskMode(value: unknown): value is JarvisRiskMode {
-  return value === 'observe' || value === 'assisted'
+  return value === 'observe' || value === 'assisted' || value === 'autonomous'
 }
 
 function isNotificationChannel(
@@ -249,6 +331,87 @@ function isNotificationChannel(
     value === 'dingtalk' ||
     value === 'wecom'
   )
+}
+
+function normalizeJarvisCloudConfig(input: unknown): JarvisCloudConfig {
+  const raw = isRecord(input) ? input : {}
+  return {
+    enabled:
+      typeof raw.enabled === 'boolean'
+        ? raw.enabled
+        : DEFAULT_JARVIS_CONFIG.cloud.enabled,
+    endpoint:
+      typeof raw.endpoint === 'string' && raw.endpoint.trim()
+        ? raw.endpoint.trim()
+        : undefined,
+    runnerId:
+      typeof raw.runnerId === 'string' && raw.runnerId.trim()
+        ? raw.runnerId.trim()
+        : DEFAULT_JARVIS_CONFIG.cloud.runnerId,
+    syncQueue:
+      typeof raw.syncQueue === 'boolean'
+        ? raw.syncQueue
+        : DEFAULT_JARVIS_CONFIG.cloud.syncQueue,
+    heartbeatIntervalMs: clampNumber(
+      raw.heartbeatIntervalMs,
+      MIN_INTERVAL_MS,
+      MAX_INTERVAL_MS,
+      DEFAULT_INTERVAL_MS,
+    ),
+    tokenSet:
+      typeof raw.tokenSet === 'boolean'
+        ? raw.tokenSet
+        : DEFAULT_JARVIS_CONFIG.cloud.tokenSet,
+    lastHeartbeatAt:
+      typeof raw.lastHeartbeatAt === 'string'
+        ? raw.lastHeartbeatAt
+        : undefined,
+    lastRunnerStatus:
+      typeof raw.lastRunnerStatus === 'string'
+        ? raw.lastRunnerStatus
+        : undefined,
+  }
+}
+
+function normalizeJarvisBoundaries(input: unknown): JarvisModeConfig['boundaries'] {
+  const raw = isRecord(input) ? input : {}
+  const defaults = DEFAULT_JARVIS_CONFIG.boundaries
+  return {
+    allowedWorkdirs: readStringArray(raw.allowedWorkdirs, defaults.allowedWorkdirs),
+    allowedDomains: readStringArray(raw.allowedDomains, defaults.allowedDomains),
+    blockedActions: readStringArray(raw.blockedActions, defaults.blockedActions),
+    budgetMinutes: clampNumber(raw.budgetMinutes, 5, 24 * 60, defaults.budgetMinutes),
+    maxToolCalls: clampNumber(raw.maxToolCalls, 1, 500, defaults.maxToolCalls),
+    pauseOnSecrets:
+      typeof raw.pauseOnSecrets === 'boolean'
+        ? raw.pauseOnSecrets
+        : defaults.pauseOnSecrets,
+    pauseOnExternalSend:
+      typeof raw.pauseOnExternalSend === 'boolean'
+        ? raw.pauseOnExternalSend
+        : defaults.pauseOnExternalSend,
+    pauseOnPayment:
+      typeof raw.pauseOnPayment === 'boolean'
+        ? raw.pauseOnPayment
+        : defaults.pauseOnPayment,
+    pauseOnLogin:
+      typeof raw.pauseOnLogin === 'boolean'
+        ? raw.pauseOnLogin
+        : defaults.pauseOnLogin,
+  }
+}
+
+function readStringArray(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback
+  const result = value
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim())
+    .filter(Boolean)
+  return result.length > 0 ? result : fallback
+}
+
+function osSafeHostname(): string {
+  return process.env.COMPUTERNAME || process.env.HOSTNAME || 'runner'
 }
 
 function isEventType(value: unknown): value is JarvisEventType {

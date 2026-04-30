@@ -49,6 +49,15 @@ export type MemoryV2Status = {
   factsDir: string
   sopsDir: string
   sessionsDir: string
+  vectorIndexPath?: string
+  embeddingCachePath?: string
+  faissIndexPath?: string
+  faissMetaPath?: string
+  vectorProvider?: 'faiss' | 'local'
+  embeddingProvider?: 'dashscope' | 'openai-compatible' | 'local'
+  embeddingModel?: string
+  embeddingDimensions?: number
+  embeddingRemote?: boolean
   entries: MemoryV2Entry[]
   facts: MemoryV2Entry[]
   sops: MemoryV2Entry[]

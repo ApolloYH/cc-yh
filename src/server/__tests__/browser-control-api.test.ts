@@ -203,6 +203,142 @@ describe('BrowserControl API', () => {
 
     extension.close()
   })
+
+  it('executes TMWD advanced upload, cookie, and CDP regression paths', async () => {
+    process.env.CLAUDE_YH_TMWD_WS_PORT = String(await getFreePort())
+    await handleBrowserControlApi(
+      new Request('http://localhost/api/browser-control/policy', {
+        method: 'PUT',
+        body: JSON.stringify({
+          enabled: true,
+          allowedDomains: ['example.com'],
+          allowHighRiskBackends: true,
+          allowHighRiskCapabilities: true,
+          requireConfirmationForSensitiveActions: true,
+        }),
+      }),
+      new URL('http://localhost/api/browser-control/policy'),
+      ['api', 'browser-control', 'policy'],
+    )
+
+    const uploadFile = path.join(tmpDir, 'upload.txt')
+    await fs.writeFile(uploadFile, 'upload', 'utf-8')
+    const bridge = getLocalTmwdBridge()
+    const state = await bridge.ensureStarted()
+    const extension = new WebSocket(`ws://127.0.0.1:${state.port}`)
+    await waitForOpen(extension)
+    extension.send(JSON.stringify({
+      type: 'ext_ready',
+      tabs: [{ id: 303, url: 'https://example.com/upload', title: 'Upload', active: true }],
+    }))
+    await bridge.waitForClient(1_000)
+
+    const methods: string[] = []
+    extension.on('message', raw => {
+      const request = JSON.parse(raw.toString()) as {
+        id: string
+        code: string | { cmd?: string; method?: string }
+      }
+      if (typeof request.code === 'object') methods.push(request.code.method ?? request.code.cmd ?? '')
+      extension.send(JSON.stringify({ type: 'ack', id: request.id }))
+      if (typeof request.code === 'object' && request.code.method === 'DOM.getDocument') {
+        extension.send(JSON.stringify({ type: 'result', id: request.id, result: { root: { nodeId: 1 } } }))
+      } else if (typeof request.code === 'object' && request.code.method === 'DOM.querySelector') {
+        extension.send(JSON.stringify({ type: 'result', id: request.id, result: { nodeId: 7 } }))
+      } else {
+        extension.send(JSON.stringify({ type: 'result', id: request.id, result: { ok: true } }))
+      }
+    })
+
+    const uploadReq = new Request('http://localhost/api/browser-control/execute', {
+      method: 'POST',
+      body: JSON.stringify({
+        backendId: 'tmwd-cdp-bridge',
+        action: {
+          capability: 'files.upload',
+          url: 'https://example.com/upload',
+          domain: 'example.com',
+          userConfirmed: true,
+        },
+        selector: 'input[type=file]',
+        filePath: uploadFile,
+      }),
+    })
+    const uploadRes = await handleBrowserControlApi(uploadReq, new URL(uploadReq.url), [
+      'api',
+      'browser-control',
+      'execute',
+    ])
+    const uploadBody = await uploadRes.json()
+
+    const cookieReq = new Request('http://localhost/api/browser-control/execute', {
+      method: 'POST',
+      body: JSON.stringify({
+        backendId: 'tmwd-cdp-bridge',
+        action: {
+          capability: 'storage.read_cookies',
+          url: 'https://example.com/upload',
+          domain: 'example.com',
+          userConfirmed: true,
+        },
+      }),
+    })
+    const cookieRes = await handleBrowserControlApi(cookieReq, new URL(cookieReq.url), [
+      'api',
+      'browser-control',
+      'execute',
+    ])
+
+    expect(uploadRes.status).toBe(200)
+    expect(uploadBody.ok).toBe(true)
+    expect(cookieRes.status).toBe(200)
+    expect(methods).toContain('DOM.setFileInputFiles')
+    expect(methods).toContain('cookies')
+
+    extension.close()
+  })
+
+  it('runs current Chrome TMWD smoke checks through the API', async () => {
+    process.env.CLAUDE_YH_TMWD_WS_PORT = String(await getFreePort())
+    const bridge = getLocalTmwdBridge()
+    const state = await bridge.ensureStarted()
+    const extension = new WebSocket(`ws://127.0.0.1:${state.port}`)
+    await waitForOpen(extension)
+    extension.send(JSON.stringify({
+      type: 'ext_ready',
+      tabs: [{ id: 404, url: 'https://example.com', title: 'Smoke', active: true }],
+    }))
+    await bridge.waitForClient(1_000)
+    await waitFor(() => bridge.listTabs().length === 1)
+    extension.on('message', raw => {
+      const request = JSON.parse(raw.toString()) as { id: string; code: { method?: string } }
+      extension.send(JSON.stringify({ type: 'ack', id: request.id }))
+      extension.send(JSON.stringify({
+        type: 'result',
+        id: request.id,
+        result: request.code?.method === 'Runtime.evaluate'
+          ? { result: { value: 'https://example.com' } }
+          : { ok: true },
+      }))
+    })
+
+    const smokeReq = new Request('http://localhost/api/browser-control/smoke', {
+      method: 'POST',
+    })
+    const smokeRes = await handleBrowserControlApi(smokeReq, new URL(smokeReq.url), [
+      'api',
+      'browser-control',
+      'smoke',
+    ])
+    const body = await smokeRes.json()
+
+    expect(smokeRes.status).toBe(200)
+    expect(body.ok).toBe(true)
+    expect(body.checks.map((check: { name: string }) => check.name)).toContain('tabs.read')
+    expect(body.checks.map((check: { name: string }) => check.name)).toContain('cdp.call Runtime.evaluate')
+
+    extension.close()
+  })
 })
 
 function waitForOpen(client: WebSocket): Promise<void> {

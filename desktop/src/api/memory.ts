@@ -38,7 +38,18 @@ export type MemoryV2Status = {
   sessionsDir: string
   summariesDir: string
   vectorIndexPath: string
+  embeddingCachePath: string
+  faissIndexPath: string
+  faissMetaPath: string
   candidatePath: string
+  vectorProvider: 'faiss' | 'local'
+  embeddingProvider: 'dashscope' | 'openai-compatible' | 'local'
+  embeddingModel: string
+  embeddingBaseUrl: string
+  embeddingDimensions: number
+  embeddingRemote: boolean
+  embeddingHasApiKey: boolean
+  embeddingMethod: 'faiss-dashscope-embedding' | 'faiss-openai-compatible-embedding' | 'faiss-local-embedding'
   entries: MemoryV2Entry[]
   facts: MemoryV2Entry[]
   sops: MemoryV2Entry[]
@@ -50,7 +61,7 @@ export type MemoryV2SearchResult = {
   entry: MemoryV2Entry
   score: number
   matchedTerms: string[]
-  method: 'local-token-vector'
+  method: 'faiss-dashscope-embedding' | 'faiss-openai-compatible-embedding' | 'faiss-local-embedding' | 'local-semantic-embedding'
 }
 
 export type MemoryV2DistillCandidate = {
@@ -62,6 +73,19 @@ export type MemoryV2DistillCandidate = {
   confidence: number
   reason: string
   verified: true
+}
+
+export type MemoryEmbeddingConfig = {
+  provider: 'dashscope' | 'openai-compatible' | 'local'
+  baseUrl: string
+  model: string
+  dimensions: number
+  batchSize: number
+  timeoutMs: number
+  enabled: boolean
+  hasApiKey: boolean
+  method: 'faiss-dashscope-embedding' | 'faiss-openai-compatible-embedding' | 'faiss-local-embedding'
+  source: 'env' | 'settings' | 'default'
 }
 
 export const memoryApi = {
@@ -90,5 +114,11 @@ export const memoryApi = {
   },
   distill(apply = false) {
     return api.post<{ candidates: MemoryV2DistillCandidate[]; applied?: MemoryV2Entry[] }>('/api/memory-v2/distill', { limit: 12, apply })
+  },
+  embedding() {
+    return api.get<{ config: MemoryEmbeddingConfig }>('/api/memory-v2/embedding')
+  },
+  updateEmbedding(input: Partial<MemoryEmbeddingConfig> & { apiKey?: string; apiKeyEnv?: string }) {
+    return api.put<{ config: MemoryEmbeddingConfig }>('/api/memory-v2/embedding', input)
   },
 }

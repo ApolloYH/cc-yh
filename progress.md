@@ -234,5 +234,136 @@
   - `cd desktop && bun run lint`
   - `cd desktop && bun run build`
   - CLI smoke covered `/memory list`, `/memory summarize 5`, `/memory search browser`, and `/memory distill`
+
+## 2026-04-26 Final gap completion
+- Implemented Away Runner production hooks:
+  - scheduled task execution now evaluates Away Runner before spawning the CLI
+  - initial checkpoints are written when policy requires them
+  - task prompts are wrapped with Away Runner mode, budget, and stop-condition instructions
+  - completion/failure writes Jarvis checkpoint or pause events
+- Implemented Jarvis continuous task mode:
+  - `JarvisRiskMode` now supports `autonomous`
+  - settings store persists `taskPrompt`
+  - `/jarvis task <goal>` configures the 24h continuous goal
+  - Jarvis tick runs the continuous task through Away Runner in assisted/autonomous modes
+  - desktop Away Session page exposes autonomous mode and the continuous task textarea
+- Implemented automatic Skill creation from L3 memory candidates:
+  - Memory L1-L4 automation now writes verified L3 candidates into `~/.claude-yh/skills/memory-*`
+  - generated `SKILL.md` files include source and confidence metadata
+- Implemented IM inbound task bridge:
+  - `POST /api/adapters/inbound/:channel` supports `telegram`, `feishu`, `dingtalk`, and `wecom`
+  - allowed/paired user checks are enforced
+  - inbound messages become scheduled-task records and can run immediately
+- Expanded Rust runtime:
+  - added sidecar methods `fs.read`, `fs.write`, and `shell.classify`
+  - added TS fallback services and `/api/runtime/fs-read`, `/api/runtime/fs-write`, `/api/runtime/shell-classify`
+  - added Rust tests and TS/API tests for new methods
   - real web interaction at `http://127.0.0.1:5173`: opened Settings > Memory, summarized 15 L4 sessions, searched `天气` with 2 results, opened an L4 summary, and saved it through the UI
   - real web interaction at `http://127.0.0.1:5173`: opened Settings > Browser, confirmed all default toggles were on, clicked `测试标签页`, and observed 5 current Chrome tabs
+## 2026-04-26 GA gap completion follow-up
+- Completed the remaining non-WeChat GA items requested for this pass:
+  - BrowserControl now has a `/browser smoke` / `/browser test` CLI path and `POST /api/browser-control/smoke`
+  - the smoke path validates the installed TMWD extension against the current Chrome session through `tmwd-cdp-bridge`
+  - BrowserControl smoke uses tab-level CDP `Runtime.evaluate`, avoiding browser-level commands that the real extension rejects
+  - Jarvis gained companion mode (`/jarvis companion on|off`, aliases `lobster` and `xiaolongxia`) with queue auto-resume, watchdog config, approval state, and checkpoint actions
+  - web/desktop Away Session gained toggles for 小龙虾常驻自主执行, 自动恢复队列, and 崩溃守护检查
+  - IM inbound actions now parse and execute `/status`, `/queue`, `/pause`, `/resume`, `/checkpoint`, and `/approve`
+  - Skill distillation now has model-backed rewrite support through `CLAUDE_YH_SKILL_MODEL_ENDPOINT`, with deterministic heuristic fallback
+  - `/api/skills/model-distill` exposes candidate success judging plus model/heuristic `SKILL.md` rewriting
+  - MemoryV2 vector indexing now defaults to the FAISS provider contract and writes native `vectors.faiss` when Python `faiss` is available, with metadata fallback when unavailable
+- Real installed Chrome extension verification:
+  - restarted the local server on `127.0.0.1:3456`, which also owns the TMWD WebSocket bridge on `127.0.0.1:18765`
+  - `POST /api/browser-control/smoke` returned `ok: true`
+  - the bridge saw 5 current Chrome tabs from the user's existing browser session
+  - CDP `Runtime.evaluate` passed against a connected HTTP tab, proving current-tab/cookie-session BrowserControl is working
+- Verification passed:
+  - `bun test src/memoryV2/__tests__/store.test.ts src/skills/__tests__/autoDistill.test.ts src/server/__tests__/adapter-webhook-parsers.test.ts src/server/__tests__/jarvis.test.ts src/server/__tests__/browser-control-api.test.ts`
+  - `bun test src/memoryV2/__tests__/automation.test.ts src/server/__tests__/adapters-inbound.test.ts src/server/__tests__/memory-v2-api.test.ts`
+  - `bun test src/commands/jarvis/__tests__/jarvis.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - full `bun test` passed with 950 tests
+  - `cd desktop && bun run build`
+
+## 2026-04-26 Production embedding/FAISS finalization
+- Implemented production MemoryV2 embedding provider:
+  - added OpenAI-compatible embedding calls for DashScope/Bailian with default base URL `https://dashscope.aliyuncs.com/compatible-mode/v1`
+  - default model is `text-embedding-v4`
+  - supports env/settings configuration for provider, base URL, model, dimensions, batch size, timeout, and API key
+  - API keys are accepted through settings/env but never returned by `/api/memory-v2/embedding`
+  - added embedding cache at `~/.claude-yh/memory/embedding-cache.json`
+  - MemoryV2 vector search now embeds query and entries through the provider, then writes `vectors.json`, `vectors.faiss.json`, and native `vectors.faiss` when Python `faiss` exists
+  - native FAISS `index.search` is used when the native index exists; JS cosine fallback remains for machines without `faiss-cpu`
+  - CLI `/memory embedding` reports provider status without exposing secrets
+  - desktop/web Settings > Memory can view and save embedding provider settings, with API key write-only behavior
+- Added production verification coverage:
+  - mock OpenAI-compatible embedding server verifies `/embeddings` request shape, bearer auth, batching, cache reuse, and fallback behavior
+  - MemoryV2 API test verifies embedding config save does not echo the API key
+  - MemoryV2 store/search tests verify FAISS provider metadata and search still work without a remote key
+- Verification passed:
+  - `bun test src/memoryV2/__tests__/embeddingProvider.test.ts src/memoryV2/__tests__/store.test.ts src/memoryV2/__tests__/automation.test.ts`
+  - `bun test src/server/__tests__/memory-v2-api.test.ts src/memoryV2/__tests__/embeddingProvider.test.ts src/memoryV2/__tests__/store.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - full `bun test` passed with 953 tests
+  - `cd desktop && bun run build`
+  - real BrowserControl smoke against current Chrome TMWD extension returned `ok: true`, 5 connected tabs, and successful `Runtime.evaluate`
+  - Rust production sidecar `cargo build --manifest-path rust/Cargo.toml` passed
+  - Rust parity through TS sidecar tests passed: 18 tests across fs search, grep, fs ops, shell safety, sidecar protocol/client
+- Known environment note:
+  - `cargo test --manifest-path rust/Cargo.toml` is blocked by local antivirus on Windows with `os error 5` when Cargo tries to execute the generated test harness under `target/debug/deps`
+  - a fresh temporary `CARGO_TARGET_DIR` shows the same antivirus block
+  - production sidecar execution is not blocked, and the parity harness against the production sidecar passes
+
+## 2026-04-26 Jarvis/Away watchdog finalization
+- Implemented system-level Jarvis/Away resident startup:
+  - Windows autostart now writes both the Startup `.cmd` entry and a supervisor script at `~/.claude-yh/claude-yh-jarvis-watchdog.ps1`
+  - the supervisor records `jarvis_watchdog.pid`, writes `jarvis_autostart.log`, starts the local server, and restarts it after crashes with a configurable delay
+  - `/jarvis status` reports autostart and watchdog paths
+  - desktop/web Away Session exposes the watchdog/autostart status and toggle
+  - the server API continues to use `~/.claude-yh/settings.json` as the shared configuration surface
+- Verification passed:
+  - `bun test src/jarvis/__tests__/store.test.ts src/commands/jarvis/__tests__/jarvis.test.ts src/server/__tests__/jarvis.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - full `bun test` passed with 954 tests
+  - `cd desktop && bun run build`
+
+## 2026-04-26 Jarvis independent agent and model quality pass
+- Reworked Jarvis semantics away from "scheduled task first" toward a first-class 24h background agent:
+  - added `submitJarvisGoal()` planner that turns a user goal into checkpointable queue work
+  - `/api/jarvis/task` and `/api/jarvis/queue` now submit goals through Jarvis planning
+  - `/jarvis enqueue <goal>` submits work to the Jarvis background queue
+  - web/desktop Away Session now has a "交给 Jarvis" goal box and autonomous boundary settings
+  - Jarvis status exposes recent queue items so the UI can show background work directly
+- Added Jarvis autonomous boundaries:
+  - allowed workdirs/domains
+  - blocked actions
+  - budget minutes
+  - max tool calls
+  - pause on secrets, login, payment, or external send
+- Re-routed IM inbound messages:
+  - Telegram/Feishu/DingTalk/WeCom normal messages now become Jarvis goals
+  - IM `/status`, `/queue`, `/pause`, `/resume`, `/checkpoint`, and `/approve` continue to operate on the Jarvis queue
+- Added Cloud Jarvis runner protocol:
+  - shared config under `~/.claude-yh/settings.json`
+  - write-only cloud token
+  - authenticated `/api/jarvis/cloud-heartbeat`
+  - authenticated `/api/jarvis/cloud-claim`
+  - authenticated `/api/jarvis/cloud-report`
+  - CLI `/jarvis cloud status|on|off|endpoint|token`
+- Improved model quality paths:
+  - added shared configured-main-model caller for active provider/settings/env
+  - Skill distillation now asks the configured main model to judge success/reusability and rewrite `SKILL.md`, with deterministic fallback
+  - MemoryV2 L4 summaries now ask the configured main model for deeper semantic summaries, with deterministic fallback
+  - tests use `CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION=1` to avoid accidental real provider calls
+- Verification passed:
+  - `bun test src/server/__tests__/jarvis.test.ts src/server/__tests__/adapters-inbound.test.ts src/commands/jarvis/__tests__/jarvis.test.ts`
+  - `bun test src/skills/__tests__/autoDistill.test.ts src/memoryV2/__tests__/store.test.ts`
+  - `bun test src/memoryV2/__tests__/automation.test.ts src/server/__tests__/memory-v2-api.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - full `bun test` passed with 957 tests
+  - `cd desktop && bun run build`
+  - `cargo build --manifest-path rust/Cargo.toml`
+  - real BrowserControl smoke against the installed TMWD Chrome extension returned `ok: true`, backend `tmwd-cdp-bridge`, and 5 connected tabs

@@ -6,6 +6,8 @@
  * POST   /api/skills/install      - Import a local skill folder into ~/.claude-yh/skills
  * POST   /api/skills/create       - Create a new skill scaffold
  * POST   /api/skills/distill      - Save a reviewed SKILL.md candidate
+ * POST   /api/skills/model-distill - Rewrite and judge a memory candidate as SKILL.md
+ * POST   /api/skills/evaluate     - Evaluate skill recall for a real task query
  * DELETE /api/skills/:name        - Delete an installed user skill
  */
 
@@ -14,6 +16,15 @@ import * as path from 'path'
 import * as os from 'os'
 import { spawn } from 'child_process'
 import { parseFrontmatter } from '../../utils/frontmatterParser.js'
+import { evaluateSkillRecall } from '../../skills/recallEval.js'
+import {
+  rewriteCandidateAsSkillMarkdown,
+} from '../../skills/autoDistill.js'
+import {
+  judgeSkillCandidateSuccess,
+  rewriteSkillWithModelOrHeuristic,
+} from '../../skills/modelSkillDistiller.js'
+import type { MemoryV2DistillCandidate } from '../../memoryV2/types.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 
 type SkillMeta = {
@@ -62,6 +73,16 @@ type DistillSkillBody = {
   projectRoot?: string
   markdown?: string
   overwrite?: boolean
+}
+
+type EvaluateSkillBody = {
+  query?: string
+}
+
+type ModelDistillSkillBody = {
+  candidate?: MemoryV2DistillCandidate
+  name?: string
+  version?: string
 }
 
 const MAX_FILES = 50
@@ -573,6 +594,10 @@ export async function handleSkillsApi(
           return await createSkill(req)
         case 'distill':
           return await distillSkill(req)
+        case 'model-distill':
+          return await modelDistillSkill(req)
+        case 'evaluate':
+          return await evaluateSkills(req)
         default:
           throw ApiError.notFound(`Unknown skills endpoint: ${sub}`)
       }
@@ -589,6 +614,44 @@ export async function handleSkillsApi(
   } catch (error) {
     return errorResponse(error)
   }
+}
+
+async function modelDistillSkill(req: Request): Promise<Response> {
+  const body = await readJsonBody<ModelDistillSkillBody>(req)
+  const candidate = body.candidate
+  if (!candidate || typeof candidate.title !== 'string' || typeof candidate.content !== 'string') {
+    throw ApiError.badRequest('candidate is required')
+  }
+  const name = sanitizeSkillFolderName(body.name || `memory-${candidate.title}`)
+  const version = body.version || '0.1.0'
+  const contentHash = `preview-${Buffer.from(candidate.title).toString('hex').slice(0, 16)}`
+  const fallbackMarkdown = rewriteCandidateAsSkillMarkdown({
+    candidate,
+    name,
+    version,
+    contentHash,
+  })
+  const result = await rewriteSkillWithModelOrHeuristic({
+    candidate,
+    fallbackMarkdown,
+    name,
+    version,
+  })
+  return Response.json({
+    markdown: result.markdown,
+    judgement: result.judgement,
+    modelUsed: result.modelUsed,
+    heuristic: judgeSkillCandidateSuccess(candidate),
+  })
+}
+
+async function evaluateSkills(req: Request): Promise<Response> {
+  const body = await readJsonBody<EvaluateSkillBody>(req)
+  if (!body.query?.trim()) {
+    throw ApiError.badRequest('query is required')
+  }
+  const matches = await evaluateSkillRecall(body.query, getUserSkillsDir())
+  return Response.json({ query: body.query, matches })
 }
 
 async function listSkills(): Promise<Response> {

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '../components/shared/Button'
 import { useJarvisStore } from '../stores/jarvisStore'
 import type { JarvisModeConfig, JarvisNotificationChannel, JarvisSourceKey } from '../types/jarvis'
@@ -18,7 +18,8 @@ const CHANNEL_LABELS: Record<string, string> = {
 }
 
 export function JarvisMode() {
-  const { status, isLoading, isSaving, error, fetchStatus, updateConfig, tick } = useJarvisStore()
+  const { status, autostart, isLoading, isSaving, error, fetchStatus, updateConfig, updateAutostart, submitTask, tick } = useJarvisStore()
+  const [jarvisGoal, setJarvisGoal] = useState('')
 
   useEffect(() => {
     fetchStatus()
@@ -120,8 +121,37 @@ export function JarvisMode() {
                   >
                     <option value="observe">只观察</option>
                     <option value="assisted">辅助执行</option>
+                    <option value="autonomous">自主执行</option>
                   </select>
                 </label>
+              </div>
+
+              <label className="mt-4 block">
+                <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">交给 Jarvis 的目标</span>
+                <textarea
+                  value={jarvisGoal}
+                  onChange={(event) => setJarvisGoal(event.target.value)}
+                  placeholder="例如：持续观察项目状态，发现失败任务就分析原因并尝试修复，遇到登录/验证码/支付/高风险操作就暂停等我确认。"
+                  rows={3}
+                  className="w-full resize-none rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm leading-6 text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                />
+              </label>
+              <div className="mt-2 flex justify-end">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={isSaving}
+                  disabled={!jarvisGoal.trim()}
+                  icon={<span className="material-symbols-outlined text-[15px]">send</span>}
+                  onClick={async () => {
+                    const goal = jarvisGoal.trim()
+                    if (!goal) return
+                    await submitTask(goal)
+                    setJarvisGoal('')
+                  }}
+                >
+                  交给 Jarvis
+                </Button>
               </div>
 
               <div className="mt-4">
@@ -145,6 +175,129 @@ export function JarvisMode() {
                   onChange={(checked) => updateConfig({ requireApprovalForExternalActions: checked })}
                   wide
                 />
+              </div>
+
+              <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <div className="mb-2 text-xs font-semibold text-[var(--color-text-primary)]">自主边界</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">预算分钟</span>
+                    <input
+                      type="number"
+                      min={5}
+                      max={1440}
+                      value={config.boundaries.budgetMinutes}
+                      onChange={(event) => updateConfig({ boundaries: { ...config.boundaries, budgetMinutes: Number.parseInt(event.target.value, 10) || 60 } })}
+                      className="h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">最大工具调用</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      value={config.boundaries.maxToolCalls}
+                      onChange={(event) => updateConfig({ boundaries: { ...config.boundaries, maxToolCalls: Number.parseInt(event.target.value, 10) || 80 } })}
+                      className="h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <ToggleRow label="遇到密钥/隐私暂停" checked={config.boundaries.pauseOnSecrets} onChange={(checked) => updateConfig({ boundaries: { ...config.boundaries, pauseOnSecrets: checked } })} />
+                  <ToggleRow label="外部发送前暂停" checked={config.boundaries.pauseOnExternalSend} onChange={(checked) => updateConfig({ boundaries: { ...config.boundaries, pauseOnExternalSend: checked } })} />
+                  <ToggleRow label="登录/验证码暂停" checked={config.boundaries.pauseOnLogin} onChange={(checked) => updateConfig({ boundaries: { ...config.boundaries, pauseOnLogin: checked } })} />
+                  <ToggleRow label="支付/不可逆操作暂停" checked={config.boundaries.pauseOnPayment} onChange={(checked) => updateConfig({ boundaries: { ...config.boundaries, pauseOnPayment: checked } })} />
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <ToggleRow
+                  label="小龙虾常驻自主执行"
+                  checked={config.companionModeEnabled}
+                  onChange={(checked) => updateConfig({
+                    companionModeEnabled: checked,
+                    enabled: checked ? true : config.enabled,
+                    riskMode: checked ? 'autonomous' : config.riskMode,
+                  })}
+                />
+                <ToggleRow
+                  label="自动恢复队列"
+                  checked={config.autoResumeQueue}
+                  onChange={(checked) => updateConfig({ autoResumeQueue: checked })}
+                />
+                <ToggleRow
+                  label="崩溃守护检查"
+                  checked={config.watchdogEnabled}
+                  onChange={(checked) => updateConfig({ watchdogEnabled: checked })}
+                />
+              </div>
+
+              {autostart && (
+                <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-semibold text-[var(--color-text-primary)]">系统级常驻</div>
+                      <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                        Watchdog 会在开机后拉起 server，崩溃后 {autostart.restartDelaySeconds} 秒重启。
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={autostart.enabled}
+                      disabled={!autostart.supported || isSaving}
+                      onChange={(event) => updateAutostart(event.target.checked)}
+                      className="h-4 w-4 accent-[var(--color-brand)]"
+                    />
+                  </div>
+                  <div className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
+                    <div className="truncate">启动项：{autostart.targetPath}</div>
+                    <div className="truncate">守护脚本：{autostart.watchdogPath}</div>
+                    {!autostart.supported && <div>{autostart.note}</div>}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold text-[var(--color-text-primary)]">云端常驻 Runner</div>
+                    <div className="mt-1 text-xs text-[var(--color-text-secondary)]">
+                      远端 Runner 可认证 claim 队列并回写 checkpoint，用于电脑关机后的云端持续执行。
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config.cloud.enabled}
+                    disabled={isSaving}
+                    onChange={(event) => updateConfig({ cloud: { ...config.cloud, enabled: event.target.checked } })}
+                    className="h-4 w-4 accent-[var(--color-brand)]"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Cloud endpoint</span>
+                    <input
+                      value={config.cloud.endpoint || ''}
+                      onChange={(event) => updateConfig({ cloud: { ...config.cloud, endpoint: event.target.value } })}
+                      placeholder="https://your-runner.example.com/jarvis"
+                      className="h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Runner ID</span>
+                    <input
+                      value={config.cloud.runnerId}
+                      onChange={(event) => updateConfig({ cloud: { ...config.cloud, runnerId: event.target.value } })}
+                      className="h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                    />
+                  </label>
+                </div>
+                <div className="mt-2 grid gap-1 text-xs text-[var(--color-text-tertiary)]">
+                  <div>Token: {config.cloud.tokenSet ? '已配置' : '未配置'}，请用 CLI `/jarvis cloud token` 写入，界面不回显密钥。</div>
+                  <div>Last heartbeat: {config.cloud.lastHeartbeatAt || '(none)'}</div>
+                  <div>Last status: {config.cloud.lastRunnerStatus || '(none)'}</div>
+                </div>
               </div>
 
               <div className="mt-4">

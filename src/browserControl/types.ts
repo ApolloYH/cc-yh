@@ -95,6 +95,8 @@ export type BrowserControlExecuteRequest = {
   action: BrowserControlAction
   tabId?: string
   selector?: string
+  filePath?: string
+  downloadPath?: string
   text?: string
   submit?: boolean
   fullPage?: boolean

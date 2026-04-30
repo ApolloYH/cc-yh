@@ -9,20 +9,31 @@ import {
   readJarvisEvents,
   updateJarvisConfig,
 } from '../store.js'
+import {
+  buildWindowsStartupScript,
+  buildWindowsWatchdogScript,
+  getJarvisAutostartStatus,
+  setJarvisAutostart,
+} from '../autostart.js'
 
 let tmpDir: string
 let originalConfigDir: string | undefined
+let originalAppData: string | undefined
 
 describe('jarvis store', () => {
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jarvis-store-'))
     originalConfigDir = process.env.CLAUDE_CONFIG_DIR
+    originalAppData = process.env.APPDATA
     process.env.CLAUDE_CONFIG_DIR = tmpDir
+    process.env.APPDATA = path.join(tmpDir, 'AppData', 'Roaming')
   })
 
   afterEach(async () => {
     if (originalConfigDir === undefined) delete process.env.CLAUDE_CONFIG_DIR
     else process.env.CLAUDE_CONFIG_DIR = originalConfigDir
+    if (originalAppData === undefined) delete process.env.APPDATA
+    else process.env.APPDATA = originalAppData
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
@@ -61,5 +72,26 @@ describe('jarvis store', () => {
     expect(events).toHaveLength(2)
     expect(events[0]?.title).toBe('Checkpoint')
     expect(events[1]?.title).toBe('Configured')
+  })
+
+  it('builds watchdog autostart scripts and reports status', async () => {
+    const startup = buildWindowsStartupScript()
+    const watchdog = buildWindowsWatchdogScript()
+    expect(startup).toContain('claude-yh-jarvis-watchdog.ps1')
+    expect(watchdog).toContain('while ($true)')
+    expect(watchdog).toContain('restarting in $restartDelaySeconds seconds')
+    expect(watchdog).toContain('bun run src/server/index.ts')
+
+    const status = await getJarvisAutostartStatus()
+    expect(status.watchdogPath).toBe(path.join(tmpDir, 'claude-yh-jarvis-watchdog.ps1'))
+    expect(status.restartDelaySeconds).toBeGreaterThanOrEqual(1)
+
+    if (process.platform === 'win32') {
+      const enabled = await setJarvisAutostart(true)
+      expect(enabled.enabled).toBe(true)
+      await expect(fs.stat(enabled.watchdogPath)).resolves.toBeTruthy()
+      const disabled = await setJarvisAutostart(false)
+      expect(disabled.enabled).toBe(false)
+    }
   })
 })
