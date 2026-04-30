@@ -112,7 +112,7 @@ async function initializeAgentMcpServers(
 
   // When MCP is locked to plugin-only, skip frontmatter MCP servers for
   // USER-CONTROLLED agents only. Plugin, built-in, and policySettings agents
-  // are admin-trusted 鈥?their frontmatter MCP is part of the admin-approved
+  // are admin-trusted —their frontmatter MCP is part of the admin-approved
   // surface. Blocking them (as the first cut did) breaks plugin agents that
   // legitimately need MCP, contradicting "plugin-provided always loads."
   const agentIsAdminTrusted = isSourceAdminTrusted(agentDefinition.source)
@@ -322,7 +322,7 @@ export async function* runAgent({
   /** Optional subdirectory under subagents/ to group this agent's transcript
    * with related ones (e.g. workflows/<runId> for workflow subagents). */
   transcriptSubdir?: string
-  /** Optional callback fired on every message yielded by query() 鈥?including
+  /** Optional callback fired on every message yielded by query() —including
    * stream_event deltas that runAgent otherwise drops. Use to detect liveness
    * during long single-block streams (e.g. thinking) where no assistant
    * message is yielded for >60s. */
@@ -333,7 +333,7 @@ export async function* runAgent({
   const appState = toolUseContext.getAppState()
   const permissionMode = appState.toolPermissionContext.mode
   // Always-shared channel to the root AppState store. toolUseContext.setAppState
-  // is a no-op when the *parent* is itself an async agent (nested async鈫抋sync),
+  // is a no-op when the *parent* is itself an async agent (nested async→async),
   // so session-scoped writes (hooks, bash tasks) must go through this instead.
   const rootSetAppState =
     toolUseContext.setAppStateForTasks ?? toolUseContext.setAppState
@@ -384,7 +384,7 @@ export async function* runAgent({
   ])
 
   // Read-only agents (Explore, Plan) don't act on commit/PR/lint rules from
-  // CLAUDE.md 鈥?the main agent has full context and interprets their output.
+  // CLAUDE.md —the main agent has full context and interprets their output.
   // Dropping claudeMd here saves ~5-15 Gtok/week across 34M+ Explore spawns.
   // Explicit override.userContext from callers is preserved untouched.
   // Kill-switch defaults true; flip tengu_slim_subagent_claudemd=false to revert.
@@ -398,7 +398,7 @@ export async function* runAgent({
     ? userContextNoClaudeMd
     : baseUserContext
 
-  // Explore/Plan are read-only search agents 鈥?the parent-session-start
+  // Explore/Plan are read-only search agents —the parent-session-start
   // gitStatus (up to 40KB, explicitly labeled stale) is dead weight. If they
   // need git info they run `git status` themselves and get fresh data.
   // Saves ~1-3 Gtok/week fleet-wide.
@@ -453,7 +453,7 @@ export async function* runAgent({
 
     // For background agents that can show prompts, await automated checks
     // (classifier, permission hooks) before showing the permission dialog.
-    // Since these are background agents, waiting is fine 鈥?the user should
+    // Since these are background agents, waiting is fine —the user should
     // only be interrupted when automated checks can't resolve the permission.
     // This applies to bubble mode (always) and explicit canShowPermissionPrompts.
     if (isAsync && !shouldAvoidPrompts) {
@@ -558,7 +558,7 @@ export async function* runAgent({
   // Register agent's frontmatter hooks (scoped to agent lifecycle)
   // Pass isAgent=true to convert Stop hooks to SubagentStop (since subagents trigger SubagentStop)
   // Same admin-trusted gate for frontmatter hooks: under ["hooks"] alone
-  // (skills/agents not locked), user agents still load 鈥?block their
+  // (skills/agents not locked), user agents still load —block their
   // frontmatter-hook REGISTRATION here where source is known, rather than
   // blanket-blocking all session hooks at execution time (which would
   // also kill plugin agents' hooks).
@@ -589,7 +589,7 @@ export async function* runAgent({
     for (const skillName of skillsToPreload) {
       // Resolve the skill name, trying multiple strategies:
       // 1. Exact match (hasCommand checks name, userFacingName, aliases)
-      // 2. Fully-qualified with agent's plugin prefix (e.g., "my-skill" 鈫?"plugin:my-skill")
+      // 2. Fully-qualified with agent's plugin prefix (e.g., "my-skill" →"plugin:my-skill")
       // 3. Suffix match on ":skillName" for plugin-namespaced skills
       const resolvedName = resolveSkillName(
         skillName,
@@ -687,10 +687,10 @@ export async function* runAgent({
     mcpResources: toolUseContext.options.mcpResources,
     agentDefinitions: toolUseContext.options.agentDefinitions,
     // Fork children (useExactTools path) need querySource on context.options
-    // for the recursive-fork guard at AgentTool.tsx call() 鈥?it checks
+    // for the recursive-fork guard at AgentTool.tsx call() —it checks
     // options.querySource === 'agent:builtin:fork'. This survives autocompact
     // (which rewrites messages, not context.options). Without this, the guard
-    // reads undefined and only the message-scan fallback fires 鈥?which
+    // reads undefined and only the message-scan fallback fires —which
     // autocompact defeats by replacing the fork-boilerplate message.
     ...(useExactTools && { querySource }),
   }
@@ -732,7 +732,7 @@ export async function* runAgent({
 
   // Record initial messages before the query loop starts, plus the agentType
   // so resume can route correctly when subagent_type is omitted. Both writes
-  // are fire-and-forget 鈥?persistence failure shouldn't block the agent.
+  // are fire-and-forget —persistence failure shouldn't block the agent.
   void recordSidechainTranscript(initialMessages, agentId).catch(_err =>
     logForDebugging(`Failed to record sidechain transcript: ${_err}`),
   )
@@ -940,8 +940,8 @@ async function getAgentSystemPrompt(
  * tries multiple resolution strategies:
  *
  * 1. Exact match via hasCommand (name, userFacingName, aliases)
- * 2. Prefix with agent's plugin name (e.g., "my-skill" 鈫?"my-plugin:my-skill")
- * 3. Suffix match 鈥?find any command whose name ends with ":skillName"
+ * 2. Prefix with agent's plugin name (e.g., "my-skill" →"my-plugin:my-skill")
+ * 3. Suffix match —find any command whose name ends with ":skillName"
  */
 function resolveSkillName(
   skillName: string,
@@ -963,7 +963,7 @@ function resolveSkillName(
     }
   }
 
-  // 3. Suffix match 鈥?find a skill whose name ends with ":skillName"
+  // 3. Suffix match —find a skill whose name ends with ":skillName"
   const suffix = `:${skillName}`
   const match = allSkills.find(cmd => cmd.name.endsWith(suffix))
   if (match) {

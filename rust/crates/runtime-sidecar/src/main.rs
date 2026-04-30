@@ -11,6 +11,7 @@ use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const PROTOCOL_VERSION: u32 = 1;
+const SESSION_INDEX_CACHE_VERSION: u64 = 2;
 
 #[derive(Debug, Deserialize)]
 struct Request {
@@ -357,10 +358,14 @@ fn build_session_index_incremental(params: &Value) -> Result<Value, String> {
             if newest_session_ms <= cache_ms {
                 if let Ok(raw) = fs::read_to_string(&cache_path) {
                     if let Ok(mut cached) = serde_json::from_str::<Value>(&raw) {
-                        cached["source"] = json!("rust");
-                        cached["cacheHit"] = json!(true);
-                        cached["incremental"] = json!(true);
-                        return Ok(apply_session_index_filters(cached, params));
+                        if cached.get("schemaVersion").and_then(Value::as_u64)
+                            == Some(SESSION_INDEX_CACHE_VERSION)
+                        {
+                            cached["source"] = json!("rust");
+                            cached["cacheHit"] = json!(true);
+                            cached["incremental"] = json!(true);
+                            return Ok(apply_session_index_filters(cached, params));
+                        }
                     }
                 }
             }
@@ -377,6 +382,7 @@ fn build_session_index_incremental(params: &Value) -> Result<Value, String> {
     let mut result = build_session_index(&scan_params)?;
     result["cacheHit"] = json!(false);
     result["incremental"] = json!(true);
+    result["schemaVersion"] = json!(SESSION_INDEX_CACHE_VERSION);
     result["newestSessionModifiedAtMs"] = json!(newest_session_ms);
 
     if let Some(parent) = cache_path.parent() {
@@ -1407,6 +1413,32 @@ fn count_messages(entries: &[Value]) -> usize {
 }
 
 fn extract_title(entries: &[Value]) -> String {
+    for entry in entries.iter().rev() {
+        if entry.get("type").and_then(Value::as_str) == Some("custom-title") {
+            if let Some(title) = entry
+                .get("customTitle")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|title| !title.is_empty())
+            {
+                return truncate_title(title);
+            }
+        }
+    }
+
+    for entry in entries.iter().rev() {
+        if entry.get("type").and_then(Value::as_str) == Some("ai-title") {
+            if let Some(title) = entry
+                .get("aiTitle")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|title| !title.is_empty())
+            {
+                return truncate_title(title);
+            }
+        }
+    }
+
     entries
         .iter()
         .find_map(|entry| {
@@ -1669,6 +1701,64 @@ mod tests {
         assert_eq!(result["total"], 1);
         assert_eq!(result["sessions"][0]["projectPath"], "-repo-b");
         assert_eq!(result["sessions"][0]["title"], "Fix provider config");
+    }
+
+    #[test]
+    fn session_index_prefers_explicit_and_generated_titles() {
+        let root = std::env::temp_dir().join(format!(
+            "claude-yh-session-index-title-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let project = root.join("projects").join("-repo-a");
+        fs::create_dir_all(&project).expect("project should be created");
+        fs::write(
+            project.join("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl"),
+            [
+                r#"{"type":"user","message":{"role":"user","content":"Old first prompt"}}"#,
+                r#"{"type":"ai-title","aiTitle":"Fresh generated title"}"#,
+            ]
+            .join("\n"),
+        )
+        .expect("session fixture should be written");
+        fs::write(
+            project.join("bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl"),
+            [
+                r#"{"type":"user","message":{"role":"user","content":"Another old prompt"}}"#,
+                r#"{"type":"ai-title","aiTitle":"Generated title"}"#,
+                r#"{"type":"custom-title","customTitle":"Manual title wins"}"#,
+            ]
+            .join("\n"),
+        )
+        .expect("session fixture should be written");
+
+        let request = json!({
+            "protocolVersion": 1,
+            "id": "7",
+            "method": "session.index",
+            "params": {
+                "configDir": root.to_string_lossy()
+            }
+        });
+        let response = handle_line(&request.to_string());
+
+        fs::remove_dir_all(&root).ok();
+
+        assert!(response.ok);
+        let result = response.result.expect("session index should return result");
+        let sessions = result["sessions"].as_array().expect("sessions should be an array");
+        let generated = sessions
+            .iter()
+            .find(|session| session["id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+            .expect("generated title session should exist");
+        let manual = sessions
+            .iter()
+            .find(|session| session["id"] == "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee")
+            .expect("manual title session should exist");
+        assert_eq!(generated["title"], "Fresh generated title");
+        assert_eq!(manual["title"], "Manual title wins");
     }
 
     #[test]

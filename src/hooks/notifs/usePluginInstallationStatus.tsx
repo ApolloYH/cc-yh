@@ -91,7 +91,7 @@ export function usePluginInstallationStatus() {
       logForDebugging(`Adding notification for ${totalFailed} failed installations`);
       addNotification({
         key: "plugin-install-failed",
-        jsx: <><Text color="error">{totalFailed} {plural(totalFailed, "plugin")} failed to install</Text><Text dimColor={true}> 路 /plugin for details</Text></>,
+        jsx: <><Text color="error">{totalFailed} {plural(totalFailed, "plugin")} failed to install</Text><Text dimColor={true}> · /plugin for details</Text></>,
         priority: "medium"
       });
     };

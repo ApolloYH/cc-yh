@@ -12,6 +12,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import { ApiError } from '../middleware/errorHandler.js'
+import { stripBOM } from '../../utils/jsonRead.js'
 
 const VALID_PERMISSION_MODES = [
   'default',
@@ -57,7 +58,7 @@ export class SettingsService {
   private async readJsonFile(filePath: string): Promise<Record<string, unknown>> {
     try {
       const raw = await fs.readFile(filePath, 'utf-8')
-      return JSON.parse(raw) as Record<string, unknown>
+      return JSON.parse(stripBOM(raw)) as Record<string, unknown>
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
         return {}

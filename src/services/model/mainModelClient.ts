@@ -3,6 +3,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { ProviderService } from '../../server/services/providerService.js'
 import type { ApiFormat } from '../../server/types/provider.js'
+import { stripBOM } from '../../utils/jsonRead.js'
 
 type MainModelConfig = {
   baseUrl: string
@@ -118,7 +119,7 @@ async function readSettingsEnv(): Promise<Record<string, string | undefined>> {
   const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
   try {
     const raw = await fs.readFile(path.join(configDir, 'settings.json'), 'utf-8')
-    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const parsed = JSON.parse(stripBOM(raw)) as Record<string, unknown>
     const env = parsed.env
     if (!env || typeof env !== 'object' || Array.isArray(env)) return {}
     return env as Record<string, string | undefined>

@@ -4,7 +4,7 @@ const memory: Command = {
   type: 'local-jsx',
   name: 'memory',
   description: 'View, search, and edit claude-yh memory',
-  argumentHint: 'list|show|search|stale|embedding|set',
+  argumentHint: 'list|show|search|set',
   load: () => import('./memory.js'),
 }
 

@@ -25,7 +25,6 @@ import { getProjectDir } from '../utils/sessionStorage.js'
 import { getInitialSettings } from '../utils/settings/settings.js'
 import {
   LAYERED_MEMORY_SECTION,
-  MEMORY_FRONTMATTER_EXAMPLE,
   TRUSTING_RECALL_SECTION,
   TYPES_SECTION_INDIVIDUAL,
   WHAT_NOT_TO_SAVE_SECTION,
@@ -115,9 +114,9 @@ const teamMemPrompts = feature('TEAMMEM')
  * Harness guarantees the directory exists via ensureMemoryDirExists().
  */
 export const DIR_EXISTS_GUIDANCE =
-  'This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).'
+  'This directory already exists. Do not run mkdir or write memory files directly during normal chat; MemoryV2 automation owns durable L2/L3 writes.'
 export const DIRS_EXIST_GUIDANCE =
-  'Both directories already exist — write to them directly with the Write tool (do not run mkdir or check for their existence).'
+  'Both directories already exist. Do not run mkdir or write memory files directly during normal chat; MemoryV2 automation owns durable L2/L3 writes.'
 
 /**
  * Ensure a memory directory exists. Idempotent — called from loadMemoryPrompt
@@ -201,38 +200,19 @@ export function buildMemoryLines(
   displayName: string,
   memoryDir: string,
   extraGuidelines?: string[],
-  skipIndex = false,
+  _skipIndex = false,
 ): string[] {
-  const howToSave = skipIndex
-    ? [
-        '## How to save memories',
-        '',
-        'Write each memory to its own file (e.g., `user_role.md`, `feedback_testing.md`) using this frontmatter format:',
-        '',
-        ...MEMORY_FRONTMATTER_EXAMPLE,
-        '',
-        '- Keep the name, description, and type fields in memory files up-to-date with the content',
-        '- Organize memory semantically by topic, not chronologically',
-        '- Update or remove memories that turn out to be wrong or outdated',
-        '- Do not write duplicate memories. First check if there is an existing memory you can update before writing a new one.',
-      ]
-    : [
-        '## How to save memories',
-        '',
-        'Saving a memory is a two-step process:',
-        '',
-        '**Step 1** — write the memory to its own file (e.g., `user_role.md`, `feedback_testing.md`) using this frontmatter format:',
-        '',
-        ...MEMORY_FRONTMATTER_EXAMPLE,
-        '',
-        `**Step 2** — add a pointer to that file in \`${ENTRYPOINT_NAME}\`. \`${ENTRYPOINT_NAME}\` is an index, not a memory — each entry should be one line, under ~150 characters: \`- [Title](file.md) — one-line hook\`. It has no frontmatter. Never write memory content directly into \`${ENTRYPOINT_NAME}\`.`,
-        '',
-        `- \`${ENTRYPOINT_NAME}\` is always loaded into your conversation context — lines after ${MAX_ENTRYPOINT_LINES} will be truncated, so keep the index concise`,
-        '- Keep the name, description, and type fields in memory files up-to-date with the content',
-        '- Organize memory semantically by topic, not chronologically',
-        '- Update or remove memories that turn out to be wrong or outdated',
-        '- Do not write duplicate memories. First check if there is an existing memory you can update before writing a new one.',
-      ]
+  const howToSave = [
+    '## How memory is updated',
+    '',
+    'Long-term memory is updated by MemoryV2 automation, not by direct Write/Edit calls in the main conversation.',
+    '',
+    '- Do not write, edit, delete, or append files under the memory directory during normal chat.',
+    `- Do not manually edit \`${ENTRYPOINT_NAME}\`; L1 is regenerated from the complete L2/L3 set after automated extraction.`,
+    '- If the user explicitly asks you to remember or forget something, state the durable fact, preference, or procedure plainly in your reply so the session finalizer can extract it from L4.',
+    '- The MemoryV2 finalizer runs on session close, tab leave, app shutdown, or idle flush; it writes stable facts to `facts/`, SOPs to `sops/`, and claude-yh Skills to `sops/skills/`.',
+    '- Use `/memory` or the settings Memory page when the user wants to inspect or manually edit memory through the supported API.',
+  ]
 
   const lines: string[] = [
     `# ${displayName}`,
@@ -241,7 +221,7 @@ export function buildMemoryLines(
     '',
     "You should build up this memory system over time so that future conversations can have a complete picture of who the user is, how they'd like to collaborate with you, what behaviors to avoid or repeat, and the context behind the work the user gives you.",
     '',
-    'If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.',
+    'If the user explicitly asks you to remember or forget something, acknowledge the intended durable change in plain language. Do not modify memory files directly; MemoryV2 will extract and apply eligible L2/L3 changes from the conversation.',
     '',
     ...LAYERED_MEMORY_SECTION,
     ...TYPES_SECTION_INDIVIDUAL,

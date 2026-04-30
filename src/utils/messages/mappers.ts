@@ -94,7 +94,7 @@ export function toSDKCompactMetadata(
 }
 
 /**
- * Shared SDK鈫抜nternal compact_metadata converter.
+ * Shared SDK→internal compact_metadata converter.
  */
 export function fromSDKCompactMetadata(
   meta: SDKCompactMetadata,
@@ -138,7 +138,7 @@ export function toSDKMessages(messages: Message[]): SDKMessage[] {
             timestamp: message.timestamp,
             isSynthetic: message.isMeta || message.isVisibleInTranscriptOnly,
             // Structured tool output (not the string content sent to the
-            // model 鈥?the full Output object). Rides the protobuf catchall
+            // model —the full Output object). Rides the protobuf catchall
             // so web viewers can read things like BriefTool's file_uuid
             // without it polluting model context.
             ...(message.toolUseResult !== undefined
@@ -184,7 +184,7 @@ export function toSDKMessages(messages: Message[]): SDKMessage[] {
 /**
  * Converts local command output (e.g. /voice, /cost) to a well-formed
  * SDKAssistantMessage so downstream consumers (mobile apps, session-ingress
- * v1alpha鈫抳1beta converter) can parse it without schema changes.
+ * v1alpha→v1beta converter) can parse it without schema changes.
  *
  * Emitted as assistant instead of the dedicated SDKLocalCommandOutputMessage
  * because the system/local_command_output subtype is unknown to:
@@ -203,7 +203,7 @@ export function localCommandOutputToSDKAssistantMessage(
     .replace(/<local-command-stderr>([\s\S]*?)<\/local-command-stderr>/, '$1')
     .trim()
   // createAssistantMessage builds a complete APIAssistantMessage with id, type,
-  // model: SYNTHETIC_MODEL, role, stop_reason, usage 鈥?all fields required by
+  // model: SYNTHETIC_MODEL, role, stop_reason, usage —all fields required by
   // downstream deserializers like Android's SdkAssistantMessage.
   const synthetic = createAssistantMessage({ content: cleanContent })
   return {

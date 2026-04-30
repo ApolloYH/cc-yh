@@ -69,6 +69,7 @@ export function startServer(port = PORT, host = HOST) {
   const server = Bun.serve<WebSocketData>({
     port,
     hostname: host,
+    idleTimeout: Number.parseInt(process.env.SERVER_IDLE_TIMEOUT_SECONDS || '120', 10),
 
     async fetch(req, server) {
       const url = new URL(req.url)

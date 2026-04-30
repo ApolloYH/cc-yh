@@ -29,7 +29,7 @@ import {
   type BrowserControlPolicy,
   type BrowserControlExecutionResult,
 } from '../api/browserControl'
-import { memoryApi, type MemoryEmbeddingConfig, type MemoryEvent, type MemoryLayer, type MemoryV2Entry, type MemoryV2SearchResult } from '../api/memory'
+import { memoryApi, type MemoryEvent, type MemoryLayer, type MemoryV2Entry, type MemoryV2SearchResult } from '../api/memory'
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers')
@@ -582,19 +582,6 @@ function memoryLayerLabel(layer: MemoryLayer): string {
   }
 }
 
-function memoryFreshnessLabel(entry: MemoryV2Entry): string {
-  if (!entry.stale) return '未知'
-  const age = `${entry.stale.ageDays ?? 0} 天`
-  switch (entry.stale.severity) {
-    case 'fresh':
-      return `新鲜（${age}）`
-    case 'watch':
-      return `需要复核（${age}）`
-    case 'stale':
-      return `已陈旧（${age}）`
-  }
-}
-
 function MemorySettings({ active }: { active: boolean }) {
   const [status, setStatus] = useState<Awaited<ReturnType<typeof memoryApi.status>> | null>(null)
   const [selected, setSelected] = useState<{ layer: MemoryLayer; id: string } | null>(null)
@@ -602,23 +589,25 @@ function MemorySettings({ active }: { active: boolean }) {
   const [content, setContent] = useState('')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<MemoryV2SearchResult[]>([])
-  const [embeddingConfig, setEmbeddingConfig] = useState<MemoryEmbeddingConfig | null>(null)
-  const [embeddingApiKey, setEmbeddingApiKey] = useState('')
   const [memoryEvents, setMemoryEvents] = useState<MemoryEvent[]>([])
   const [memoryEventsPath, setMemoryEventsPath] = useState('')
+  const [expandedMemoryLayers, setExpandedMemoryLayers] = useState<Partial<Record<MemoryLayer, boolean>>>({
+    L1: true,
+    L2: true,
+    L3: true,
+    L4: false,
+  })
   const [message, setMessage] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isWorking, setIsWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const reload = async () => {
-    const [next, embedding, events] = await Promise.all([
+    const [next, events] = await Promise.all([
       memoryApi.status(),
-      memoryApi.embedding(),
       memoryApi.events(50),
     ])
     setStatus(next)
-    setEmbeddingConfig(embedding.config)
     setMemoryEvents(events.events)
     setMemoryEventsPath(events.path)
     if (!selected) {
@@ -629,13 +618,12 @@ function MemorySettings({ active }: { active: boolean }) {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([memoryApi.status(), memoryApi.embedding(), memoryApi.events(50)])
+    Promise.all([memoryApi.status(), memoryApi.events(50)])
       .then(next => {
         if (cancelled) return
         setStatus(next[0])
-        setEmbeddingConfig(next[1].config)
-        setMemoryEvents(next[2].events)
-        setMemoryEventsPath(next[2].path)
+        setMemoryEvents(next[1].events)
+        setMemoryEventsPath(next[1].path)
         const first = next[0].layers[0]?.entries[0]
         if (first) setSelected({ layer: first.layer, id: first.id })
       })
@@ -652,13 +640,12 @@ function MemorySettings({ active }: { active: boolean }) {
     if (!active) return
     let cancelled = false
     setError(null)
-    Promise.all([memoryApi.status(), memoryApi.embedding(), memoryApi.events(50)])
+    Promise.all([memoryApi.status(), memoryApi.events(50)])
       .then(next => {
         if (cancelled) return
         setStatus(next[0])
-        setEmbeddingConfig(next[1].config)
-        setMemoryEvents(next[2].events)
-        setMemoryEventsPath(next[2].path)
+        setMemoryEvents(next[1].events)
+        setMemoryEventsPath(next[1].path)
         if (!selected) {
           const first = next[0].layers[0]?.entries[0]
           if (first) setSelected({ layer: first.layer, id: first.id })
@@ -736,30 +723,11 @@ function MemorySettings({ active }: { active: boolean }) {
     }
   }
 
-  const saveEmbeddingConfig = async () => {
-    if (!embeddingConfig) return
-    await runAction(async () => {
-      const result = await memoryApi.updateEmbedding({
-        provider: embeddingConfig.provider,
-        baseUrl: embeddingConfig.baseUrl,
-        model: embeddingConfig.model,
-        dimensions: embeddingConfig.dimensions,
-        batchSize: embeddingConfig.batchSize,
-        timeoutMs: embeddingConfig.timeoutMs,
-        enabled: embeddingConfig.enabled,
-        apiKey: embeddingApiKey,
-      })
-      setEmbeddingConfig(result.config)
-      setEmbeddingApiKey('')
-      return 'Embedding 配置已保存。'
-    })
-  }
-
   return (
     <div className="max-w-6xl">
       <div className="mb-5">
         <h2 className="text-base font-semibold text-[var(--color-text-primary)]">记忆</h2>
-        <p className="mt-1 text-sm leading-6 text-[var(--color-text-tertiary)]">L1 索引、L2 事实、L3 SOP 和 Skill、L4 会话归档；摘要、陈旧检测和沉淀会在会话流程中自动完成。</p>
+        <p className="mt-1 text-sm leading-6 text-[var(--color-text-tertiary)]">L1 索引、L2 事实、L3 SOP 和 Skill、L4 会话归档；摘要和沉淀会在会话流程中自动完成。</p>
         {status && (
           <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
             当前目录：{status.root} · L1：{status.indexPath}
@@ -774,57 +742,11 @@ function MemorySettings({ active }: { active: boolean }) {
         <div className="py-8 text-sm text-[var(--color-text-tertiary)]">加载中...</div>
       ) : (
         <div className="grid gap-4">
-          <section className="grid gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4 md:grid-cols-4">
-            <MemoryMeta label="向量方式" value={status.embeddingMethod} />
-            <MemoryMeta label="模型" value={status.embeddingModel} />
-            <MemoryMeta label="维度" value={String(status.embeddingDimensions)} />
-            <MemoryMeta label="FAISS" value={status.vectorProvider === 'faiss' ? '已启用' : '本地回退'} />
+          <section className="grid gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4 md:grid-cols-3">
+            <MemoryMeta label="检索方式" value="关键词检索" />
+            <MemoryMeta label="长期记忆" value={`${status.facts.length} 条事实 / ${status.sops.length} 条 SOP 与 Skill`} />
+            <MemoryMeta label="会话归档" value={`${status.layers.find(layer => layer.layer === 'L4')?.entries.length ?? 0} 条`} />
           </section>
-          {embeddingConfig && (
-            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Embedding Provider</h3>
-                  <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">API Key 留空会保留当前配置，不会回显。</p>
-                </div>
-                <Button size="sm" onClick={() => void saveEmbeddingConfig()} loading={isWorking}>保存 Embedding</Button>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
-                  Provider
-                  <select
-                    value={embeddingConfig.provider}
-                    onChange={event => setEmbeddingConfig({ ...embeddingConfig, provider: event.target.value as MemoryEmbeddingConfig['provider'] })}
-                    className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none"
-                  >
-                    <option value="dashscope">dashscope</option>
-                    <option value="openai-compatible">openai-compatible</option>
-                    <option value="local">local</option>
-                  </select>
-                </label>
-                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
-                  Base URL
-                  <Input value={embeddingConfig.baseUrl} onChange={event => setEmbeddingConfig({ ...embeddingConfig, baseUrl: event.target.value })} />
-                </label>
-                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
-                  Model
-                  <Input value={embeddingConfig.model} onChange={event => setEmbeddingConfig({ ...embeddingConfig, model: event.target.value })} />
-                </label>
-                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
-                  Dimensions
-                  <Input value={String(embeddingConfig.dimensions)} onChange={event => setEmbeddingConfig({ ...embeddingConfig, dimensions: Number.parseInt(event.target.value, 10) || embeddingConfig.dimensions })} />
-                </label>
-                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
-                  Batch Size
-                  <Input value={String(embeddingConfig.batchSize)} onChange={event => setEmbeddingConfig({ ...embeddingConfig, batchSize: Number.parseInt(event.target.value, 10) || embeddingConfig.batchSize })} />
-                </label>
-                <label className="grid gap-1 text-xs text-[var(--color-text-tertiary)]">
-                  API Key
-                  <Input type="password" value={embeddingApiKey} placeholder={embeddingConfig.hasApiKey ? '已配置，留空保持不变' : '未配置'} onChange={event => setEmbeddingApiKey(event.target.value)} />
-                </label>
-              </div>
-            </section>
-          )}
           <MemoryEventsPanel
             events={memoryEvents}
             path={memoryEventsPath}
@@ -841,7 +763,7 @@ function MemorySettings({ active }: { active: boolean }) {
             </div>
             {results.length > 0 && (
               <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
-                <div className="mb-1 text-xs font-medium text-[var(--color-text-tertiary)]">向量搜索</div>
+                <div className="mb-1 text-xs font-medium text-[var(--color-text-tertiary)]">关键词搜索</div>
                 {results.slice(0, 5).map(result => (
                   <button key={`${result.entry.layer}-${result.entry.id}`} onClick={() => setSelected({ layer: result.entry.layer, id: result.entry.id })} className="block w-full truncate rounded-md px-2 py-1 text-left text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">
                     {result.entry.layer}/{result.entry.id} · 得分 {result.score.toFixed(2)}
@@ -850,26 +772,50 @@ function MemorySettings({ active }: { active: boolean }) {
               </div>
             )}
             <div className="space-y-3">
-              {status.layers.map(layer => (
-                <div key={layer.layer}>
-                  <div className="mb-1 flex items-center justify-between text-xs font-semibold text-[var(--color-text-tertiary)]">
-                    <span>{memoryLayerLabel(layer.layer)}</span>
-                    <span>{layer.entries.length}</span>
+              {status.layers.map(layer => {
+                const expanded = expandedMemoryLayers[layer.layer] ?? layer.layer !== 'L4'
+                const limit = collapsedMemoryLayerLimit(layer.layer)
+                const visibleEntries = expanded ? layer.entries : layer.entries.slice(0, limit)
+                const hiddenCount = Math.max(0, layer.entries.length - visibleEntries.length)
+                return (
+                  <div key={layer.layer}>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedMemoryLayers(prev => ({ ...prev, [layer.layer]: !expanded }))}
+                      className="mb-1 flex w-full items-center justify-between rounded-md px-1 py-1 text-left text-xs font-semibold text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)]"
+                    >
+                      <span className="flex min-w-0 items-center gap-1">
+                        <span className="material-symbols-outlined text-[16px]">{expanded ? 'expand_more' : 'chevron_right'}</span>
+                        <span className="truncate">{memoryLayerLabel(layer.layer)}</span>
+                      </span>
+                      <span>{layer.entries.length}</span>
+                    </button>
+                    {expanded || visibleEntries.length > 0 ? (
+                      <div className="space-y-1">
+                        {visibleEntries.map(item => (
+                          <button
+                            key={`${item.layer}-${item.id}`}
+                            onClick={() => setSelected({ layer: item.layer, id: item.id })}
+                            className={`block w-full rounded-lg border px-3 py-2 text-left ${selected?.layer === item.layer && selected.id === item.id ? 'border-[var(--color-brand)] bg-[var(--color-primary-fixed)]' : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)]'}`}
+                          >
+                            <div className="truncate text-sm font-medium text-[var(--color-text-primary)]">{item.title}</div>
+                            <div className="mt-0.5 truncate text-xs text-[var(--color-text-tertiary)]">{item.id}</div>
+                          </button>
+                        ))}
+                        {hiddenCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedMemoryLayers(prev => ({ ...prev, [layer.layer]: true }))}
+                            className="block w-full rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-left text-xs text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)]"
+                          >
+                            展开剩余 {hiddenCount} 条
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="space-y-1">
-                    {layer.entries.slice(0, 40).map(item => (
-                      <button
-                        key={`${item.layer}-${item.id}`}
-                        onClick={() => setSelected({ layer: item.layer, id: item.id })}
-                        className={`block w-full rounded-lg border px-3 py-2 text-left ${selected?.layer === item.layer && selected.id === item.id ? 'border-[var(--color-brand)] bg-[var(--color-primary-fixed)]' : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)]'}`}
-                      >
-                        <div className="truncate text-sm font-medium text-[var(--color-text-primary)]">{item.title}</div>
-                        <div className="mt-0.5 truncate text-xs text-[var(--color-text-tertiary)]">{item.id}{item.stale?.severity === 'stale' ? ' · 已陈旧' : ''}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </section>
 
@@ -887,9 +833,8 @@ function MemorySettings({ active }: { active: boolean }) {
                     保存
                   </Button>
                 </div>
-                <div className="mb-3 grid gap-2 md:grid-cols-3">
+                <div className="mb-3 grid gap-2 md:grid-cols-2">
                   <MemoryMeta label="已验证" value={entry.verified ? '是' : '否'} />
-                  <MemoryMeta label="新鲜度" value={memoryFreshnessLabel(entry)} />
                   <MemoryMeta label="更新时间" value={entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : '未知'} />
                 </div>
                 {entry.summary && <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-secondary)]">{entry.summary}</div>}
@@ -919,6 +864,12 @@ function MemoryMeta({ label, value }: { label: string; value: string }) {
   )
 }
 
+function collapsedMemoryLayerLimit(layer: MemoryLayer): number {
+  if (layer === 'L4') return 6
+  if (layer === 'L1') return 1
+  return 8
+}
+
 function MemoryEventsPanel({
   events,
   path,
@@ -930,17 +881,37 @@ function MemoryEventsPanel({
   onRefresh: () => void
   isLoading: boolean
 }) {
+  const [showProcessEvents, setShowProcessEvents] = useState(false)
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+  const resultEvents = events.filter(isResultMemoryEvent)
+  const visibleSource = showProcessEvents || resultEvents.length === 0 ? events : resultEvents
+  const groupedEvents = useMemo(() => groupMemoryEventRecords(visibleSource), [visibleSource])
+  const visibleGroups = groupedEvents.slice(0, showProcessEvents ? 50 : 8)
+  const hiddenProcessCount = Math.max(0, events.length - resultEvents.length)
+  const hiddenVisibleCount = Math.max(0, groupedEvents.length - visibleGroups.length)
+
   return (
     <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">记忆更新记录</h3>
           <p className="mt-1 text-xs leading-5 text-[var(--color-text-tertiary)]">
-            记录会话结束抽取、L4 摘要、向量刷新、陈旧检测和自动沉淀结果。
+            默认按会话合并展示最近一次整理结果；展开卡片可以查看该会话下的模型抽取、跳过原因和整理明细。
           </p>
           {path && <p className="mt-1 truncate text-xs text-[var(--color-text-tertiary)]">{path}</p>}
         </div>
-        <Button size="sm" onClick={onRefresh} loading={isLoading}>刷新记录</Button>
+        <div className="flex flex-wrap gap-2">
+          {hiddenProcessCount > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowProcessEvents(value => !value)}
+            >
+              {showProcessEvents ? '隐藏过程' : `显示过程 ${hiddenProcessCount}`}
+            </Button>
+          )}
+          <Button size="sm" onClick={onRefresh} loading={isLoading}>刷新记录</Button>
+        </div>
       </div>
       {events.length === 0 ? (
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-tertiary)]">
@@ -948,55 +919,153 @@ function MemoryEventsPanel({
         </div>
       ) : (
         <div className="grid gap-2 md:grid-cols-2">
-          {events.slice(0, 12).map((event, index) => (
-            <div key={`${event.timestamp ?? index}-${event.event ?? 'event'}`} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 truncate text-sm font-medium text-[var(--color-text-primary)]">
-                  {memoryEventLabel(event)}
-                </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs ${event.ok === false || event.severity === 'error' ? 'bg-red-500/10 text-red-700' : event.severity === 'warn' ? 'bg-amber-500/10 text-amber-700' : 'bg-emerald-500/10 text-emerald-700'}`}>
-                  {event.ok === false || event.severity === 'error' ? '失败' : event.severity === 'warn' ? '提醒' : '正常'}
-                </span>
-              </div>
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-text-tertiary)]">
-                {event.timestamp && <span>{new Date(event.timestamp).toLocaleString()}</span>}
-                {typeof event.durationMs === 'number' && <span>{event.durationMs} ms</span>}
-              </div>
-              {event.error && <div className="mt-1 truncate text-xs text-[var(--color-error)]">{event.error}</div>}
-              {event.data && (
-                <div
-                  className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-[var(--color-text-tertiary)]"
-                  title={JSON.stringify(event.data, null, 2)}
+          {visibleGroups.map(group => {
+            const event = group.latest
+            const expanded = expandedGroups[group.key] ?? false
+            return (
+              <div key={group.key} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setExpandedGroups(prev => ({ ...prev, [group.key]: !expanded }))}
+                  className="flex w-full items-center justify-between gap-3 text-left"
                 >
-                  {formatMemoryEventData(event)}
+                  <div className="min-w-0 truncate text-sm font-medium text-[var(--color-text-primary)]">
+                    {group.title}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {group.events.length > 1 && (
+                      <span className="rounded-full bg-[var(--color-surface-container-low)] px-2 py-0.5 text-xs text-[var(--color-text-tertiary)]">
+                        {group.events.length} 条
+                      </span>
+                    )}
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${event.ok === false || event.severity === 'error' ? 'bg-red-500/10 text-red-700' : event.severity === 'warn' ? 'bg-amber-500/10 text-amber-700' : 'bg-emerald-500/10 text-emerald-700'}`}>
+                      {event.ok === false || event.severity === 'error' ? '失败' : event.severity === 'warn' ? '提醒' : '正常'}
+                    </span>
+                    <span className="material-symbols-outlined text-[18px] text-[var(--color-text-tertiary)]">{expanded ? 'expand_less' : 'expand_more'}</span>
+                  </div>
+                </button>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-text-tertiary)]">
+                  {event.timestamp && <span>{new Date(event.timestamp).toLocaleString()}</span>}
+                  {typeof event.durationMs === 'number' && <span>{event.durationMs} ms</span>}
+                  {!expanded && <span className="truncate">{memoryEventBrief(event)}</span>}
                 </div>
-              )}
-            </div>
-          ))}
+                {event.error && <div className="mt-1 truncate text-xs text-[var(--color-error)]" title={event.error}>{event.error}</div>}
+                {expanded && (
+                  <div className="mt-2 max-h-72 overflow-auto rounded-md bg-[var(--color-surface-container-low)] px-2 py-2">
+                    {group.events.map((item, itemIndex) => (
+                      <div
+                        key={memoryEventKey(item, itemIndex)}
+                        className={itemIndex > 0 ? 'mt-3 border-t border-[var(--color-border)] pt-3' : ''}
+                        title={JSON.stringify(item.data ?? {}, null, 2)}
+                      >
+                        <div className="mb-1 flex flex-wrap gap-2 text-xs text-[var(--color-text-tertiary)]">
+                          {item.timestamp && <span>{new Date(item.timestamp).toLocaleString()}</span>}
+                          {typeof item.durationMs === 'number' && <span>{item.durationMs} ms</span>}
+                        </div>
+                        <pre className="whitespace-pre-wrap break-words font-mono text-xs text-[var(--color-text-tertiary)]">
+                          {formatMemoryEventData(item)}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {hiddenVisibleCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowProcessEvents(true)}
+              className="rounded-lg border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 text-left text-sm text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)]"
+            >
+              展开剩余 {hiddenVisibleCount} 个会话
+            </button>
+          )}
         </div>
       )}
     </section>
   )
 }
 
-function memoryEventLabel(event: MemoryEvent): string {
-  const title = memoryEventSessionTitle(event.data)
-  if (title) return compactMemoryEventTitle(title)
-  const name = event.event ?? 'event'
-  switch (name) {
-    case 'scheduled':
-      return '已安排记忆抽取'
-    case 'started':
-      return '开始记忆抽取'
-    case 'completed':
-      return '记忆抽取完成'
-    case 'failed':
-      return '记忆抽取失败'
-    case 'cleanup/remove_failed':
-      return '清理旧记忆失败'
-    default:
-      return memoryEventName(event)
+type MemoryEventRecordGroup = {
+  key: string
+  title: string
+  latest: MemoryEvent
+  events: MemoryEvent[]
+}
+
+function groupMemoryEventRecords(events: MemoryEvent[]): MemoryEventRecordGroup[] {
+  const map = new Map<string, MemoryEventRecordGroup>()
+  for (const event of events) {
+    const key = memoryEventGroupKey(event)
+    const existing = map.get(key)
+    if (existing) {
+      existing.events.push(event)
+      continue
+    }
+    map.set(key, {
+      key,
+      title: compactMemoryEventTitle(memoryEventSessionTitle(event.data) || memoryEventName(event)),
+      latest: event,
+      events: [event],
+    })
   }
+  return Array.from(map.values())
+}
+
+function memoryEventGroupKey(event: MemoryEvent): string {
+  const data = event.data ?? {}
+  if (typeof data.sessionId === 'string' && data.sessionId) return `session:${data.sessionId}`
+  if (typeof data.entryId === 'string' && data.entryId.startsWith('session-')) return `session:${data.entryId.slice('session-'.length)}`
+  if (typeof data.entryId === 'string' && data.entryId) return `entry:${data.entryId}`
+  const title = memoryEventSessionTitle(data)
+  if (title) return `title:${title}`
+  return `event:${event.scope ?? ''}/${event.event ?? ''}/${event.timestamp ?? ''}`
+}
+function memoryEventKey(event: MemoryEvent, index: number): string {
+  return [
+    event.timestamp ?? index,
+    event.scope ?? '',
+    event.event ?? '',
+    typeof event.data?.sessionId === 'string' ? event.data.sessionId : '',
+  ].join('|')
+}
+
+function isResultMemoryEvent(event: MemoryEvent): boolean {
+  if (event.ok === false || event.severity === 'error' || event.severity === 'warn') return true
+  const key = `${event.scope ?? ''}/${event.event ?? ''}`
+  return [
+    '/completed',
+    '/failed',
+    'memoryV2.session/finalize_completed',
+    'memoryV2.session/finalize_skipped',
+    'memoryV2.session/finalize_failed',
+    'memoryV2.distill/model_extract_completed',
+    'memoryV2.distill/model_extract_skipped',
+    'memoryV2.distill/model_extract_failed',
+  ].includes(key)
+}
+
+function memoryEventBrief(event: MemoryEvent): string {
+  const data = event.data ?? {}
+  const title = memoryEventSessionTitle(data)
+  const result = data.result && typeof data.result === 'object'
+    ? data.result as Record<string, unknown>
+    : null
+  const parts: string[] = []
+  if (title) parts.push(`会话：${compactMemoryEventTitle(title)}`)
+  if (typeof data.reason === 'string') parts.push(`原因：${compactEventValue(data.reason)}`)
+  if (typeof data.decision === 'string') parts.push(`判断：${data.decision}`)
+  if (typeof data.acceptedCandidates === 'number') parts.push(`接受 ${data.acceptedCandidates}`)
+  if (typeof data.rawCandidates === 'number') parts.push(`返回 ${data.rawCandidates}`)
+  if (typeof data.messageCount === 'number') parts.push(`消息：${data.messageCount}`)
+  if (result) {
+    parts.push(`摘要 ${String(result.summaries ?? 0)}`)
+    parts.push(`候选 ${String(result.candidates ?? 0)}`)
+    parts.push(`写入 ${String(result.applied ?? 0)}`)
+  }
+  if (typeof event.error === 'string') parts.push(event.error)
+  return parts.join(' · ')
 }
 
 function formatMemoryEventData(event: MemoryEvent): string {
@@ -1007,19 +1076,46 @@ function formatMemoryEventData(event: MemoryEvent): string {
   lines.push(`事件：${memoryEventName(event)}`)
   if (typeof data.sessionId === 'string') lines.push(`ID：${data.sessionId}`)
   if (typeof data.reason === 'string') lines.push(`原因：${data.reason}`)
+  if (typeof data.skipped === 'string') lines.push(`跳过：${data.skipped}`)
   if (typeof data.messageCount === 'number') lines.push(`消息数：${data.messageCount}`)
+  if (typeof data.decision === 'string') lines.push(`模型判断：${data.decision}`)
+  if (typeof data.model === 'string') lines.push(`模型：${data.model}`)
+  if (typeof data.modelSource === 'string') lines.push(`模型来源：${data.modelSource}`)
+  if (typeof data.rawCandidates === 'number' || typeof data.acceptedCandidates === 'number') {
+    lines.push(`模型候选：返回=${String(data.rawCandidates ?? 0)}，接受=${String(data.acceptedCandidates ?? 0)}，拒绝=${String(data.rejectedCandidates ?? 0)}`)
+  }
+  appendStringArray(lines, '接受标题', data.acceptedTitles)
+  appendCandidateDetails(lines, data.candidateDetails)
+  if (typeof data.parsedJson === 'string') {
+    lines.push('模型 JSON：')
+    lines.push(data.parsedJson)
+  } else if (typeof data.modelOutput === 'string') {
+    lines.push('模型原始返回：')
+    lines.push(data.modelOutput)
+  }
+
   const result = data.result && typeof data.result === 'object'
     ? data.result as Record<string, unknown>
     : null
   if (result) {
-    const counts = ['summaries', 'stale', 'candidates', 'applied', 'skills']
-      .map(key => `${key}=${String(result[key] ?? 0)}`)
+    const counts = [
+      ['summaries', '摘要'],
+      ['candidates', '候选'],
+      ['applied', '写入'],
+      ['skills', '技能'],
+    ] as const
+    const summary = counts
+      .map(([key, label]) => `${label}=${String(result[key] ?? 0)}`)
       .join('，')
-    lines.push(`结果：${counts}`)
-    for (const key of ['summaryTitles', 'candidateTitles', 'appliedTitles']) {
+    lines.push(`结果：${summary}`)
+    for (const [key, label] of [
+      ['summaryTitles', '摘要标题'],
+      ['candidateTitles', '候选标题'],
+      ['appliedTitles', '写入标题'],
+    ] as const) {
       const value = result[key]
       if (Array.isArray(value) && value.length > 0) {
-        lines.push(`${key}：${value.map(String).join(' / ')}`)
+        lines.push(`${label}：${value.map(String).join(' / ')}`)
       }
     }
     if (typeof result.skipped === 'string') lines.push(`跳过：${result.skipped}`)
@@ -1027,6 +1123,31 @@ function formatMemoryEventData(event: MemoryEvent): string {
   if (lines.length > 0) return lines.join('\n')
   const text = JSON.stringify(data)
   return text.length > 420 ? `${text.slice(0, 417)}...` : text
+}
+
+function appendStringArray(lines: string[], label: string, value: unknown): void {
+  if (!Array.isArray(value) || value.length === 0) return
+  lines.push(`${label}：${value.map(String).join(' / ')}`)
+}
+
+function appendCandidateDetails(lines: string[], value: unknown): void {
+  if (!Array.isArray(value) || value.length === 0) return
+  lines.push('候选详情：')
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const record = item as Record<string, unknown>
+    const title = typeof record.title === 'string' ? record.title : '未命名'
+    const layer = typeof record.layer === 'string' ? record.layer : '未知层级'
+    const confidence = typeof record.confidence === 'number' ? `，置信度=${record.confidence}` : ''
+    const reason = typeof record.reason === 'string' ? `，原因=${record.reason}` : ''
+    lines.push(`- ${layer}：${title}${confidence}${reason}`)
+  }
+}
+
+function compactEventValue(value: string): string {
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  const chars = Array.from(normalized)
+  return chars.length > 28 ? `${chars.slice(0, 28).join('')}...` : normalized
 }
 
 function memoryEventSessionTitle(data: Record<string, unknown> | undefined): string | null {
@@ -1058,6 +1179,8 @@ function memoryEventName(event: MemoryEvent): string {
       return '开始整理会话记忆'
     case 'memoryV2.session/finalize_completed':
       return '会话记忆整理完成'
+    case 'memoryV2.session/finalize_skipped':
+      return '会话记忆无需更新'
     case 'memoryV2.session/finalize_failed':
       return '会话记忆整理失败'
     case 'memoryV2.automation/scheduled':
@@ -1069,11 +1192,11 @@ function memoryEventName(event: MemoryEvent): string {
     case 'memoryV2.automation/failed':
       return '自动记忆整理失败'
     case 'memoryV2.distill/model_extract_completed':
-      return '长期记忆抽取完成'
+      return '模型抽取结果'
     case 'memoryV2.distill/model_extract_skipped':
-      return '长期记忆抽取跳过'
+      return '模型抽取跳过'
     case 'memoryV2.distill/model_extract_failed':
-      return '长期记忆抽取失败'
+      return '模型抽取失败'
     default:
       return [event.scope, event.event].filter(Boolean).join(' / ') || 'memory'
   }

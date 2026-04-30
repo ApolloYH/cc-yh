@@ -46,6 +46,7 @@ const sessionStopRequested = new Set<string>()
 const sessionTitleState = new Map<string, {
   userMessageCount: number
   hasCustomTitle: boolean
+  generatedTitleThisConnection: boolean
   firstUserMessage: string
   allUserMessages: string[]
 }>()
@@ -244,7 +245,13 @@ async function handleUserMessage(
   // Track user message for title generation
   let titleState = sessionTitleState.get(sessionId)
   if (!titleState) {
-    titleState = { userMessageCount: 0, hasCustomTitle: false, firstUserMessage: '', allUserMessages: [] }
+    titleState = {
+      userMessageCount: 0,
+      hasCustomTitle: false,
+      generatedTitleThisConnection: false,
+      firstUserMessage: '',
+      allUserMessages: [],
+    }
     sessionTitleState.set(sessionId, titleState)
   }
   titleState.userMessageCount++
@@ -276,7 +283,7 @@ async function handleUserMessage(
     }
     // Trigger title generation on message_complete
     if (cliMsg.type === 'result') {
-      triggerTitleGeneration(ws, sessionId)
+      void triggerTitleGeneration(ws, sessionId)
     }
   })
 
@@ -399,9 +406,10 @@ function handleStopGeneration(ws: ServerWebSocket<WebSocketData>) {
 // Title generation
 // ============================================================================
 
-function triggerTitleGeneration(ws: ServerWebSocket<WebSocketData>, sessionId: string): void {
+async function triggerTitleGeneration(ws: ServerWebSocket<WebSocketData>, sessionId: string): Promise<void> {
   const state = sessionTitleState.get(sessionId)
   if (!state || state.hasCustomTitle) return
+  if (!state.generatedTitleThisConnection && await sessionService.hasSavedTitle(sessionId)) return
 
   const count = state.userMessageCount
 
@@ -420,6 +428,7 @@ function triggerTitleGeneration(ws: ServerWebSocket<WebSocketData>, sessionId: s
         const placeholder = deriveTitle(text)
         if (placeholder) {
           await saveAiTitle(sessionId, placeholder)
+          state.generatedTitleThisConnection = true
           sendMessage(ws, { type: 'session_title_updated', sessionId, title: placeholder })
         }
       }
@@ -428,6 +437,7 @@ function triggerTitleGeneration(ws: ServerWebSocket<WebSocketData>, sessionId: s
       const aiTitle = await generateTitle(text)
       if (aiTitle) {
         await saveAiTitle(sessionId, aiTitle)
+        state.generatedTitleThisConnection = true
         sendMessage(ws, { type: 'session_title_updated', sessionId, title: aiTitle })
       }
     } catch (err) {

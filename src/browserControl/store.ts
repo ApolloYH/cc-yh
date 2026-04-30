@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
+import { stripBOM } from '../utils/jsonRead.js'
 import {
   DEFAULT_BROWSER_CONTROL_POLICY,
   normalizeBrowserDomain,
@@ -63,7 +64,7 @@ export function normalizeBrowserControlPolicy(
 async function readSettings(): Promise<Record<string, unknown>> {
   try {
     const raw = await fs.readFile(getSettingsPath(), 'utf-8')
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(stripBOM(raw))
     return isRecord(parsed) ? parsed : {}
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}

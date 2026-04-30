@@ -92,21 +92,21 @@ function generateReservedShortcuts(): string {
 
   lines.push('### Non-rebindable (errors)')
   for (const s of NON_REBINDABLE) {
-    lines.push(`- \`${s.key}\` 鈥?${s.reason}`)
+    lines.push(`- \`${s.key}\` —${s.reason}`)
   }
 
   lines.push('')
   lines.push('### Terminal reserved (errors/warnings)')
   for (const s of TERMINAL_RESERVED) {
     lines.push(
-      `- \`${s.key}\` 鈥?${s.reason} (${s.severity === 'error' ? 'will not work' : 'may conflict'})`,
+      `- \`${s.key}\` —${s.reason} (${s.severity === 'error' ? 'will not work' : 'may conflict'})`,
     )
   }
 
   lines.push('')
   lines.push('### macOS reserved (errors)')
   for (const s of MACOS_RESERVED) {
-    lines.push(`- \`${s.key}\` 鈥?${s.reason}`)
+    lines.push(`- \`${s.key}\` —${s.reason}`)
   }
 
   return lines.join('\n')
@@ -154,7 +154,7 @@ const SECTION_INTRO = [
   '',
   '## CRITICAL: Read Before Write',
   '',
-  '**Always read `~/.claude-yh/keybindings.json` first** (it may not exist yet). Merge changes with existing bindings 鈥?never replace the entire file.',
+  '**Always read `~/.claude-yh/keybindings.json` first** (it may not exist yet). Merge changes with existing bindings —never replace the entire file.',
   '',
   '- Use **Edit** tool for modifications to existing files',
   '- Use **Write** tool only if the file does not exist yet',
@@ -175,7 +175,7 @@ const SECTION_KEYSTROKE_SYNTAX = [
   '',
   '**Modifiers** (combine with `+`):',
   '- `ctrl` (alias: `control`)',
-  '- `alt` (aliases: `opt`, `option`) 鈥?note: `alt` and `meta` are identical in terminals',
+  '- `alt` (aliases: `opt`, `option`) —note: `alt` and `meta` are identical in terminals',
   '- `shift`',
   '- `meta` (aliases: `cmd`, `command`)',
   '',
@@ -199,7 +199,7 @@ const SECTION_UNBINDING = [
 const SECTION_INTERACTION = [
   '## How User Bindings Interact with Defaults',
   '',
-  '- User bindings are **additive** 鈥?they are appended after the default bindings',
+  '- User bindings are **additive** —they are appended after the default bindings',
   '- To **move** a binding to a different key: unbind the old key (`null`) AND add the new binding',
   "- A context only needs to appear in the user's file if they want to change something in that context",
 ].join('\n')
@@ -283,7 +283,7 @@ const SECTION_DOCTOR = [
   'Keybinding Configuration Issues',
   'Location: ~/.claude-yh/keybindings.json',
   '  鈹?[Error] Unknown context "chat"',
-  '    鈫?Valid contexts: Global, Chat, Autocomplete, ...',
+  '    →Valid contexts: Global, Chat, Autocomplete, ...',
   '  鈹?[Warning] "ctrl+c" may not work: Terminal interrupt (SIGINT)',
   '```',
   '',

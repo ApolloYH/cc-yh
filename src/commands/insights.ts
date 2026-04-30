@@ -438,11 +438,11 @@ CRITICAL GUIDELINES:
    - ONLY count when user says "can you...", "please...", "I need...", "let's..."
 
 2. **user_satisfaction_counts**: Base ONLY on explicit user signals.
-   - "Yay!", "great!", "perfect!" 鈫?happy
-   - "thanks", "looks good", "that works" 鈫?satisfied
-   - "ok, now let's..." (continuing without complaint) 鈫?likely_satisfied
-   - "that's not right", "try again" 鈫?dissatisfied
-   - "this is broken", "I give up" 鈫?frustrated
+   - "Yay!", "great!", "perfect!" →happy
+   - "thanks", "looks good", "that works" →satisfied
+   - "ok, now let's..." (continuing without complaint) →likely_satisfied
+   - "that's not right", "try again" →dissatisfied
+   - "this is broken", "I give up" →frustrated
 
 3. **friction_counts**: Be specific about what went wrong.
    - misunderstood_request: Claude interpreted incorrectly
@@ -1956,7 +1956,7 @@ function generateHtmlReport(
       .map(p => {
         let html = escapeHtml(p)
         html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        html = html.replace(/^- /gm, '鈥?')
+        html = html.replace(/^- /gm, '—')
         html = html.replace(/\n/g, '<br>')
         return `<p>${html}</p>`
       })
@@ -1970,10 +1970,10 @@ function generateHtmlReport(
     <div class="at-a-glance">
       <div class="glance-title">At a Glance</div>
       <div class="glance-sections">
-        ${atAGlance.whats_working ? `<div class="glance-section"><strong>What's working:</strong> ${escapeHtmlWithBold(atAGlance.whats_working)} <a href="#section-wins" class="see-more">Impressive Things You Did 鈫?/a></div>` : ''}
-        ${atAGlance.whats_hindering ? `<div class="glance-section"><strong>What's hindering you:</strong> ${escapeHtmlWithBold(atAGlance.whats_hindering)} <a href="#section-friction" class="see-more">Where Things Go Wrong 鈫?/a></div>` : ''}
-        ${atAGlance.quick_wins ? `<div class="glance-section"><strong>Quick wins to try:</strong> ${escapeHtmlWithBold(atAGlance.quick_wins)} <a href="#section-features" class="see-more">Features to Try 鈫?/a></div>` : ''}
-        ${atAGlance.ambitious_workflows ? `<div class="glance-section"><strong>Ambitious workflows:</strong> ${escapeHtmlWithBold(atAGlance.ambitious_workflows)} <a href="#section-horizon" class="see-more">On the Horizon 鈫?/a></div>` : ''}
+        ${atAGlance.whats_working ? `<div class="glance-section"><strong>What's working:</strong> ${escapeHtmlWithBold(atAGlance.whats_working)} <a href="#section-wins" class="see-more">Impressive Things You Did →/a></div>` : ''}
+        ${atAGlance.whats_hindering ? `<div class="glance-section"><strong>What's hindering you:</strong> ${escapeHtmlWithBold(atAGlance.whats_hindering)} <a href="#section-friction" class="see-more">Where Things Go Wrong →/a></div>` : ''}
+        ${atAGlance.quick_wins ? `<div class="glance-section"><strong>Quick wins to try:</strong> ${escapeHtmlWithBold(atAGlance.quick_wins)} <a href="#section-features" class="see-more">Features to Try →/a></div>` : ''}
+        ${atAGlance.ambitious_workflows ? `<div class="glance-section"><strong>Ambitious workflows:</strong> ${escapeHtmlWithBold(atAGlance.ambitious_workflows)} <a href="#section-horizon" class="see-more">On the Horizon →/a></div>` : ''}
       </div>
     </div>
     `
@@ -2812,11 +2812,11 @@ export async function generateUsageReport(options?: {
     remoteStats = { hosts, totalCopied }
   }
 
-  // Phase 1: Lite scan 鈥?filesystem metadata only (no JSONL parsing)
+  // Phase 1: Lite scan —filesystem metadata only (no JSONL parsing)
   const allScannedSessions = await scanAllSessions()
   const totalSessionsScanned = allScannedSessions.length
 
-  // Phase 2: Load SessionMeta 鈥?use cache where available, parse only uncached
+  // Phase 2: Load SessionMeta —use cache where available, parse only uncached
   // Read cached metas in parallel batches to avoid blocking the event loop
   const META_BATCH_SIZE = 50
   const MAX_SESSIONS_TO_LOAD = 200
@@ -2927,7 +2927,7 @@ export async function generateUsageReport(options?: {
 
   const substantiveMetas = allMetas.filter(isSubstantiveSession)
 
-  // Phase 3: Facet extraction 鈥?only for sessions without cached facets
+  // Phase 3: Facet extraction —only for sessions without cached facets
   const facets = new Map<string, SessionFacets>()
   const toExtract: Array<{ log: LogOption; sessionId: string }> = []
   const MAX_FACET_EXTRACTIONS = 50
@@ -3104,14 +3104,14 @@ Then access at: ${s3Url}`
     const sessionLabel =
       data.total_sessions_scanned &&
       data.total_sessions_scanned > data.total_sessions
-        ? `${data.total_sessions_scanned.toLocaleString()} sessions total 路 ${data.total_sessions} analyzed`
+        ? `${data.total_sessions_scanned.toLocaleString()} sessions total · ${data.total_sessions} analyzed`
         : `${data.total_sessions} sessions`
     const stats = [
       sessionLabel,
       `${data.total_messages.toLocaleString()} messages`,
       `${Math.round(data.total_duration_hours)}h`,
       `${data.git_commits} commits`,
-    ].join(' 路 ')
+    ].join(' · ')
 
     // Build remote host info (ant-only)
     let remoteInfo = ''

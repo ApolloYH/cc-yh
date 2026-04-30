@@ -33,9 +33,9 @@ export const BRIDGE_FAILURE_DISMISS_MS = 10_000;
  * Max consecutive initReplBridge failures before the hook stops re-attempting
  * for the session lifetime. Guards against paths that flip replBridgeEnabled
  * back on after auto-disable (settings sync, /remote-control, config tool)
- * when the underlying OAuth is unrecoverable 鈥?each re-attempt is another
+ * when the underlying OAuth is unrecoverable —each re-attempt is another
  * guaranteed 401 against POST /v1/environments/bridge. Datadog 2026-03-08:
- * top stuck client generated 2,879 脳 401/day alone (17% of all 401s on the
+ * top stuck client generated 2,879 × 401/day alone (17% of all 401s on the
  * route).
  */
 const MAX_CONSECUTIVE_INIT_FAILURES = 3;
@@ -46,7 +46,7 @@ const MAX_CONSECUTIVE_INIT_FAILURES = 3;
  *
  * Silently skips if bridge is not enabled or user is not OAuth-authenticated.
  *
- * Watches AppState.replBridgeEnabled 鈥?when toggled off (via /config or footer),
+ * Watches AppState.replBridgeEnabled —when toggled off (via /config or footer),
  * the bridge is torn down. When toggled back on, it re-initializes.
  *
  * Inbound messages from claude.ai are injected into the REPL via queuedCommands.
@@ -58,12 +58,12 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
   const teardownPromiseRef = useRef<Promise<void> | undefined>(undefined);
   const lastWrittenIndexRef = useRef(0);
   // Tracks UUIDs already flushed as initial messages. Persists across
-  // bridge reconnections so Bridge #2+ only sends new messages 鈥?sending
+  // bridge reconnections so Bridge #2+ only sends new messages —sending
   // duplicate UUIDs causes the server to kill the WebSocket.
   const flushedUUIDsRef = useRef(new Set<string>());
   const failureTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Persists across effect re-runs (unlike the effect's local state). Reset
-  // only on successful init. Hits MAX_CONSECUTIVE_INIT_FAILURES 鈫?fuse blown
+  // only on successful init. Hits MAX_CONSECUTIVE_INIT_FAILURES →fuse blown
   // for the session, regardless of replBridgeEnabled re-toggling.
   const consecutiveFailuresRef = useRef(0);
   const setAppState = useSetAppState();
@@ -94,7 +94,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
   // Passes current messages as initialMessages so the remote session
   // starts with the existing conversation context (e.g. from /bridge).
   useEffect(() => {
-    // feature() check must use positive pattern for dead code elimination 鈥?
+    // feature() check must use positive pattern for dead code elimination —
     // negative pattern (if (!feature(...)) return) does NOT eliminate
     // dynamic imports below.
     if (feature('BRIDGE_MODE')) {
@@ -106,7 +106,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
           key: 'bridge-failed',
           jsx: <>
               <Text color="error">Remote Control failed</Text>
-              {detail && <Text dimColor> 路 {detail}</Text>}
+              {detail && <Text dimColor> · {detail}</Text>}
             </>,
           priority: 'immediate'
         });
@@ -115,7 +115,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
         logForDebugging(`[bridge:repl] Hook: ${consecutiveFailuresRef.current} consecutive init failures, not retrying this session`);
         // Clear replBridgeEnabled so /remote-control doesn't mistakenly show
         // BridgeDisconnectDialog for a bridge that never connected.
-        const fuseHint = 'disabled after repeated failures 路 restart to retry';
+        const fuseHint = 'disabled after repeated failures · restart to retry';
         notifyBridgeFailed(fuseHint);
         setAppState(prev => {
           if (prev.replBridgeError === fuseHint && !prev.replBridgeEnabled) return prev;
@@ -153,7 +153,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
             shouldShowAppUpgradeMessage
           } = await import('../bridge/envLessBridgeConfig.js');
 
-          // Assistant mode: perpetual bridge session 鈥?claude.ai shows one
+          // Assistant mode: perpetual bridge session —claude.ai shows one
           // continuous conversation across CLI restarts instead of a new
           // session per invocation. initBridgeCore reads bridge-pointer.json
           // (the same crash-recovery file #20735 added) and reuses its
@@ -172,11 +172,11 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
 
           // When a user message arrives from claude.ai, inject it into the REPL.
           // Preserves the original UUID so that when the message is forwarded
-          // back to CCR, it matches the original 鈥?avoiding duplicate messages.
+          // back to CCR, it matches the original —avoiding duplicate messages.
           //
           // Async because file_attachments (if present) need a network fetch +
           // disk write before we enqueue with the @path prefix. Caller doesn't
-          // await 鈥?messages with attachments just land in the queue slightly
+          // await —messages with attachments just land in the queue slightly
           // later, which is fine (web messages aren't rapid-fire).
           async function handleInboundMessage(msg: SDKMessage): Promise<void> {
             try {
@@ -206,7 +206,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
                 value: content,
                 mode: 'prompt' as const,
                 uuid,
-                // skipSlashCommands stays true as defense-in-depth 鈥?
+                // skipSlashCommands stays true as defense-in-depth —
                 // processUserInputBase overrides it internally when bridgeOrigin
                 // is set AND the resolved command passes isBridgeSafeCommand.
                 // This keeps exit-word suppression and immediate-command blocks
@@ -221,7 +221,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
             }
           }
 
-          // State change callback 鈥?maps bridge lifecycle events to AppState.
+          // State change callback —maps bridge lifecycle events to AppState.
           function handleStateChange(state: BridgeState, detail_0?: string): void {
             if (cancelled) return;
             if (outboundOnly) {
@@ -284,8 +284,8 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
                     };
                   });
                   // Send system/init so remote clients (web/iOS/Android) get
-                  // session metadata. REPL uses query() directly 鈥?never hits
-                  // QueryEngine's SDKMessage layer 鈥?so this is the only path
+                  // session metadata. REPL uses query() directly —never hits
+                  // QueryEngine's SDKMessage layer —so this is the only path
                   // to put system/init on the REPL-bridge wire. Skills load is
                   // async (memoized, cheap after REPL startup); fire-and-forget
                   // so the connected-state transition isn't blocked.
@@ -300,16 +300,16 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
                           // MCP-prefixed tool names and server names leak which
                           // integrations the user has wired up; plugin paths leak
                           // raw filesystem paths (username, project structure).
-                          // CCR v2 persists SDK messages to Spanner 鈥?users who
+                          // CCR v2 persists SDK messages to Spanner —users who
                           // tap "Connect from phone" may not expect these on
                           // Anthropic's servers. QueryEngine (SDK) still emits
-                          // full lists 鈥?SDK consumers expect full telemetry.
+                          // full lists —SDK consumers expect full telemetry.
                           tools: [],
                           mcpClients: [],
                           model: mainLoopModelRef.current,
                           permissionMode: state_0.toolPermissionContext.mode as PermissionMode,
                           // TODO: avoid the cast
-                          // Remote clients can only invoke bridge-safe commands 鈥?
+                          // Remote clients can only invoke bridge-safe commands —
                           // advertising unsafe ones (local-jsx, unallowed local)
                           // would let mobile/web attempt them and hit errors.
                           commands: commandsRef.current.filter(isBridgeSafeCommand),
@@ -415,13 +415,13 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
               });
             },
             onSetPermissionMode(mode) {
-              // Policy guards MUST fire before transitionPermissionMode 鈥?
+              // Policy guards MUST fire before transitionPermissionMode —
               // its internal auto-gate check is a defensive throw (with a
               // setAutoModeActive(true) side-effect BEFORE the throw) rather
               // than a graceful reject. Letting that throw escape would:
               // (1) leave STATE.autoModeActive=true while the mode is
               //     unchanged (3-way invariant violation per src/CLAUDE.md)
-              // (2) fail to send a control_response 鈫?server kills WS
+              // (2) fail to send a control_response →server kills WS
               // These mirror print.ts handleSetPermissionMode; the bridge
               // can't import the checks directly (bootstrap-isolation), so
               // it relies on this verdict to emit the error response.
@@ -446,7 +446,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
                   error: reason ? `Cannot set permission mode to auto: ${getAutoModeUnavailableNotification(reason)}` : 'Cannot set permission mode to auto'
                 };
               }
-              // Guards passed 鈥?apply via the centralized transition so
+              // Guards passed —apply via the centralized transition so
               // prePlanMode stashing and auto-mode state sync all fire.
               setAppState(prev_12 => {
                 const current = prev_12.toolPermissionContext.mode;
@@ -491,10 +491,10 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
             return;
           }
           if (!handle_0) {
-            // initReplBridge returned null 鈥?a precondition failed. For most
+            // initReplBridge returned null —a precondition failed. For most
             // cases (no_oauth, policy_denied, etc.) onStateChange('failed')
             // already fired with a specific hint. The GrowthBook-gate-off case
-            // is intentionally silent 鈥?not a failure, just not rolled out.
+            // is intentionally silent —not a failure, just not rolled out.
             consecutiveFailuresRef.current++;
             logForDebugging(`[bridge:repl] Init returned null (precondition or session creation failed); consecutive failures: ${consecutiveFailuresRef.current}`);
             clearTimeout(failureTimeoutRef.current);
@@ -519,7 +519,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
           handleRef.current = handle_0;
           setReplBridgeHandle(handle_0);
           consecutiveFailuresRef.current = 0;
-          // Skip initial messages in the forwarding effect 鈥?they were
+          // Skip initial messages in the forwarding effect —they were
           // already loaded as session events during creation.
           lastWrittenIndexRef.current = initialMessageCount;
           if (outboundOnly) {
@@ -606,7 +606,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
             });
 
             // Show bridge status with URL in the transcript. perpetual (KAIROS
-            // assistant mode) falls back to v1 at initReplBridge.ts 鈥?skip the
+            // assistant mode) falls back to v1 at initReplBridge.ts —skip the
             // v2-only upgrade nudge for them. Own try/catch so a cosmetic
             // GrowthBook hiccup doesn't hit the outer init-failure handler.
             const upgradeNudge = !perpetual ? await shouldShowAppUpgradeMessage().catch(() => false) : false;
@@ -615,7 +615,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
             logForDebugging(`[bridge:repl] Hook initialized, session=${handle_0.bridgeSessionId}`);
           }
         } catch (err) {
-          // Never crash the REPL 鈥?surface the error in the UI.
+          // Never crash the REPL —surface the error in the UI.
           // Check cancelled first (symmetry with the !handle path at line ~386):
           // if initReplBridge threw during rapid toggle-off (in-flight network
           // error), don't count that toward the fuse or spam a stale error
@@ -684,7 +684,7 @@ export function useReplBridge(messages: Message[], setMessages: (action: React.S
   // Also re-runs when replBridgeConnected changes (bridge finishes init),
   // so any messages that arrived before the bridge was ready get written.
   useEffect(() => {
-    // Positive feature() guard 鈥?see first useEffect comment
+    // Positive feature() guard —see first useEffect comment
     if (feature('BRIDGE_MODE')) {
       if (!replBridgeConnected) return;
       const handle_1 = handleRef.current;

@@ -218,7 +218,7 @@ export function getMcpServerSignature(config: McpServerConfig): string | null {
  * Manual wins over plugin; between plugins, first-loaded wins.
  *
  * Plugin servers are namespaced `plugin:name:server` so they never key-collide
- * with manual servers in the merge 鈥?this content-based check catches the case
+ * with manual servers in the merge —this content-based check catches the case
  * where both actually launch the same underlying process/connection.
  */
 export function dedupPluginMcpServers(
@@ -272,11 +272,11 @@ export function dedupPluginMcpServers(
  * `claude-yh mcp add` expressed higher intent than a connector toggled in the web UI.
  *
  * Connector keys are `claude.ai <DisplayName>` so they never key-collide with
- * manual servers in the merge 鈥?this content-based check catches the case where
+ * manual servers in the merge —this content-based check catches the case where
  * both point at the same underlying URL (e.g. `mcp__slack__*` and
  * `mcp__claude_ai_Slack__*` both hitting mcp.slack.com, ~600 chars/turn wasted).
  *
- * Only enabled manual servers count as dedup targets 鈥?a disabled manual server
+ * Only enabled manual servers count as dedup targets —a disabled manual server
  * mustn't suppress its connector twin, or neither runs.
  */
 export function dedupClaudeAiMcpServers(
@@ -348,7 +348,7 @@ function getMcpAllowlistSettings(): SettingsJson {
 
 /**
  * Get the settings to use for MCP server denylist policy.
- * Denylists always merge from all sources 鈥?users can always deny servers
+ * Denylists always merge from all sources —users can always deny servers
  * for themselves, even when allowManagedMcpServersOnly is set.
  */
 function getMcpDenylistSettings(): SettingsJson {
@@ -517,7 +517,7 @@ function isMcpServerAllowedByPolicy(
  * in getClaudeCodeMcpConfigs(): --mcp-config (main.tsx) and the mcp_set_servers
  * control message (print.ts, SDK V2 Query.setMcpServers()).
  *
- * SDK-type servers are exempt 鈥?they are SDK-managed transport placeholders,
+ * SDK-type servers are exempt —they are SDK-managed transport placeholders,
  * not CLI-managed connections. The CLI never spawns a process or opens a
  * network connection for them; tool calls route back to the SDK via
  * mcp_tool_call. URL/command-based allowlist entries are meaningless for them
@@ -529,7 +529,7 @@ function isMcpServerAllowedByPolicy(
  * args: string[] required), print.ts uses McpServerConfigForProcessTransport
  * (SDK wire type, args?: string[] optional). Both are structurally compatible
  * with what isMcpServerAllowedByPolicy actually reads (type/url/command/args)
- * 鈥?the policy check only reads, never requires any field to be present.
+ * —the policy check only reads, never requires any field to be present.
  * The `as McpServerConfig` widening is safe for that reason; the downstream
  * checks tolerate missing/undefined fields: `config` is optional, and
  * `getServerCommandArray` defaults `args` to `[]` via `?? []`.
@@ -1033,7 +1033,7 @@ export function getMcpConfigByName(name: string): ScopedMcpServerConfig | null {
   const { servers: enterpriseServers } = getMcpConfigsByScope('enterprise')
 
   // When MCP is locked to plugin-only, only enterprise servers are reachable
-  // by name. User/project/local servers are blocked 鈥?same as getClaudeCodeMcpConfigs().
+  // by name. User/project/local servers are blocked —same as getClaudeCodeMcpConfigs().
   if (isRestrictedToPluginOnly('mcp')) {
     return enterpriseServers[name] ?? null
   }
@@ -1060,7 +1060,7 @@ export function getMcpConfigByName(name: string): ScopedMcpServerConfig | null {
 
 /**
  * Get Claude Code MCP configurations (excludes claude.ai servers from the
- * returned set 鈥?they're fetched separately and merged by callers).
+ * returned set —they're fetched separately and merged by callers).
  * This is fast: only local file reads; no awaited network calls on the
  * critical path. The optional extraDedupTargets promise (e.g. the in-flight
  * claude.ai connector fetch) is awaited only after loadAllPluginsCacheOnly() completes,
@@ -1094,7 +1094,7 @@ export async function getClaudeCodeMcpConfigs(
     return { servers: filtered, errors: [] }
   }
 
-  // Load other scopes 鈥?unless the managed policy locks MCP to plugin-only.
+  // Load other scopes —unless the managed policy locks MCP to plugin-only.
   // Unlike the enterprise-exclusive block above, this keeps plugin servers.
   const mcpLocked = isRestrictedToPluginOnly('mcp')
   const noServers: { servers: Record<string, ScopedMcpServerConfig> } = {
@@ -1170,9 +1170,9 @@ export async function getClaudeCodeMcpConfigs(
 
   // Dedup plugin servers against manually-configured ones (and each other).
   // Plugin server keys are namespaced `plugin:x:y` so they never collide with
-  // manual keys in the merge below 鈥?this content-based filter catches the case
+  // manual keys in the merge below —this content-based filter catches the case
   // where both would launch the same underlying process/connection.
-  // Only servers that will actually connect are valid dedup targets 鈥?a
+  // Only servers that will actually connect are valid dedup targets —a
   // disabled manual server mustn't suppress a plugin server, or neither runs
   // (manual is skipped by name at connection time; plugin was removed here).
   const extraTargets = await extraDedupTargets
@@ -1192,7 +1192,7 @@ export async function getClaudeCodeMcpConfigs(
     }
   }
   // Split off disabled/policy-blocked plugin servers so they don't win the
-  // first-plugin-wins race against an enabled duplicate 鈥?same invariant as
+  // first-plugin-wins race against an enabled duplicate —same invariant as
   // above. They're merged back after dedup so they still appear in /mcp
   // (policy filtering at the end of this function drops blocked ones).
   const enabledPluginServers: Record<string, ScopedMcpServerConfig> = {}
@@ -1213,7 +1213,7 @@ export async function getClaudeCodeMcpConfigs(
   )
   Object.assign(dedupedPluginServers, disabledPluginServers)
   // Surface suppressions in /plugin UI. Pushed AFTER the logError loop above
-  // so these don't go to the error log 鈥?they're informational, not errors.
+  // so these don't go to the error log —they're informational, not errors.
   for (const { name, duplicateOf } of suppressed) {
     // name is "plugin:${pluginName}:${serverName}" from addPluginScopeToServers
     const parts = name.split(':')
@@ -1264,7 +1264,7 @@ export async function getAllMcpConfigs(): Promise<{
   }
 
   // Kick off the claude.ai fetch before getClaudeCodeMcpConfigs so it overlaps
-  // with loadAllPluginsCacheOnly() inside. Memoized 鈥?the awaited call below is a cache hit.
+  // with loadAllPluginsCacheOnly() inside. Memoized —the awaited call below is a cache hit.
   const claudeaiPromise = fetchClaudeAIMcpConfigsIfEligible()
   const { servers: claudeCodeServers, errors } = await getClaudeCodeMcpConfigs(
     {},
@@ -1276,7 +1276,7 @@ export async function getAllMcpConfigs(): Promise<{
 
   // Suppress claude.ai connectors that duplicate an enabled manual server.
   // Keys never collide (`slack` vs `claude.ai Slack`) so the merge below
-  // won't catch this 鈥?need content-based dedup by URL signature.
+  // won't catch this —need content-based dedup by URL signature.
   const { servers: dedupedClaudeAi } = dedupClaudeAiMcpServers(
     claudeaiMcpServers,
     claudeCodeServers,
@@ -1514,7 +1514,7 @@ const DEFAULT_DISABLED_BUILTIN = (
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 function isDefaultDisabledBuiltin(_name: string): boolean {
-  return false // Computer Use 榛樿鍚敤锛屾棤闇€鐢ㄦ埛鎵嬪姩 enable
+  return false // Computer Use is enabled by default; no manual user enable is required.
 }
 
 /**

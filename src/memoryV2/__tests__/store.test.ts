@@ -3,7 +3,6 @@ import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import {
-  detectMemoryV2Stale,
   generateMemoryV2DistillCandidates,
   readMemoryV2Entry,
   searchMemoryV2,
@@ -18,24 +17,20 @@ import { getAutoMemPath } from '../../memdir/paths.js'
 let tmpDir: string
 let originalConfigDir: string | undefined
 let originalMemoryOverride: string | undefined
-let originalEmbeddingApiKey: string | undefined
-let originalEmbeddingProvider: string | undefined
 let originalDisableMainModel: string | undefined
 let originalImportLegacyMemory: string | undefined
+let originalFetch: typeof globalThis.fetch
 
 describe('MemoryV2 store', () => {
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memory-v2-'))
     originalConfigDir = process.env.CLAUDE_CONFIG_DIR
     originalMemoryOverride = process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
-    originalEmbeddingApiKey = process.env.CLAUDE_YH_EMBEDDING_API_KEY
-    originalEmbeddingProvider = process.env.CLAUDE_YH_EMBEDDING_PROVIDER
     originalDisableMainModel = process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION
     originalImportLegacyMemory = process.env.CLAUDE_YH_IMPORT_LEGACY_MEMORY
+    originalFetch = globalThis.fetch
     process.env.CLAUDE_CONFIG_DIR = tmpDir
     process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = path.join(tmpDir, 'project-memory')
-    delete process.env.CLAUDE_YH_EMBEDDING_API_KEY
-    delete process.env.CLAUDE_YH_EMBEDDING_PROVIDER
     delete process.env.CLAUDE_YH_IMPORT_LEGACY_MEMORY
     process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION = '1'
     getAutoMemPath.cache.clear?.()
@@ -46,14 +41,11 @@ describe('MemoryV2 store', () => {
     else process.env.CLAUDE_CONFIG_DIR = originalConfigDir
     if (originalMemoryOverride === undefined) delete process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
     else process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = originalMemoryOverride
-    if (originalEmbeddingApiKey === undefined) delete process.env.CLAUDE_YH_EMBEDDING_API_KEY
-    else process.env.CLAUDE_YH_EMBEDDING_API_KEY = originalEmbeddingApiKey
-    if (originalEmbeddingProvider === undefined) delete process.env.CLAUDE_YH_EMBEDDING_PROVIDER
-    else process.env.CLAUDE_YH_EMBEDDING_PROVIDER = originalEmbeddingProvider
     if (originalDisableMainModel === undefined) delete process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION
     else process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION = originalDisableMainModel
     if (originalImportLegacyMemory === undefined) delete process.env.CLAUDE_YH_IMPORT_LEGACY_MEMORY
     else process.env.CLAUDE_YH_IMPORT_LEGACY_MEMORY = originalImportLegacyMemory
+    globalThis.fetch = originalFetch
     getAutoMemPath.cache.clear?.()
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
@@ -74,21 +66,90 @@ describe('MemoryV2 store', () => {
 
     const status = await getMemoryV2Status()
     expect(status.entries).toHaveLength(2)
-    expect(status.vectorProvider).toBe('faiss')
-    expect(status.embeddingProvider).toBe('local')
-    expect(status.embeddingMethod).toBe('faiss-local-embedding')
     expect(status.root).toBe(path.join(tmpDir, 'project-memory'))
     expect(status.indexPath).toBe(path.join(tmpDir, 'project-memory', 'MEMORY.md'))
     const index = await fs.readFile(status.indexPath, 'utf-8')
-    expect(index).toContain('L1 存在性索引')
-    expect(index).toContain('L2 facts `facts/`')
-    expect(index).toContain('L3 SOP `sops/`')
-    expect(index).toContain('L3 Skills `sops/skills/`')
+    expect(index).toContain('角色定位：')
+    expect(index).toContain('L2 facts：')
+    expect(index).toContain('细节见 `facts/`')
+    expect(index).toContain('L3 SOP：')
+    expect(index).toContain('细节见 `sops/`')
     expect(index).toContain('Provider base URL')
     expect(index).toContain('Provider smoke test')
     expect(index).not.toContain('[Provider base URL](facts/provider-base-url.md)')
     expect(index).not.toContain('## 沉淀规则')
     expect(index.split(/\r?\n/).length).toBeLessThanOrEqual(14)
+    expect(index).not.toMatch(/\n\s*\n/)
+
+    const factMarkdown = await fs.readFile(path.join(tmpDir, 'project-memory', 'facts', 'provider-base-url.md'), 'utf-8')
+    expect(factMarkdown).not.toMatch(/\n\s*\n/)
+  })
+
+  it('keeps skills out of L1 because skill listing owns callable skill metadata', async () => {
+    const root = path.join(tmpDir, 'project-memory')
+    for (let index = 0; index < 16; index += 1) {
+      const skillDir = path.join(root, 'sops', 'skills', `callable-skill-${index}`)
+      await fs.mkdir(skillDir, { recursive: true })
+      await fs.writeFile(
+        path.join(skillDir, 'SKILL.md'),
+        [
+          '---',
+          `name: Callable Skill ${index}`,
+          `description: Callable skill ${index} should be listed through Skill listing only.`,
+          'user-invocable: true',
+          '---',
+          `# Callable Skill ${index}`,
+          `Use callable skill ${index} for a repeated interactive capability.`,
+        ].join('\n'),
+        'utf-8',
+      )
+    }
+
+    await writeMemoryFact({
+      title: 'Memory policy',
+      content: 'User prefers L1 to stay compact and avoid duplicating Skill metadata.',
+      verified: true,
+      source: 'test',
+    })
+    await writeMemorySop({
+      title: 'Memory review',
+      content: 'Review L2 and ordinary L3 SOPs before changing long-term memory behavior.',
+      verified: true,
+      source: 'test',
+    })
+
+    const status = await getMemoryV2Status()
+    const index = await fs.readFile(status.indexPath, 'utf-8')
+    expect(status.sops.some(entry => entry.id === 'skill-callable-skill-0')).toBe(true)
+    expect(index).toContain('Memory policy')
+    expect(index).toContain('Memory review')
+    expect(index).not.toContain('Skill listing')
+    expect(index).not.toContain('sops/skills')
+    expect(index).not.toContain('Callable Skill')
+    expect(index).not.toContain('callable-skill')
+  })
+
+  it('keeps L1 hard-bounded and compact even when L2 and L3 grow', async () => {
+    for (let index = 0; index < 24; index += 1) {
+      await writeMemoryFact({
+        title: `Long running preference ${index}`,
+        content: `User preference ${index}: keep memory concise and avoid noisy low-value extraction. This entry has enough text to pressure the L1 summary.`,
+        verified: true,
+        source: 'test',
+      })
+      await writeMemorySop({
+        title: `Reusable workflow ${index}`,
+        content: `Workflow ${index}: inspect diagnostics, verify behavior, run tests, and only then promote reusable knowledge.`,
+        verified: true,
+        source: 'test',
+      })
+    }
+
+    const status = await getMemoryV2Status()
+    const indexContent = await fs.readFile(status.indexPath, 'utf-8')
+    expect(indexContent.split(/\r?\n/).length).toBeLessThanOrEqual(30)
+    expect(indexContent.length).toBeLessThanOrEqual(2500)
+    expect(indexContent).not.toMatch(/\n\s*\n/)
   })
 
   it('keeps L3 SOP and Skill mutually exclusive for the same workflow', async () => {
@@ -194,7 +255,7 @@ describe('MemoryV2 store', () => {
     expect(index.split(/\r?\n/).length).toBeLessThanOrEqual(14)
   })
 
-  it('summarizes L4 sessions, searches vectors, updates entries, and detects stale items', async () => {
+  it('summarizes L4 sessions, searches markdown, and updates entries', async () => {
     const projectDir = path.join(tmpDir, 'projects', 'repo-a')
     await fs.mkdir(projectDir, { recursive: true })
     const old = new Date(Date.now() - 70 * 86_400_000)
@@ -220,16 +281,13 @@ describe('MemoryV2 store', () => {
     const summaries = await summarizeMemoryV2Sessions(5)
     expect(summaries[0]?.layer).toBe('L4')
     expect(summaries[0]?.content).toContain('Browser memory workflow test')
+    expect(await fs.readFile(summaries[0].path, 'utf-8')).not.toMatch(/\n\s*\n/)
     await fs.utimes(summaries[0].path, old, old)
 
     const search = await searchMemoryV2('browser workflow')
     expect(search.length).toBeGreaterThan(0)
-    expect(search[0].method).toBe('faiss-local-embedding')
-    const status = await getMemoryV2Status()
-    await expect(fs.stat(status.faissMetaPath)).resolves.toBeTruthy()
-
-    const stale = await detectMemoryV2Stale()
-    expect(stale.some(entry => entry.layer === 'L4')).toBe(true)
+    expect(search[0].method).toBe('keyword')
+    await getMemoryV2Status()
 
     const l1 = await readMemoryV2Entry('L1', 'index')
     const updated = await updateMemoryV2Entry({
@@ -240,6 +298,62 @@ describe('MemoryV2 store', () => {
     expect(updated.content).toContain('Manual pointer')
 
     const candidates = await generateMemoryV2DistillCandidates(5)
+    expect(candidates).toHaveLength(0)
+  })
+
+  it('filters assistant/product identity candidates that are incorrectly attributed to the user', async () => {
+    delete process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION
+    await fs.writeFile(
+      path.join(tmpDir, 'settings.json'),
+      JSON.stringify({
+        env: {
+          ANTHROPIC_AUTH_TOKEN: 'test-token',
+          ANTHROPIC_MODEL: 'test-model',
+          ANTHROPIC_BASE_URL: 'https://model.invalid',
+        },
+      }),
+      'utf-8',
+    )
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              candidates: [
+                {
+                  layer: 'L2',
+                  title: '用户身份：claude-yh',
+                  content: '用户身份：claude-yh\n\nWhy: 用户说“你是 claude-yh”。\n\nHow to apply: 称呼用户为 claude-yh。',
+                  confidence: 0.99,
+                  reason: 'model returned an inverted identity candidate',
+                  evidence: '用户说：你是 claude-yh，是我基于 claude-code 开发的智能体。',
+                },
+              ],
+            }),
+          },
+        ],
+      }), { status: 200 })) as unknown as typeof fetch
+
+    const summariesDir = path.join(tmpDir, 'project-memory', 'sessions')
+    await fs.mkdir(summariesDir, { recursive: true })
+    const summaryPath = path.join(summariesDir, 'session-identity.md')
+    await fs.writeFile(summaryPath, '# 你的名字是什么\n\n用户说你是 claude-yh。', 'utf-8')
+
+    const candidates = await generateMemoryV2DistillCandidates(5, [
+      {
+        id: 'session-identity',
+        layer: 'L4',
+        title: '你的名字是什么',
+        path: summaryPath,
+        source: path.join(tmpDir, 'projects', 'repo', 'identity.jsonl'),
+        content: '# 你的名字是什么\n\n用户说你是 claude-yh，是我基于 claude-code 开发的智能体。',
+        summary: '用户说明助手或产品身份是 claude-yh。',
+        verified: true,
+        updatedAt: new Date().toISOString(),
+      },
+    ])
+
     expect(candidates).toHaveLength(0)
   })
 })

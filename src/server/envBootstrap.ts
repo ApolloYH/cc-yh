@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import { isProviderManagedEnvVar } from '../utils/managedEnvConstants.js'
+import { stripBOM } from '../utils/jsonRead.js'
 
 process.env.CLAUDE_CONFIG_DIR ||= path.join(homedir(), '.claude-yh')
 
@@ -12,7 +13,7 @@ if (
   try {
     const settingsPath = path.join(process.env.CLAUDE_CONFIG_DIR, 'settings.json')
     const raw = readFileSync(settingsPath, 'utf-8')
-    const parsed = JSON.parse(raw) as {
+    const parsed = JSON.parse(stripBOM(raw)) as {
       env?: Record<string, unknown>
       claudeYhProviders?: unknown
     }

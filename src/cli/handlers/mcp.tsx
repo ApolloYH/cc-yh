@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * MCP subcommand handlers 鈥?extracted from main.tsx for lazy loading.
+ * MCP subcommand handlers —extracted from main.tsx for lazy loading.
  * These are dynamically imported only when the corresponding `claude-yh mcp *` command runs.
  */
 
@@ -39,7 +39,7 @@ async function checkMcpServerHealth(name: string, server: ScopedMcpServerConfig)
   }
 }
 
-// mcp serve (lines 4512鈥?532)
+// mcp serve (lines 4512—532)
 export async function mcpServeHandler({
   debug,
   verbose
@@ -71,7 +71,7 @@ export async function mcpServeHandler({
   }
 }
 
-// mcp remove (lines 4545鈥?635)
+// mcp remove (lines 4545—635)
 export async function mcpRemoveHandler(name: string, options: {
   scope?: string;
 }): Promise<void> {
@@ -141,7 +141,7 @@ export async function mcpRemoveHandler(name: string, options: {
   }
 }
 
-// mcp list (lines 4641鈥?688)
+// mcp list (lines 4641—688)
 export async function mcpListHandler(): Promise<void> {
   logEvent('tengu_mcp_list', {});
   const {
@@ -190,7 +190,7 @@ export async function mcpListHandler(): Promise<void> {
   await gracefulShutdown(0);
 }
 
-// mcp get (lines 4694鈥?786)
+// mcp get (lines 4694—786)
 export async function mcpGetHandler(name: string): Promise<void> {
   logEvent('tengu_mcp_get', {
     name: name as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
@@ -283,7 +283,7 @@ export async function mcpGetHandler(name: string): Promise<void> {
   await gracefulShutdown(0);
 }
 
-// mcp add-json (lines 4801鈥?870)
+// mcp add-json (lines 4801—870)
 export async function mcpAddJsonHandler(name: string, json: string, options: {
   scope?: string;
   clientSecret?: true;
@@ -314,7 +314,7 @@ export async function mcpAddJsonHandler(name: string, json: string, options: {
   }
 }
 
-// mcp add-from-claude-desktop (lines 4881鈥?927)
+// mcp add-from-claude-desktop (lines 4881—927)
 export async function mcpAddFromDesktopHandler(options: {
   scope?: string;
 }): Promise<void> {
@@ -349,7 +349,7 @@ export async function mcpAddFromDesktopHandler(options: {
   }
 }
 
-// mcp reset-project-choices (lines 4935鈥?952)
+// mcp reset-project-choices (lines 4935—952)
 export async function mcpResetChoicesHandler(): Promise<void> {
   logEvent('tengu_mcp_reset_mcpjson_choices', {});
   saveCurrentProjectConfig(current => ({

@@ -3,7 +3,6 @@ import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
 import { autoDistillSkillFromMemoryCandidate } from '../skills/autoDistill.js'
 import {
   applyMemoryV2DistillCandidate,
-  detectMemoryV2Stale,
   generateMemoryV2DistillCandidates,
   getMemoryV2Status,
   summarizeMemoryV2Sessions,
@@ -11,7 +10,6 @@ import {
 
 type MemoryV2AutomationResult = {
   summaries: number
-  stale: number
   candidates: number
   applied: number
   skills: number
@@ -22,6 +20,7 @@ type MemoryV2AutomationResult = {
 }
 
 let inProgress: Promise<MemoryV2AutomationResult> | null = null
+let inProgressKey: string | null = null
 let scheduledTimer: ReturnType<typeof setTimeout> | null = null
 let hasScheduledRun = false
 let scheduledReason = 'idle'
@@ -112,11 +111,18 @@ export async function flushScheduledMemoryV2Automation(
 export async function runMemoryV2Automation(
   options: number | { limit?: number; sessionId?: string } = 12,
 ): Promise<MemoryV2AutomationResult> {
-  if (inProgress) return inProgress
-
   const normalized = typeof options === 'number' ? { limit: options } : options
-  inProgress = runMemoryV2AutomationOnce(normalized.limit ?? 12, normalized.sessionId).finally(() => {
+  const limit = normalized.limit ?? 12
+  const key = normalized.sessionId ? `session:${normalized.sessionId}` : `global:${limit}`
+  while (inProgress) {
+    if (inProgressKey === key) return inProgress
+    await inProgress.catch(() => undefined)
+  }
+
+  inProgressKey = key
+  inProgress = runMemoryV2AutomationOnce(limit, normalized.sessionId).finally(() => {
     inProgress = null
+    inProgressKey = null
   })
   return inProgress
 }
@@ -129,7 +135,6 @@ async function runMemoryV2AutomationOnce(
   try {
     const summaries = await summarizeMemoryV2Sessions({ limit, sessionId })
     await getMemoryV2Status()
-    const stale = await detectMemoryV2Stale()
     const candidates = await generateMemoryV2DistillCandidates(limit, summaries)
     let applied = 0
     let skills = 0
@@ -144,7 +149,6 @@ async function runMemoryV2AutomationOnce(
     await getMemoryV2Status()
     const result = {
       summaries: summaries.length,
-      stale: stale.length,
       candidates: candidates.length,
       applied,
       skills,
@@ -156,7 +160,7 @@ async function runMemoryV2AutomationOnce(
         : undefined,
     }
     logForDebugging(
-      `[memory-l1-l4] automation completed summaries=${result.summaries} stale=${result.stale} candidates=${result.candidates} applied=${result.applied} skills=${result.skills}`,
+      `[memory-l1-l4] automation completed summaries=${result.summaries} candidates=${result.candidates} applied=${result.applied} skills=${result.skills}`,
     )
     logDiagnosticEvent({
       scope: 'memoryV2.automation',
@@ -180,7 +184,6 @@ async function runMemoryV2AutomationOnce(
     })
     return {
       summaries: 0,
-      stale: 0,
       candidates: 0,
       applied: 0,
       skills: 0,

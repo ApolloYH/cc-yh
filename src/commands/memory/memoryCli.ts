@@ -6,7 +6,6 @@ import {
   type MemoryLayer,
   type MemoryV2Entry,
 } from '../../memoryV2/index.js'
-import { getMemoryEmbeddingConfig } from '../../memoryV2/embeddingProvider.js'
 
 export async function runMemoryCli(args: string): Promise<string> {
   const tokens = args.trim().split(/\s+/).filter(Boolean)
@@ -40,33 +39,6 @@ export async function runMemoryCli(args: string): Promise<string> {
     ].join('\n')
   }
 
-  if (action === 'stale') {
-    const status = await getMemoryV2Status()
-    const entries = status.stale
-    return entries.length
-      ? [
-          `Stale memory entries: ${entries.length}`,
-          '',
-          ...entries.map(entry => `- ${entry.layer}/${entry.id}: ${entry.stale?.reason}`),
-        ].join('\n')
-      : 'No stale memory entries detected.'
-  }
-
-  if (action === 'embedding') {
-    const config = await getMemoryEmbeddingConfig()
-    return [
-      'Memory embedding provider',
-      `Provider: ${config.provider}`,
-      `Method: ${config.method}`,
-      `Base URL: ${config.baseUrl}`,
-      `Model: ${config.model}`,
-      `Dimensions: ${config.dimensions}`,
-      `Batch size: ${config.batchSize}`,
-      `API key: ${config.hasApiKey ? 'configured' : 'missing'}`,
-      `Source: ${config.source}`,
-    ].join('\n')
-  }
-
   if (action === 'set') {
     const layer = parseLayer(rest[0])
     const id = rest[1] || (layer === 'L1' ? 'index' : '')
@@ -88,16 +60,14 @@ function formatStatus(status: Awaited<ReturnType<typeof getMemoryV2Status>>): st
   return [
     'Memory L1-L4',
     `Root: ${status.root}`,
-    `Vector index: ${status.vectorIndexPath}`,
-    `Embedding: ${status.embeddingMethod} model=${status.embeddingModel} dimensions=${status.embeddingDimensions}`,
-    `FAISS: ${status.faissIndexPath}`,
+    'Search: keyword markdown search',
     `Distill candidates: ${status.candidatePath}`,
     '',
     ...status.layers.map(layer => [
       `${layer.layer} ${layer.title}`,
       `Path: ${layer.path}`,
       `Entries: ${layer.entries.length}`,
-      ...layer.entries.slice(0, 8).map(entry => `- ${entry.id}: ${entry.title}${entry.stale?.severity === 'stale' ? ' [stale]' : ''}`),
+      ...layer.entries.slice(0, 8).map(entry => `- ${entry.id}: ${entry.title}`),
     ].join('\n')),
   ].join('\n\n')
 }
@@ -109,7 +79,6 @@ function formatEntry(entry: MemoryV2Entry, includeContent: boolean): string {
     `Path: ${entry.path}`,
     entry.source ? `Source: ${entry.source}` : '',
     `Verified: ${entry.verified}`,
-    entry.stale ? `Freshness: ${entry.stale.severity} - ${entry.stale.reason}` : '',
     entry.summary ? `Summary: ${entry.summary}` : '',
     includeContent ? ['', entry.content || ''] : '',
   ].filter(line => line !== '').join('\n')
@@ -126,8 +95,6 @@ function usage(): string {
     '/memory list',
     '/memory show <L1|L2|L3|L4> <id>',
     '/memory search <query>',
-    '/memory stale',
-    '/memory embedding',
     '/memory set <L1|L2|L3|L4> <id> <content>',
     '',
     'Without arguments, /memory opens the existing interactive memory file editor.',

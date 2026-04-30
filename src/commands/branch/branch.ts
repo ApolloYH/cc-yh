@@ -33,7 +33,7 @@ type TranscriptEntry = TranscriptMessage & {
 
 /**
  * Derive a single-line title base from the first user message.
- * Collapses whitespace 鈥?multiline first messages (pasted stacks, code)
+ * Collapses whitespace —multiline first messages (pasted stacks, code)
  * otherwise flow into the saved title and break the resume hint.
  */
 export function deriveFirstPrompt(
@@ -99,7 +99,7 @@ async function createFork(customTitle?: string): Promise<{
   // Content-replacement entries for the original session. These record which
   // tool_result blocks were replaced with previews by the per-message budget.
   // Without them in the fork JSONL, `claude-yh -r {forkId}` reconstructs state
-  // with an empty replacements Map 鈫?previously-replaced results are classified
+  // with an empty replacements Map →previously-replaced results are classified
   // as FROZEN and sent as full content (prompt cache miss + permanent overage).
   // sessionId must be rewritten since loadTranscriptFile keys lookup by the
   // session's messages' sessionId.

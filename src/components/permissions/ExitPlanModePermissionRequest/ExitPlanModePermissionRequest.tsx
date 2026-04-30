@@ -85,18 +85,18 @@ export function autoNameSessionFromPlan(plan: string, setAppState: (updater: (pr
   if (isSessionPersistenceDisabled() || getSettings_DEPRECATED()?.cleanupPeriodDays === 0) {
     return;
   }
-  // On clear-context, the current session is about to be abandoned 鈥?its
+  // On clear-context, the current session is about to be abandoned —its
   // title (which may have been set by a PRIOR auto-name) is irrelevant.
   // Checking it would make the feature self-defeating after first use.
   if (!isClearContext && getCurrentSessionTitle(getSessionId())) return;
   void generateSessionName(
   // generateSessionName tail-slices to the last 1000 chars (correct for
   // conversations, where recency matters). Plans front-load the goal and
-  // end with testing steps 鈥?head-slice so Haiku sees the summary.
+  // end with testing steps —head-slice so Haiku sees the summary.
   [createUserMessage({
     content: plan.slice(0, 1000)
   })], new AbortController().signal).then(async name => {
-    // On clear-context acceptance, regenerateSessionId() has run by now 鈥?
+    // On clear-context acceptance, regenerateSessionId() has run by now —
     // this intentionally names the NEW execution session. Do not "fix" by
     // capturing sessionId once; that would name the abandoned planning session.
     if (!name || getCurrentSessionTitle(getSessionId())) return;
@@ -130,7 +130,7 @@ export function ExitPlanModePermissionRequest({
     addNotification
   } = useNotifications();
   // Feedback text from the 'No' option's input. Threaded through onAllow as
-  // acceptFeedback when the user approves 鈥?lets users annotate the plan
+  // acceptFeedback when the user approves —lets users annotate the plan
   // ("also update the README") without a reject+re-plan round-trip.
   const [planFeedback, setPlanFeedback] = useState('');
   const [pastedContents, setPastedContents] = useState<Record<number, PastedContent>>({});
@@ -138,7 +138,7 @@ export function ExitPlanModePermissionRequest({
   const showClearContext = useAppState(s => s.settings.showClearContextOnPlanAccept) ?? false;
   const ultraplanSessionUrl = useAppState(s => s.ultraplanSessionUrl);
   const ultraplanLaunching = useAppState(s => s.ultraplanLaunching);
-  // Hide the Ultraplan button while a session is active or launching 鈥?
+  // Hide the Ultraplan button while a session is active or launching —
   // selecting it would dismiss the dialog and reject locally before
   // launchUltraplan can notice the session exists and return "already polling".
   // feature() must sit directly in an if/ternary (bun:bundle DCE constraint).
@@ -213,7 +213,7 @@ export function ExitPlanModePermissionRequest({
   });
   const [showSaveMessage, setShowSaveMessage] = useState(false);
   // Track Ctrl+G local edits so updatedInput can include the plan (the tool
-  // only echoes the plan in tool_result when input.plan is set 鈥?otherwise
+  // only echoes the plan in tool_result when input.plan is set —otherwise
   // the model already has it in context from writing the plan file).
   const [planEditedLocally, setPlanEditedLocally] = useState(false);
 
@@ -288,7 +288,7 @@ export function ExitPlanModePermissionRequest({
       });
       onDone();
       onReject();
-      toolUseConfirm.onReject('Plan being refined via Ultraplan 鈥?please wait for the result.');
+      toolUseConfirm.onReject('Plan being refined via Ultraplan —please wait for the result.');
       void launchUltraplan({
         blurb: '',
         seedPlan: currentPlan,
@@ -313,7 +313,7 @@ export function ExitPlanModePermissionRequest({
     // to auto, deactivate auto + restore permissions + fire exit attachment.
     if (feature('TRANSCRIPT_CLASSIFIER')) {
       const goingToAuto = (value === 'yes-resume-auto-mode' || value === 'yes-auto-clear-context') && isAutoModeGateEnabled();
-      // isAutoModeActive() is the authoritative signal 鈥?prePlanMode/
+      // isAutoModeActive() is the authoritative signal —prePlanMode/
       // strippedDangerousRules are stale after transitionPlanAutoMode
       // deactivates mid-plan (would cause duplicate exit attachment).
       const autoWasUsedDuringPlan = autoModeStateModule?.isAutoModeActive() ?? false;
@@ -395,7 +395,7 @@ export function ExitPlanModePermissionRequest({
       return;
     }
 
-    // Handle auto keep-context option 鈥?needs special handling because
+    // Handle auto keep-context option —needs special handling because
     // buildPermissionUpdates maps auto to 'default' via toExternalPermissionMode.
     // We set the mode directly via setAppState and sync the bootstrap state.
     if (feature('TRANSCRIPT_CLASSIFIER') && value === 'yes-resume-auto-mode' && isAutoModeGateEnabled()) {
@@ -543,9 +543,9 @@ export function ExitPlanModePermissionRequest({
             <Text bold dimColor>
               {editorName}
             </Text>
-            {isV2 && planFilePath && <Text dimColor> 路 {getDisplayPath(planFilePath)}</Text>}
+            {isV2 && planFilePath && <Text dimColor> · {getDisplayPath(planFilePath)}</Text>}
             {showSaveMessage && <>
-                <Text dimColor>{' 路 '}</Text>
+                <Text dimColor>{' · '}</Text>
                 <Text color="success">{figures.tick}Plan saved!</Text>
               </>}
           </Box>}
@@ -661,10 +661,10 @@ export function ExitPlanModePermissionRequest({
             <Text bold dimColor>
               {editorName}
             </Text>
-            {isV2 && planFilePath && <Text dimColor> 路 {getDisplayPath(planFilePath)}</Text>}
+            {isV2 && planFilePath && <Text dimColor> · {getDisplayPath(planFilePath)}</Text>}
           </Box>
           {showSaveMessage && <Box>
-              <Text dimColor>{' 路 '}</Text>
+              <Text dimColor>{' · '}</Text>
               <Text color="success">{figures.tick}Plan saved!</Text>
             </Box>}
         </Box>}

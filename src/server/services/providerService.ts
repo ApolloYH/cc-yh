@@ -10,6 +10,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import { ApiError } from '../middleware/errorHandler.js'
+import { stripBOM } from '../../utils/jsonRead.js'
 import { PROVIDER_PRESETS } from '../config/providerPresets.js'
 import { anthropicToOpenaiChat } from '../proxy/transform/anthropicToOpenaiChat.js'
 import { anthropicToOpenaiResponses } from '../proxy/transform/anthropicToOpenaiResponses.js'
@@ -171,7 +172,7 @@ export class ProviderService {
   private async readJsonFile(filePath: string): Promise<Record<string, unknown>> {
     try {
       const raw = await fs.readFile(filePath, 'utf-8')
-      return JSON.parse(raw) as Record<string, unknown>
+      return JSON.parse(stripBOM(raw)) as Record<string, unknown>
     } catch (err: unknown) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
       throw ApiError.internal(`Failed to read settings.json: ${err}`)
@@ -260,7 +261,7 @@ export class ProviderService {
   private async readLegacyIndex(): Promise<ProvidersIndex | null> {
     try {
       const raw = await fs.readFile(this.getLegacyIndexPath(), 'utf-8')
-      const parsed = ProvidersIndexSchema.safeParse(JSON.parse(raw))
+      const parsed = ProvidersIndexSchema.safeParse(JSON.parse(stripBOM(raw)))
       return parsed.success ? parsed.data : null
     } catch {
       return null

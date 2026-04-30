@@ -1,13 +1,13 @@
 // @ts-nocheck
 /**
- * HahaOAuthService 鈥?妗岄潰绔嚜绠?Claude OAuth token
+ * HahaOAuthService — desktop sidecar-owned Claude OAuth token storage.
  *
- * 涓轰粈涔堝瓨鍦? macOS Keychain ACL 鍦?.app 琚墦涓?quarantine 灞炴€у悗
- * 瀵规棤 UI sidecar 闈欓粯鎷掔粷,瀵艰嚧 CLI 璇讳笉鍒?OAuth token 鈫?403銆?
- * 杩欎釜 service 鎶?token 瀛樺埌 haha 鑷繁鐨勭洰褰?骞堕€氳繃 env 娉ㄥ叆缁?CLI銆?
+ * Why this exists: macOS Keychain ACL can become unreliable for a headless
+ * sidecar after the .app is quarantined. The desktop process stores the token
+ * in its own config directory and injects it into the CLI through env vars.
  *
- * 澶嶇敤 src/services/oauth/{crypto,client}.ts 閲岀殑 PKCE + token exchange 閫昏緫,
- * 涓嶅鍒剁矘璐?鈥斺€?淇濊瘉璺?CLI 璧板悓涓€濂楀崗璁疄鐜般€?
+ * This service still reuses src/services/oauth/{crypto,client}.ts for PKCE and
+ * token exchange so desktop and CLI follow the same OAuth protocol.
  */
 
 import * as fs from 'fs/promises'
@@ -88,8 +88,8 @@ export class HahaOAuthService {
   async saveTokens(tokens: StoredOAuthTokens): Promise<void> {
     const filePath = this.getOAuthFilePath()
     await fs.mkdir(path.dirname(filePath), { recursive: true })
-    // 鍐欎复鏃舵枃浠跺啀 rename,闃叉鍐欏埌涓€鍗婅鍏朵粬璇昏€呰鍒版畫缂?JSON銆?
-    // 鍗曡繘绋?desktop 涓?pid 鍚庣紑瓒冲闅旂銆?
+    // Write a temp file and rename it so readers never observe partial JSON.
+    // In the single desktop process, a pid suffix is enough isolation.
     const tmp = `${filePath}.tmp.${process.pid}`
     await fs.writeFile(tmp, JSON.stringify(tokens, null, 2), { mode: 0o600 })
     await fs.rename(tmp, filePath)

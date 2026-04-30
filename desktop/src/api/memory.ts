@@ -2,13 +2,6 @@ import { api } from './client'
 
 export type MemoryLayer = 'L1' | 'L2' | 'L3' | 'L4'
 
-export type MemoryV2StaleStatus = {
-  stale: boolean
-  reason: string
-  ageDays?: number
-  severity: 'fresh' | 'watch' | 'stale'
-}
-
 export type MemoryV2Entry = {
   layer: MemoryLayer
   id: string
@@ -19,7 +12,6 @@ export type MemoryV2Entry = {
   content?: string
   summary?: string
   updatedAt?: string
-  stale?: MemoryV2StaleStatus
 }
 
 export type MemoryV2LayerStatus = {
@@ -37,44 +29,18 @@ export type MemoryV2Status = {
   sopsDir: string
   sessionsDir: string
   summariesDir: string
-  vectorIndexPath: string
-  embeddingCachePath: string
-  faissIndexPath: string
-  faissMetaPath: string
   candidatePath: string
-  vectorProvider: 'faiss' | 'local'
-  embeddingProvider: 'dashscope' | 'openai-compatible' | 'local'
-  embeddingModel: string
-  embeddingBaseUrl: string
-  embeddingDimensions: number
-  embeddingRemote: boolean
-  embeddingHasApiKey: boolean
-  embeddingMethod: 'faiss-dashscope-embedding' | 'faiss-openai-compatible-embedding' | 'faiss-local-embedding'
   entries: MemoryV2Entry[]
   facts: MemoryV2Entry[]
   sops: MemoryV2Entry[]
   layers: MemoryV2LayerStatus[]
-  stale: MemoryV2Entry[]
 }
 
 export type MemoryV2SearchResult = {
   entry: MemoryV2Entry
   score: number
   matchedTerms: string[]
-  method: 'faiss-dashscope-embedding' | 'faiss-openai-compatible-embedding' | 'faiss-local-embedding' | 'local-semantic-embedding'
-}
-
-export type MemoryEmbeddingConfig = {
-  provider: 'dashscope' | 'openai-compatible' | 'local'
-  baseUrl: string
-  model: string
-  dimensions: number
-  batchSize: number
-  timeoutMs: number
-  enabled: boolean
-  hasApiKey: boolean
-  method: 'faiss-dashscope-embedding' | 'faiss-openai-compatible-embedding' | 'faiss-local-embedding'
-  source: 'env' | 'settings' | 'default'
+  method: 'keyword'
 }
 
 export type MemoryEvent = {
@@ -105,12 +71,6 @@ export const memoryApi = {
   },
   search(query: string) {
     return api.post<{ results: MemoryV2SearchResult[] }>('/api/memory-v2/search', { query, limit: 20 })
-  },
-  embedding() {
-    return api.get<{ config: MemoryEmbeddingConfig }>('/api/memory-v2/embedding')
-  },
-  updateEmbedding(input: Partial<MemoryEmbeddingConfig> & { apiKey?: string; apiKeyEnv?: string }) {
-    return api.put<{ config: MemoryEmbeddingConfig }>('/api/memory-v2/embedding', input)
   },
   events(limit = 50) {
     return api.get<{ path: string; events: MemoryEvent[] }>(`/api/memory-v2/events?limit=${limit}`)

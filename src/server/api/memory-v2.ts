@@ -6,10 +6,8 @@ import {
   updateMemoryV2Entry,
   type MemoryLayer,
 } from '../../memoryV2/index.js'
-import { getMemoryEmbeddingConfig } from '../../memoryV2/embeddingProvider.js'
 import { getDiagnosticLogPath } from '../../utils/diagnosticLog.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
-import { SettingsService } from '../services/settingsService.js'
 
 export async function handleMemoryV2Api(
   req: Request,
@@ -69,28 +67,9 @@ export async function handleMemoryV2Api(
       }
     }
 
-    if (method === 'GET' && action === 'embedding') {
-      return Response.json({ config: publicEmbeddingConfig(await getMemoryEmbeddingConfig()) })
-    }
-
     if (method === 'GET' && action === 'events') {
       const limit = Math.max(1, Math.min(200, readOptionalNumber(_url.searchParams.get('limit')) ?? 50))
       return Response.json(await readMemoryEvents(limit))
-    }
-
-    if (method === 'PUT' && action === 'embedding') {
-      const body = await parseJsonBody(req)
-      const service = new SettingsService()
-      const current = await service.getUserSettings()
-      const currentEmbedding = current.memoryEmbedding && typeof current.memoryEmbedding === 'object'
-        ? current.memoryEmbedding as Record<string, unknown>
-        : {}
-      const next = {
-        ...currentEmbedding,
-        ...sanitizeEmbeddingSettings(body),
-      }
-      await service.updateUserSettings({ memoryEmbedding: next })
-      return Response.json({ config: publicEmbeddingConfig(await getMemoryEmbeddingConfig()) })
     }
 
     throw new ApiError(
@@ -125,44 +104,6 @@ function readOptionalNumber(value: unknown): number | undefined {
   return undefined
 }
 
-function sanitizeEmbeddingSettings(body: Record<string, unknown>): Record<string, unknown> {
-  const next: Record<string, unknown> = {}
-  if (typeof body.provider === 'string') {
-    const provider = body.provider.trim()
-    if (!['dashscope', 'openai-compatible', 'local'].includes(provider)) {
-      throw ApiError.badRequest('provider must be dashscope, openai-compatible, or local')
-    }
-    next.provider = provider
-  }
-  for (const key of ['baseUrl', 'model', 'apiKeyEnv'] as const) {
-    if (typeof body[key] === 'string' && body[key].trim()) next[key] = body[key].trim()
-  }
-  if (typeof body.apiKey === 'string' && body.apiKey.trim()) {
-    next.apiKey = body.apiKey.trim()
-  }
-  for (const key of ['dimensions', 'batchSize', 'timeoutMs'] as const) {
-    const value = readOptionalNumber(body[key])
-    if (value !== undefined && value > 0) next[key] = value
-  }
-  if (typeof body.enabled === 'boolean') next.enabled = body.enabled
-  return next
-}
-
-function publicEmbeddingConfig(config: Awaited<ReturnType<typeof getMemoryEmbeddingConfig>>) {
-  return {
-    provider: config.provider,
-    baseUrl: config.baseUrl,
-    model: config.model,
-    dimensions: config.dimensions,
-    batchSize: config.batchSize,
-    timeoutMs: config.timeoutMs,
-    enabled: config.enabled,
-    hasApiKey: config.hasApiKey,
-    method: config.method,
-    source: config.source,
-  }
-}
-
 async function readMemoryEvents(limit: number): Promise<{
   path: string
   events: Array<Record<string, unknown>>
@@ -170,7 +111,7 @@ async function readMemoryEvents(limit: number): Promise<{
   const filePath = getDiagnosticLogPath()
   let lines: string[] = []
   try {
-    const raw = await fs.readFile(filePath, 'utf-8')
+    const raw = await readTailText(filePath, 512 * 1024)
     lines = raw.trim().split('\n').filter(Boolean)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
@@ -193,4 +134,18 @@ async function readMemoryEvents(limit: number): Promise<{
     .reverse()
 
   return { path: filePath, events }
+}
+
+async function readTailText(filePath: string, maxBytes: number): Promise<string> {
+  const stat = await fs.stat(filePath)
+  if (stat.size <= maxBytes) return fs.readFile(filePath, 'utf-8')
+  const handle = await fs.open(filePath, 'r')
+  try {
+    const length = Math.min(maxBytes, stat.size)
+    const buffer = Buffer.alloc(length)
+    await handle.read(buffer, 0, length, stat.size - length)
+    return buffer.toString('utf-8')
+  } finally {
+    await handle.close()
+  }
 }

@@ -153,7 +153,24 @@ async function ensureMarkdownFile(filePath: string, initialContent: string): Pro
   try {
     await fs.access(filePath)
   } catch {
-    await fs.mkdir(path.dirname(filePath), { recursive: true })
-    await fs.writeFile(filePath, initialContent, 'utf-8')
+    await writeMarkdownFileWithParentRetry(filePath, initialContent)
+  }
+}
+
+async function writeMarkdownFileWithParentRetry(
+  filePath: string,
+  content: string,
+): Promise<void> {
+  const parent = path.dirname(filePath)
+  await fs.mkdir(parent, { recursive: true })
+  try {
+    await fs.writeFile(filePath, content, 'utf-8')
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code)
+      : ''
+    if (code !== 'ENOENT') throw error
+    await fs.mkdir(parent, { recursive: true })
+    await fs.writeFile(filePath, content, 'utf-8')
   }
 }

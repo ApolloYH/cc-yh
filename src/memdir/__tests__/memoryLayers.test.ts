@@ -9,7 +9,9 @@ describe('layered memory guidance', () => {
 
     expect(text).toContain('L1 index')
     expect(text).toContain('L2 facts')
-    expect(text).toContain('L3 skills/SOPs')
+    expect(text).toContain('L3 SOPs')
+    expect(text).toContain('L3 Skills')
+    expect(text).toContain('not through L1')
     expect(text).toContain('L4 archive')
     expect(text).toContain('No execution, no memory')
   })
@@ -22,7 +24,9 @@ describe('layered memory guidance', () => {
 
     expect(prompt).toContain('## Memory layers')
     expect(prompt).toContain('`MEMORY.md` is loaded into every new session')
-    expect(prompt).toContain('L1 is regenerated from the complete L2/L3 set')
+    expect(prompt).toContain('L1 is regenerated from L2 facts and ordinary L3 SOPs')
+    expect(prompt).toContain('Do not modify memory files directly')
+    expect(prompt).not.toContain('save it immediately')
   })
 
   it('injects layered guidance into background extraction prompts', () => {

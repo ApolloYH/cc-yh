@@ -9,8 +9,6 @@ import { getMemoryV2Status, searchMemoryV2 } from '../store.js'
 let tmpDir: string
 let originalConfigDir: string | undefined
 let originalMemoryOverride: string | undefined
-let originalEmbeddingApiKey: string | undefined
-let originalEmbeddingProvider: string | undefined
 let originalDisableMainModel: string | undefined
 
 describe('Memory L1-L4 automation', () => {
@@ -18,13 +16,9 @@ describe('Memory L1-L4 automation', () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memory-v2-auto-'))
     originalConfigDir = process.env.CLAUDE_CONFIG_DIR
     originalMemoryOverride = process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
-    originalEmbeddingApiKey = process.env.CLAUDE_YH_EMBEDDING_API_KEY
-    originalEmbeddingProvider = process.env.CLAUDE_YH_EMBEDDING_PROVIDER
     originalDisableMainModel = process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION
     process.env.CLAUDE_CONFIG_DIR = tmpDir
     process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = path.join(tmpDir, 'project-memory')
-    delete process.env.CLAUDE_YH_EMBEDDING_API_KEY
-    delete process.env.CLAUDE_YH_EMBEDDING_PROVIDER
     process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION = '1'
     getAutoMemPath.cache.clear?.()
   })
@@ -34,17 +28,13 @@ describe('Memory L1-L4 automation', () => {
     else process.env.CLAUDE_CONFIG_DIR = originalConfigDir
     if (originalMemoryOverride === undefined) delete process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
     else process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = originalMemoryOverride
-    if (originalEmbeddingApiKey === undefined) delete process.env.CLAUDE_YH_EMBEDDING_API_KEY
-    else process.env.CLAUDE_YH_EMBEDDING_API_KEY = originalEmbeddingApiKey
-    if (originalEmbeddingProvider === undefined) delete process.env.CLAUDE_YH_EMBEDDING_PROVIDER
-    else process.env.CLAUDE_YH_EMBEDDING_PROVIDER = originalEmbeddingProvider
     if (originalDisableMainModel === undefined) delete process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION
     else process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION = originalDisableMainModel
     getAutoMemPath.cache.clear?.()
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('summarizes sessions and refreshes vectors without heuristic distillation', async () => {
+  it('summarizes sessions and searches markdown without heuristic distillation', async () => {
     const projectDir = path.join(tmpDir, 'projects', 'repo-a')
     await fs.mkdir(projectDir, { recursive: true })
     await fs.writeFile(
@@ -74,6 +64,41 @@ describe('Memory L1-L4 automation', () => {
 
     const search = await searchMemoryV2('browser configuration')
     expect(search.length).toBeGreaterThan(0)
-    await expect(fs.stat(status.vectorIndexPath)).resolves.toBeTruthy()
+  })
+
+  it('serializes different session finalization runs instead of reusing the wrong in-flight result', async () => {
+    const projectDir = path.join(tmpDir, 'projects', 'repo-a')
+    await fs.mkdir(projectDir, { recursive: true })
+    for (const [sessionId, content] of [
+      ['session-a', 'First session memory candidate'],
+      ['session-b', 'Second session memory candidate'],
+    ] as const) {
+      await fs.writeFile(
+        path.join(projectDir, `${sessionId}.jsonl`),
+        [
+          JSON.stringify({
+            type: 'user',
+            timestamp: new Date().toISOString(),
+            message: { role: 'user', content },
+          }),
+          JSON.stringify({
+            type: 'assistant',
+            timestamp: new Date().toISOString(),
+            message: { role: 'assistant', content: `Recorded ${content}.` },
+          }),
+        ].join('\n'),
+        'utf-8',
+      )
+    }
+
+    const [first, second] = await Promise.all([
+      runMemoryV2Automation({ sessionId: 'session-a' }),
+      runMemoryV2Automation({ sessionId: 'session-b' }),
+    ])
+
+    expect(first.summaryTitles).toContain('First session memory candidate')
+    expect(second.summaryTitles).toContain('Second session memory candidate')
+    await expect(fs.stat(path.join(tmpDir, 'project-memory', 'sessions', 'session-session-a.md'))).resolves.toBeTruthy()
+    await expect(fs.stat(path.join(tmpDir, 'project-memory', 'sessions', 'session-session-b.md'))).resolves.toBeTruthy()
   })
 })

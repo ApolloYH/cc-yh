@@ -97,7 +97,7 @@ export function useBackgroundTaskNavigation(options?: {
 
       // When teammates are removed (count goes from >0 to 0), reset selection
       // Only reset if we previously had teammates (not on initial mount with 0)
-      // Don't clobber viewSelectionMode if actively viewing a teammate transcript 鈥?
+      // Don't clobber viewSelectionMode if actively viewing a teammate transcript —
       // the user may be reviewing a completed teammate and needs escape to exit
       if (
         currentCount === 0 &&
@@ -160,7 +160,7 @@ export function useBackgroundTaskNavigation(options?: {
           return
         }
       }
-      // Teammate is not running or task doesn't exist 鈥?exit the view
+      // Teammate is not running or task doesn't exist —exit the view
       exitTeammateView(setAppState)
       return
     }
@@ -241,7 +241,7 @@ export function useBackgroundTaskNavigation(options?: {
   }
 
   // Backward-compat bridge: REPL.tsx doesn't yet wire handleKeyDown to
-  // <Box onKeyDown>. Subscribe via useInput and adapt InputEvent 鈫?
+  // <Box onKeyDown>. Subscribe via useInput and adapt InputEvent →
   // KeyboardEvent until the consumer is migrated (separate PR).
   // TODO(onKeyDown-migration): remove once REPL passes handleKeyDown.
   useInput((_input, _key, event) => {

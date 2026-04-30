@@ -24,6 +24,8 @@ type RawSessionEntry = {
   type?: string
   isMeta?: boolean
   timestamp?: string
+  customTitle?: string
+  aiTitle?: string
   message?: {
     role?: string
     content?: unknown
@@ -161,12 +163,31 @@ function countMessages(entries: RawSessionEntry[]): number {
 }
 
 function extractTitle(entries: RawSessionEntry[]): string {
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const entry = entries[index]
+    if (entry?.type === 'custom-title' && typeof entry.customTitle === 'string' && entry.customTitle.trim()) {
+      return truncateTitle(entry.customTitle)
+    }
+  }
+
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const entry = entries[index]
+    if (entry?.type === 'ai-title' && typeof entry.aiTitle === 'string' && entry.aiTitle.trim()) {
+      return truncateTitle(entry.aiTitle)
+    }
+  }
+
   for (const entry of entries) {
     if (entry.type !== 'user' || entry.isMeta || entry.message?.role !== 'user') continue
     const text = textFromContent(entry.message.content)
-    if (text) return text.length > 80 ? `${text.slice(0, 80)}...` : text
+    if (text) return truncateTitle(text)
   }
   return 'Untitled Session'
+}
+
+function truncateTitle(text: string): string {
+  const trimmed = text.trim()
+  return trimmed.length > 80 ? `${trimmed.slice(0, 80)}...` : trimmed
 }
 
 function textFromContent(content: unknown): string | null {

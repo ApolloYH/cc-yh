@@ -214,16 +214,16 @@ function SetModelAndClose({
           wasFastModeToggledOn = false;
           // Do not update fast mode in settings since this is an automatic downgrade
         } else if (isFastModeSupportedByModel(modelValue) && isFastMode) {
-          message += ` 路 Fast mode ON`;
+          message += ` · Fast mode ON`;
           wasFastModeToggledOn = true;
         }
       }
       if (isBilledAsExtraUsage(modelValue, wasFastModeToggledOn === true, isOpus1mMergeEnabled())) {
-        message += ` 路 Billed as extra usage`;
+        message += ` · Billed as extra usage`;
       }
       if (wasFastModeToggledOn === false) {
         // Fast mode was toggled off, show suffix after extra usage billing
-        message += ` 路 Fast mode OFF`;
+        message += ` · Fast mode OFF`;
       }
       onDone(message);
     }

@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
+import { stripBOM } from '../utils/jsonRead.js'
 import type {
   JarvisEvent,
   JarvisEventSeverity,
@@ -234,7 +235,7 @@ export async function readJarvisEvents(limit = 50): Promise<JarvisEvent[]> {
 async function readSettings(): Promise<Record<string, unknown>> {
   try {
     const raw = await fs.readFile(getJarvisSettingsPath(), 'utf-8')
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(stripBOM(raw))
     return isRecord(parsed) ? parsed : {}
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}

@@ -218,7 +218,7 @@ export const NotebookEditTool = buildTool({
 
     // Require Read-before-Edit (matches FileEditTool/FileWriteTool). Without
     // this, the model could edit a notebook it never saw, or edit against a
-    // stale view after an external change 鈥?silent data loss.
+    // stale view after an external change —silent data loss.
     const readTimestamp = toolUseContext.readFileState.get(fullPath)
     if (!readTimestamp) {
       return {
@@ -432,8 +432,8 @@ export const NotebookEditTool = buildTool({
       const updatedContent = jsonStringify(notebook, null, IPYNB_INDENT)
       writeTextContent(fullPath, updatedContent, encoding, lineEndings)
       // Update readFileState with post-write mtime (matches FileEditTool/
-      // FileWriteTool). offset:undefined breaks FileReadTool's dedup match 鈥?
-      // without this, Read鈫扤otebookEdit鈫扲ead in the same millisecond would
+      // FileWriteTool). offset:undefined breaks FileReadTool's dedup match —
+      // without this, Read→NotebookEdit→Read in the same millisecond would
       // return the file_unchanged stub against stale in-context content.
       readFileState.set(fullPath, {
         content: updatedContent,

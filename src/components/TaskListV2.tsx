@@ -164,7 +164,7 @@ export function TaskListV2({
     visibleTasks = prioritized.slice(0, maxDisplay);
     hiddenTasks = prioritized.slice(maxDisplay);
   } else {
-    // No truncation needed 鈥?sort by ID for stable ordering
+    // No truncation needed —sort by ID for stable ordering
     visibleTasks = [...tasks].sort(byIdAsc);
     hiddenTasks = [];
   }
@@ -183,7 +183,7 @@ export function TaskListV2({
     if (hiddenCompleted > 0) {
       parts.push(`${hiddenCompleted} completed`);
     }
-    hiddenSummary = ` 鈥?+${parts.join(', ')}`;
+    hiddenSummary = ` —+${parts.join(', ')}`;
   }
   const content = <>
       {visibleTasks.map(task_0 => <TaskItem key={task_0.id} task={task_0} ownerColor={task_0.owner ? teammateColors[task_0.owner] : undefined} openBlockers={task_0.blockedBy.filter(id_3 => unresolvedTaskIds.has(id_3))} activity={task_0.owner ? teammateActivity[task_0.owner] : undefined} ownerActive={task_0.owner ? activeTeammates.has(task_0.owner) : false} columns={columns} />)}

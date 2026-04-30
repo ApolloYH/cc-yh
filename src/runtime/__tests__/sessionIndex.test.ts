@@ -109,4 +109,23 @@ describe('buildSessionIndex', () => {
     expect(byProject.total).toBe(1)
     expect(byProject.sessions[0].projectPath).toBe('-repo-a')
   })
+
+  it('prefers explicit and generated titles over the first user prompt', async () => {
+    await writeSession('-repo-a', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', [
+      { type: 'user', message: { role: 'user', content: 'Old first prompt' } },
+      { type: 'ai-title', aiTitle: 'Fresh project investigation title' },
+    ])
+    await writeSession('-repo-b', 'bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee', [
+      { type: 'user', message: { role: 'user', content: 'Another old prompt' } },
+      { type: 'ai-title', aiTitle: 'Generated title' },
+      { type: 'custom-title', customTitle: 'Manual title wins' },
+    ])
+
+    const result = await buildSessionIndex({ configDir: tmpDir })
+
+    expect(result.sessions.find(session => session.projectPath === '-repo-a')?.title)
+      .toBe('Fresh project investigation title')
+    expect(result.sessions.find(session => session.projectPath === '-repo-b')?.title)
+      .toBe('Manual title wins')
+  })
 })

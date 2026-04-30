@@ -307,16 +307,16 @@ export function formatResolutionError(
 ): string {
   switch (r.reason) {
     case 'cycle':
-      return `Dependency cycle: ${r.chain.join(' 鈫?')}`
+      return `Dependency cycle: ${r.chain.join(' →')}`
     case 'cross-marketplace': {
       const depMkt = parsePluginIdentifier(r.dependency).marketplace
       const where = depMkt
         ? `marketplace "${depMkt}"`
         : 'a different marketplace'
       const hint = depMkt
-        ? ` Add "${depMkt}" to allowCrossMarketplaceDependenciesOn in the ROOT marketplace's marketplace.json (the marketplace of the plugin you're installing 鈥?only its allowlist applies; no transitive trust).`
+        ? ` Add "${depMkt}" to allowCrossMarketplaceDependenciesOn in the ROOT marketplace's marketplace.json (the marketplace of the plugin you're installing —only its allowlist applies; no transitive trust).`
         : ''
-      return `Dependency "${r.dependency}" (required by ${r.requiredBy}) is in ${where}, which is not in the allowlist 鈥?cross-marketplace dependencies are blocked by default. Install it manually first.${hint}`
+      return `Dependency "${r.dependency}" (required by ${r.requiredBy}) is in ${where}, which is not in the allowlist —cross-marketplace dependencies are blocked by default. Install it manually first.${hint}`
     }
     case 'not-found': {
       const { marketplace: depMkt } = parsePluginIdentifier(r.missing)
@@ -501,7 +501,7 @@ export type InstallPluginParams = {
 
 /**
  * Install a single plugin from a marketplace with the specified scope.
- * Interactive-UI wrapper around `installResolvedPlugin` 鈥?adds try/catch,
+ * Interactive-UI wrapper around `installResolvedPlugin` —adds try/catch,
  * analytics, and UI-style message formatting.
  */
 export async function installPluginFromMarketplace({
@@ -559,7 +559,7 @@ export async function installPluginFromMarketplace({
     // plugin_id kept in additional_metadata (redacted to 'third-party' for
     // non-official) because dbt external_claude_code_plugin_installs.sql
     // extracts $.plugin_id for official-marketplace install tracking. Other
-    // plugin lifecycle events drop the blob key 鈥?no downstream consumers.
+    // plugin lifecycle events drop the blob key —no downstream consumers.
     logEvent('tengu_plugin_installed', {
       _PROTO_plugin_name:
         entry.name as AnalyticsMetadata_I_VERIFIED_THIS_IS_PII_TAGGED,

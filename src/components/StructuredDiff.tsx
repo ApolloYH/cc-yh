@@ -24,7 +24,7 @@ type Props = {
 // unmounts/remounts the entire message tree and React's memo cache is lost.
 // Keep both the NAPI result AND the pre-split gutter/content columns at
 // module level so the only work on remount is a WeakMap lookup plus two
-// <ink-raw-ansi> leaves 鈥?not a fresh syntax highlight, nor N sliceAnsi
+// <ink-raw-ansi> leaves —not a fresh syntax highlight, nor N sliceAnsi
 // calls + 6N Yoga nodes.
 //
 // PR #21439 (fullscreen default-on) made gutterWidth>0 the default path,
@@ -87,7 +87,7 @@ function renderColorDiff(patch: StructuredPatchHunk, firstLine: string | null, f
   }
   // Cap the inner map: width is part of the key, so terminal resize while a
   // diff is visible accumulates a full render copy per distinct width. Four
-  // variants (two widths 脳 dim on/off) covers the steady state; beyond that
+  // variants (two widths × dim on/off) covers the steady state; beyond that
   // the user is actively resizing and old widths are stale.
   if (perHunk.size >= 4) perHunk.clear();
   perHunk.set(key, entry);

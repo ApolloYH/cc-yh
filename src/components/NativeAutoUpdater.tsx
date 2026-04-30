@@ -68,7 +68,7 @@ export function NativeAutoUpdater({
   // Track latest isUpdating value in a ref so the memoized checkForUpdates
   // callback always sees the current value without changing callback identity
   // (which would re-trigger the initial-check useEffect below and cause
-  // repeated downloads on remount 鈥?the upstream trigger for #22413).
+  // repeated downloads on remount —the upstream trigger for #22413).
   const isUpdatingRef = useRef(isUpdating);
   isUpdatingRef.current = isUpdating;
   const checkForUpdates = React.useCallback(async () => {
@@ -180,7 +180,7 @@ export function NativeAutoUpdater({
             Checking for updates
           </Text>
         </Box> : autoUpdaterResult?.status === 'success' && showSuccessMessage && updateSemver && <Text color="success" wrap="truncate">
-            鉁?Update installed 路 Restart to update
+            鉁?Update installed · Restart to update
           </Text>}
       {autoUpdaterResult?.status === 'install_failed' && <Text color="error" wrap="truncate">
           鉁?Auto-update failed &middot; Try <Text bold>/status</Text>

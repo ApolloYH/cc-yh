@@ -10,8 +10,6 @@ import { handleMemoryV2Api } from '../api/memory-v2.js'
 let tmpDir: string
 let originalConfigDir: string | undefined
 let originalMemoryOverride: string | undefined
-let originalEmbeddingApiKey: string | undefined
-let originalEmbeddingProvider: string | undefined
 let originalDisableMainModel: string | undefined
 
 describe('MemoryV2 API', () => {
@@ -19,13 +17,9 @@ describe('MemoryV2 API', () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memory-v2-api-'))
     originalConfigDir = process.env.CLAUDE_CONFIG_DIR
     originalMemoryOverride = process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
-    originalEmbeddingApiKey = process.env.CLAUDE_YH_EMBEDDING_API_KEY
-    originalEmbeddingProvider = process.env.CLAUDE_YH_EMBEDDING_PROVIDER
     originalDisableMainModel = process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION
     process.env.CLAUDE_CONFIG_DIR = tmpDir
     process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = path.join(tmpDir, 'project-memory')
-    delete process.env.CLAUDE_YH_EMBEDDING_API_KEY
-    delete process.env.CLAUDE_YH_EMBEDDING_PROVIDER
     process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION = '1'
     getAutoMemPath.cache.clear?.()
   })
@@ -35,10 +29,6 @@ describe('MemoryV2 API', () => {
     else process.env.CLAUDE_CONFIG_DIR = originalConfigDir
     if (originalMemoryOverride === undefined) delete process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
     else process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE = originalMemoryOverride
-    if (originalEmbeddingApiKey === undefined) delete process.env.CLAUDE_YH_EMBEDDING_API_KEY
-    else process.env.CLAUDE_YH_EMBEDDING_API_KEY = originalEmbeddingApiKey
-    if (originalEmbeddingProvider === undefined) delete process.env.CLAUDE_YH_EMBEDDING_PROVIDER
-    else process.env.CLAUDE_YH_EMBEDDING_PROVIDER = originalEmbeddingProvider
     if (originalDisableMainModel === undefined) delete process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION
     else process.env.CLAUDE_YH_DISABLE_MAIN_MODEL_AUTOMATION = originalDisableMainModel
     getAutoMemPath.cache.clear?.()
@@ -110,13 +100,13 @@ describe('MemoryV2 API', () => {
     ])
     expect(summarize.status).toBe(405)
 
-    const staleReq = new Request('http://localhost/api/memory-v2/stale')
-    const stale = await handleMemoryV2Api(staleReq, new URL(staleReq.url), [
+    const unknownReq = new Request('http://localhost/api/memory-v2/unknown')
+    const unknown = await handleMemoryV2Api(unknownReq, new URL(unknownReq.url), [
       'api',
       'memory-v2',
-      'stale',
+      'unknown',
     ])
-    expect(stale.status).toBe(405)
+    expect(unknown.status).toBe(405)
 
     const distillReq = new Request('http://localhost/api/memory-v2/distill', {
       method: 'POST',
@@ -139,31 +129,6 @@ describe('MemoryV2 API', () => {
       'fact',
     ])
     expect(fact.status).toBe(405)
-  })
-
-  it('updates embedding provider settings without echoing the API key', async () => {
-    const req = new Request('http://localhost/api/memory-v2/embedding', {
-      method: 'PUT',
-      body: JSON.stringify({
-        provider: 'dashscope',
-        baseUrl: 'http://127.0.0.1:12345/v1',
-        model: 'text-embedding-v4',
-        dimensions: 1024,
-        apiKey: 'secret-test-key',
-      }),
-    })
-    const response = await handleMemoryV2Api(req, new URL(req.url), [
-      'api',
-      'memory-v2',
-      'embedding',
-    ])
-    const body = await response.json()
-    expect(response.status).toBe(200)
-    expect(body.config.hasApiKey).toBe(true)
-    expect(JSON.stringify(body)).not.toContain('secret-test-key')
-
-    const raw = await fs.readFile(path.join(tmpDir, 'settings.json'), 'utf-8')
-    expect(raw).toContain('secret-test-key')
   })
 
   it('serves memory extraction diagnostic events', async () => {

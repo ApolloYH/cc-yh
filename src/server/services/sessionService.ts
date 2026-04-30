@@ -743,6 +743,17 @@ export class SessionService {
     })
   }
 
+  async hasSavedTitle(sessionId: string): Promise<boolean> {
+    const found = await this.findSessionFile(sessionId)
+    if (!found) return false
+
+    const entries = await this.readJsonlFile(found.filePath)
+    return entries.some(entry =>
+      (entry.type === 'custom-title' && typeof entry.customTitle === 'string' && entry.customTitle.trim()) ||
+      (entry.type === 'ai-title' && typeof entry.aiTitle === 'string' && entry.aiTitle.trim()),
+    )
+  }
+
   /**
    * Get the actual working directory for a session.
    * First checks for stored session-meta entry, then falls back to desanitizePath.

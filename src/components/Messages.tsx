@@ -48,7 +48,7 @@ import type { JumpHandle } from './VirtualMessageList.js';
 // Memoed logo header: this box is the FIRST sibling before all MessageRows
 // in main-screen mode. If it becomes dirty on every Messages re-render,
 // renderChildren's seenDirtyChild cascade disables prevScreen (blit) for
-// ALL subsequent siblings 鈥?every MessageRow re-writes from scratch instead
+// ALL subsequent siblings —every MessageRow re-writes from scratch instead
 // of blitting. In long sessions (~2800 messages) this is 150K+ writes/frame
 // and pegs CPU at 100%. Memo on agentDefinitions so a new messages array
 // doesn't invalidate the logo subtree. LogoV2/StatusNotices internally
@@ -87,7 +87,7 @@ import { VirtualMessageList } from './VirtualMessageList.js';
 
 /**
  * In brief-only mode, filter messages to show ONLY Brief tool_use blocks,
- * their tool_results, and real user input. All assistant text is dropped 鈥?
+ * their tool_results, and real user input. All assistant text is dropped —
  * if the model forgets to call Brief, the user sees nothing for that turn.
  * That's on the model to get right; the filter does not second-guess it.
  */
@@ -116,7 +116,7 @@ export function filterForBriefTool<T extends {
   const briefToolUseIDs = new Set<string>();
   return messages.filter(msg => {
     // System messages (attach confirmation, remote errors, compact boundaries)
-    // must stay visible 鈥?dropping them leaves the viewer with no feedback.
+    // must stay visible —dropping them leaves the viewer with no feedback.
     // Exception: api_metrics is per-turn debug noise (TTFT, config writes,
     // hook timing) that defeats the point of brief mode. Still visible in
     // transcript mode (ctrl+o) which bypasses this filter.
@@ -141,12 +141,12 @@ export function filterForBriefTool<T extends {
       if (block?.type === 'tool_result') {
         return block.tool_use_id !== undefined && briefToolUseIDs.has(block.tool_use_id);
       }
-      // Real user input only 鈥?drop meta/tick messages.
+      // Real user input only —drop meta/tick messages.
       return !msg.isMeta;
     }
     if (msg.type === 'attachment') {
       // Human input drained mid-turn arrives as a queued_command attachment
-      // (query.ts mid-chain drain 鈫?getQueuedCommandAttachments). Keep it 鈥?
+      // (query.ts mid-chain drain →getQueuedCommandAttachments). Keep it —
       // it's what the user typed. commandMode === 'prompt' positively
       // identifies human-typed input; task-notification callers set
       // mode: 'task-notification' but not origin/isMeta, so the positive
@@ -161,11 +161,11 @@ export function filterForBriefTool<T extends {
 /**
  * Full-transcript companion to filterForBriefTool. When the Brief tool is
  * in use, the model's text output is redundant with the SendUserMessage
- * content it wrote right after 鈥?drop the text so only the SendUserMessage
+ * content it wrote right after —drop the text so only the SendUserMessage
  * block shows. Tool calls and their results stay visible.
  *
  * Per-turn: only drops text in turns that actually called Brief. If the
- * model forgets, text still shows 鈥?otherwise the user would see nothing.
+ * model forgets, text still shows —otherwise the user would see nothing.
  */
 export function dropTextInBriefTurns<T extends {
   type: string;
@@ -271,7 +271,7 @@ type Props = {
    *  messages array so grouping/lookups are correct, but only this slice
    *  chunk instead of the full session. The logo renders only for chunk 0
    *  (start === 0); later chunks are mid-stream continuations.
-   *  Measured Mar 2026: 538-msg session, 20 slices 鈫?鈭?5% plateau RSS. */
+   *  Measured Mar 2026: 538-msg session, 20 slices → ~5% plateau RSS. */
   renderRange?: readonly [start: number, end: number];
 };
 const MAX_MESSAGES_TO_SHOW_IN_TRANSCRIPT_MODE = 30;
@@ -282,10 +282,10 @@ const MAX_MESSAGES_TO_SHOW_IN_TRANSCRIPT_MODE = 30;
 // to fit every line. At ~2000 messages this is ~3000-line screens, ~500 MB
 // of fibers, and per-frame write costs that push the process into a GC
 // death spiral (observed: 59 GB RSS, 14k mmap/munmap/sec). Content dropped
-// from this slice has already been printed to terminal scrollback 鈥?users
+// from this slice has already been printed to terminal scrollback —users
 // can still scroll up natively. VirtualMessageList (the default ant path)
 // bypasses this cap entirely. Headless one-shot renders (e.g. /export)
-// pass disableRenderCap to opt out 鈥?they have no scrollback and the
+// pass disableRenderCap to opt out —they have no scrollback and the
 // memory concern doesn't apply to renderToString.
 //
 // The slice boundary is tracked as a UUID anchor, not a count-derived
@@ -294,7 +294,7 @@ const MAX_MESSAGES_TO_SHOW_IN_TRANSCRIPT_MODE = 30;
 // terminal reset per turn (CC-941). Quantizing to 50-message steps
 // (CC-1154) helped but still shifted on compaction and collapse regrouping
 // since those change collapsed.length without adding messages. The UUID
-// anchor only advances when rendered count genuinely exceeds CAP+STEP 鈥?
+// anchor only advances when rendered count genuinely exceeds CAP+STEP —
 // immune to length churn from grouping/compaction (CC-1174).
 //
 // The anchor stores BOTH uuid and index. Some uuids are unstable between
@@ -302,7 +302,7 @@ const MAX_MESSAGES_TO_SHOW_IN_TRANSCRIPT_MODE = 30;
 // summary in a group, but reorderMessagesInUI reshuffles hook adjacency
 // as tool results stream in, changing which summary is first. When the
 // uuid vanishes, falling back to the stored index (clamped) keeps the
-// slice roughly where it was instead of resetting to 0 鈥?which would
+// slice roughly where it was instead of resetting to 0 —which would
 // jump from ~200 rendered messages to the full history, orphaning
 // in-progress badge snapshots in scrollback.
 const MAX_MESSAGES_WITHOUT_VIRTUALIZATION = 200;
@@ -320,13 +320,13 @@ export function computeSliceStart(collapsed: ReadonlyArray<{
 }, cap = MAX_MESSAGES_WITHOUT_VIRTUALIZATION, step = MESSAGE_CAP_STEP): number {
   const anchor = anchorRef.current;
   const anchorIdx = anchor ? collapsed.findIndex(m => m.uuid === anchor.uuid) : -1;
-  // Anchor found 鈫?use it. Anchor lost 鈫?fall back to stored index
+  // Anchor found →use it. Anchor lost →fall back to stored index
   // (clamped) so collapse-regrouping uuid churn doesn't reset to 0.
   let start = anchorIdx >= 0 ? anchorIdx : anchor ? Math.min(anchor.idx, Math.max(0, collapsed.length - cap)) : 0;
   if (collapsed.length - start > cap + step) {
     start = collapsed.length - cap;
   }
-  // Refresh anchor from whatever lives at the current start 鈥?heals a
+  // Refresh anchor from whatever lives at the current start —heals a
   // stale uuid after fallback and captures a new one after advancement.
   const msgAtStart = collapsed[start];
   if (msgAtStart && (anchor?.uuid !== msgAtStart.uuid || anchor.idx !== start)) {
@@ -442,7 +442,7 @@ const MessagesImpl = ({
   }, [normalizedMessages]);
 
   // streamingToolUses updates on every input_json_delta while normalizedMessages
-  // stays stable 鈥?precompute the Set so the filter is O(k) not O(n脳k) per chunk.
+  // stays stable —precompute the Set so the filter is O(k) not O(n×k) per chunk.
   const normalizedToolUseIDs = useMemo(() => getToolUseIDs(normalizedMessages), [normalizedMessages]);
   const streamingToolUsesWithoutInProgress = useMemo(() => streamingToolUses.filter(stu => !inProgressToolUseIDs.has(stu.contentBlock.id) && !normalizedToolUseIDs.has(stu.contentBlock.id)), [streamingToolUses, inProgressToolUseIDs, normalizedToolUseIDs]);
   const syntheticStreamingToolUseMessages = useMemo(() => streamingToolUsesWithoutInProgress.flatMap(streamingToolUse => {
@@ -452,13 +452,13 @@ const MessagesImpl = ({
     // Override randomUUID with deterministic value derived from content
     // block ID to prevent React key changes on every memo recomputation.
     // Same class of bug fixed in normalizeMessages (commit 383326e613):
-    // fresh randomUUID 鈫?unstable React keys 鈫?component remounts 鈫?
+    // fresh randomUUID →unstable React keys →component remounts →
     // Ink rendering corruption (overlapping text from stale DOM nodes).
     msg_1.uuid = deriveUUID(streamingToolUse.contentBlock.id as UUID, 0);
     return normalizeMessages([msg_1]);
   }), [streamingToolUsesWithoutInProgress]);
   const isTranscriptMode = screen === 'transcript';
-  // Hoisted to mount-time 鈥?this component re-renders on every scroll.
+  // Hoisted to mount-time —this component re-renders on every scroll.
   const disableVirtualScroll = useMemo(() => isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_VIRTUAL_SCROLL), []);
   // Virtual scroll replaces the transcript cap: everything is scrollable and
   // memory is bounded by the mounted-item count, not the total. scrollRef is
@@ -468,16 +468,16 @@ const MessagesImpl = ({
   const shouldTruncate = isTranscriptMode && !showAllInTranscript && !virtualScrollRuntimeGate;
 
   // Anchor for the first rendered message in the non-virtualized cap slice.
-  // Monotonic advance only 鈥?mutation during render is idempotent (safe
+  // Monotonic advance only —mutation during render is idempotent (safe
   // under StrictMode double-render). See MAX_MESSAGES_WITHOUT_VIRTUALIZATION
   // comment above for why this replaced count-based slicing.
   const sliceAnchorRef = useRef<SliceAnchor>(null);
 
-  // Expensive message transforms 鈥?filter, reorder, group, collapse, lookups.
+  // Expensive message transforms —filter, reorder, group, collapse, lookups.
   // All O(n) over 27k messages. Split from the renderRange slice so scrolling
   // (which only changes renderRange) doesn't re-run these. Previously this
-  // useMemo included renderRange 鈫?every scroll rebuilt 6 Maps over 27k
-  // messages + 4 filter/map passes = ~50ms alloc per scroll 鈫?GC pressure 鈫?
+  // useMemo included renderRange →every scroll rebuilt 6 Maps over 27k
+  // messages + 4 filter/map passes = ~50ms alloc per scroll →GC pressure →
   // 100-173ms stop-the-world pauses on the 1GB heap.
   const {
     collapsed: collapsed_0,
@@ -487,11 +487,11 @@ const MessagesImpl = ({
   } = useMemo(() => {
     // In fullscreen mode the alt buffer has no native scrollback, so the
     // compact-boundary filter just hides history the ScrollBox could
-    // otherwise scroll to. Main-screen mode keeps the filter 鈥?pre-compact
+    // otherwise scroll to. Main-screen mode keeps the filter —pre-compact
     // rows live above the viewport in native scrollback there, and
     // re-rendering them triggers full resets.
     // includeSnipped: UI rendering keeps snipped messages for scrollback
-    // (this PR's core goal 鈥?full history in UI, filter only for the model).
+    // (this PR's core goal —full history in UI, filter only for the model).
     // Also avoids a UUID mismatch: normalizeMessages derives new UUIDs, so
     // projectSnippedView's check against original removedUuids would fail.
     const compactAwareMessages = verbose || isFullscreenEnvEnabled() ? normalizedMessages : getMessagesAfterCompactBoundary(normalizedMessages, {
@@ -508,7 +508,7 @@ const MessagesImpl = ({
     // assistant text in turns where SendUserMessage was called (the model's
     // text is working-notes that duplicate the SendUserMessage content).
     const briefToolNames = [BRIEF_TOOL_NAME, SEND_USER_FILE_TOOL_NAME].filter((n): n is string => n !== null);
-    // dropTextInBriefTurns should only trigger on SendUserMessage turns 鈥?
+    // dropTextInBriefTurns should only trigger on SendUserMessage turns —
     // SendUserFile delivers a file without replacement text, so dropping
     // assistant text for file-only turns would leave the user with no context.
     const dropTextToolNames = [BRIEF_TOOL_NAME].filter((n_0): n_0 is string => n_0 !== null);
@@ -529,12 +529,12 @@ const MessagesImpl = ({
     };
   }, [verbose, normalizedMessages, isTranscriptMode, syntheticStreamingToolUseMessages, shouldTruncate, tools, isBriefOnly]);
 
-  // Cheap slice 鈥?only runs when scroll range or slice config changes.
+  // Cheap slice —only runs when scroll range or slice config changes.
   const renderableMessages = useMemo(() => {
     // Safety cap for the non-virtualized render path. Applied here (not at
     // the JSX site) so renderMessageRow's index-based lookups and
     // dividerBeforeIndex compute on the same array. VirtualMessageList
-    // never sees this slice 鈥?virtualScrollRuntimeGate is constant for the
+    // never sees this slice —virtualScrollRuntimeGate is constant for the
     // component's lifetime (scrollRef is either always passed or never).
     // renderRange is first: the chunked export path slices the
     // post-grouping array so each chunk gets correct tool-call grouping.
@@ -560,7 +560,7 @@ const MessagesImpl = ({
   // Fullscreen: click a message to toggle verbose rendering for it. Keyed by
   // tool_use_id where available so a tool_use and its tool_result (separate
   // rows) expand together; falls back to uuid for groups/thinking. Stale keys
-  // are harmless 鈥?they never match anything in renderableMessages.
+  // are harmless —they never match anything in renderableMessages.
   const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(() => new Set());
   const onItemClick = useCallback((msg_4: RenderableMessage) => {
     const k = expandKey(msg_4);
@@ -575,7 +575,7 @@ const MessagesImpl = ({
   // collapsed read/search groups, or tool results that self-report truncation
   // via isResultTruncated. Callback must be stable across message updates: if
   // its identity (or return value) flips during streaming, onMouseEnter
-  // attaches after the mouse is already inside 鈫?hover never fires. tools is
+  // attaches after the mouse is already inside →hover never fires. tools is
   // session-stable; lookups is read via ref so the callback doesn't churn on
   // every new message.
   const lookupsRef = useRef(lookups_0);
@@ -617,14 +617,14 @@ const MessagesImpl = ({
     const isUserContinuation = msg_8.type === 'user' && prevType === 'user';
     // hasContentAfter is only consumed for collapsed_read_search groups;
     // skip the scan for everything else. streamingText is rendered as a
-    // sibling after this map, so it's never in renderableMessages 鈥?OR it
+    // sibling after this map, so it's never in renderableMessages —OR it
     // in explicitly so the group flips to past tense as soon as text starts
     // streaming instead of waiting for the block to finalize.
     const hasContentAfter = msg_8.type === 'collapsed_read_search' && (!!streamingText || hasContentAfterIndex(renderableMessages, index, tools, streamingToolUseIDs));
     const k_0 = messageKey(msg_8);
     const row = <MessageRow key={k_0} message={msg_8} isUserContinuation={isUserContinuation} hasContentAfter={hasContentAfter} tools={tools} commands={commands} verbose={verbose || isItemExpanded(msg_8) || cursor?.expanded === true && index === selectedIdx} inProgressToolUseIDs={inProgressToolUseIDs} streamingToolUseIDs={streamingToolUseIDs} screen={screen} canAnimate={canAnimate} onOpenRateLimitOptions={onOpenRateLimitOptions} lastThinkingBlockId={lastThinkingBlockId} latestBashOutputUUID={latestBashOutputUUID} columns={columns} isLoading={isLoading} lookups={lookups_0} />;
 
-    // Per-row Provider 鈥?only 2 rows re-render on selection change.
+    // Per-row Provider —only 2 rows re-render on selection change.
     // Wrapped BEFORE divider branch so both return paths get it.
     const wrapped = <MessageActionsSelectedContext.Provider key={k_0} value={index === selectedIdx}>
         {row}
@@ -638,22 +638,22 @@ const MessagesImpl = ({
   };
 
   // Search indexing: for tool_result messages, look up the Tool and use
-  // its extractSearchText 鈥?tool-owned, precise, matches what
+  // its extractSearchText —tool-owned, precise, matches what
   // renderToolResultMessage shows. Falls back to renderableSearchText
   // (duck-types toolUseResult) for tools that haven't implemented it,
   // and for all non-tool-result message types. The drift-catcher test
   // (toolSearchText.test.tsx) renders + compares to keep these in sync.
   //
   // A second-React-root reconcile approach was tried and ruled out
-  // (measured 3.1ms/msg, growing 鈥?flushSyncWork processes all roots;
-  // component hooks mutate shared state 鈫?main root accumulates updates).
+  // (measured 3.1ms/msg, growing —flushSyncWork processes all roots;
+  // component hooks mutate shared state →main root accumulates updates).
   const searchTextCache = useRef(new WeakMap<RenderableMessage, string>());
   const extractSearchText = useCallback((msg_9: RenderableMessage): string => {
     const cached = searchTextCache.current.get(msg_9);
     if (cached !== undefined) return cached;
     let text_0 = renderableSearchText(msg_9);
     // If this is a tool_result message and the tool implements
-    // extractSearchText, prefer that 鈥?it's precise (tool-owned)
+    // extractSearchText, prefer that —it's precise (tool-owned)
     // vs renderableSearchText's field-name heuristic.
     if (msg_9.type === 'user' && msg_9.toolUseResult && Array.isArray(msg_9.message.content)) {
       const tr = msg_9.message.content.find(b_1 => b_1.type === 'tool_result');
@@ -661,8 +661,8 @@ const MessagesImpl = ({
         const tu = lookups_0.toolUseByToolUseID.get(tr.tool_use_id);
         const tool_0 = tu && findToolByName(tools, tu.name);
         const extracted = tool_0?.extractSearchText?.(msg_9.toolUseResult as never);
-        // undefined = tool didn't implement 鈫?keep heuristic. Empty
-        // string = tool says "nothing to index" 鈫?respect that.
+        // undefined = tool didn't implement →keep heuristic. Empty
+        // string = tool says "nothing to index" →respect that.
         if (extracted !== undefined) text_0 = extracted;
       }
     }
@@ -685,7 +685,7 @@ const MessagesImpl = ({
       {/* Show all indicator */}
       {isTranscriptMode && showAllInTranscript && hiddenMessageCount_0 > 0 &&
     // disableRenderCap (e.g. [ dump-to-scrollback) means we're uncapped
-    // as a one-shot escape hatch, not a toggle 鈥?ctrl+e is dead and
+    // as a one-shot escape hatch, not a toggle —ctrl+e is dead and
     // nothing is actually "hidden" to restore.
     !disableRenderCap && <Divider title={`${toggleShowAllShortcut} to hide ${chalk.bold(hiddenMessageCount_0)} previous messages`} width={columns} />}
 

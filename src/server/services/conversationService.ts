@@ -9,6 +9,7 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { stripBOM } from '../../utils/jsonRead.js'
 import { sessionService } from './sessionService.js'
 
 const PROVIDER_ENV_KEYS = [
@@ -598,7 +599,7 @@ export class ConversationService {
   } {
     try {
       const raw = fs.readFileSync(settingsPath, 'utf-8')
-      const parsed = JSON.parse(raw) as {
+      const parsed = JSON.parse(stripBOM(raw)) as {
         env?: Record<string, unknown>
         claudeYhProviders?: unknown
       }

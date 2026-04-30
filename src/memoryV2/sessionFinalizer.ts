@@ -44,6 +44,18 @@ async function finalizeSessionMemoryOnce(
     !hasPendingMemoryV2Automation() &&
     await hasFreshSessionSummary(sessionId, sessionMeta)
   ) {
+    logDiagnosticEvent({
+      scope: 'memoryV2.session',
+      event: 'finalize_skipped',
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      data: {
+        sessionId,
+        ...sessionMeta,
+        reason: input.reason,
+        skipped: 'L4 summary is already newer than the session transcript; no extraction was needed.',
+      },
+    })
     return
   }
 
@@ -60,12 +72,14 @@ async function finalizeSessionMemoryOnce(
       runMemoryV2Automation({ sessionId }),
       timeoutMs,
     )
+    const timedOut = result === null
     logDiagnosticEvent({
       scope: 'memoryV2.session',
       event: 'finalize_completed',
       ok: true,
+      severity: timedOut ? 'warn' : undefined,
       durationMs: Date.now() - startedAt,
-      data: { sessionId, ...sessionMeta, reason: input.reason, result },
+      data: { sessionId, ...sessionMeta, reason: input.reason, result, timedOut },
     })
   } catch (error) {
     logDiagnosticEvent({
@@ -119,7 +133,21 @@ async function hasFreshSessionSummary(
   if (!Number.isFinite(modifiedAtMs)) return false
   const summaryPath = path.join(getMemoryV2Paths().summariesDir, `session-${sessionId}.md`)
   const summary = await fs.stat(summaryPath).catch(() => null)
-  return Boolean(summary && summary.mtimeMs >= modifiedAtMs)
+  if (!summary || summary.mtimeMs < modifiedAtMs) return false
+  const sessionTitle = typeof sessionMeta.sessionTitle === 'string'
+    ? sessionMeta.sessionTitle
+    : ''
+  if (!sessionTitle) return true
+  const summaryTitle = await readSummaryTitle(summaryPath)
+  return summaryTitle === sessionTitle
+}
+
+async function readSummaryTitle(summaryPath: string): Promise<string | null> {
+  const content = await fs.readFile(summaryPath, 'utf-8').catch(() => '')
+  const frontmatterTitle = content.match(/^---[\s\S]*?\ntitle:\s*"?([^"\n]+)"?\n[\s\S]*?---/)
+  if (frontmatterTitle?.[1]?.trim()) return frontmatterTitle[1].trim()
+  const heading = content.match(/^#\s+(.+)$/m)
+  return heading?.[1]?.trim() || null
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {

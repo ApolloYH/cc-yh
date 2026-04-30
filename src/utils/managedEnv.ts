@@ -10,6 +10,7 @@ import {
 } from './managedEnvConstants.js'
 import { clearMTLSCache } from './mtls.js'
 import { clearProxyCache, configureGlobalAgents } from './proxy.js'
+import { stripBOM } from './jsonRead.js'
 import { isSettingSourceEnabled } from './settings/constants.js'
 import {
   getSettings_DEPRECATED,
@@ -114,7 +115,7 @@ function getUnifiedProviderEnv(): Record<string, string> | null {
   try {
     const unifiedSettings = join(getClaudeConfigHomeDir(), 'settings.json')
     const unifiedRaw = readFileSync(unifiedSettings, 'utf-8')
-    const unifiedParsed = JSON.parse(unifiedRaw) as {
+    const unifiedParsed = JSON.parse(stripBOM(unifiedRaw)) as {
       env?: Record<string, string>
       claudeYhProviders?: unknown
     }
@@ -152,7 +153,7 @@ function getLegacyCcHahaSettingsEnv(): Record<string, string> {
   try {
     const ccHahaSettings = join(getClaudeConfigHomeDir(), 'claude-yh', 'settings.json')
     const raw = readFileSync(ccHahaSettings, 'utf-8')
-    const parsed = JSON.parse(raw) as { env?: Record<string, string> }
+    const parsed = JSON.parse(stripBOM(raw)) as { env?: Record<string, string> }
     return parsed.env ?? {}
   } catch {
     return {}

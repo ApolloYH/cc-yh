@@ -10,27 +10,23 @@ import {
   parseJsonFromModelText,
 } from '../services/model/mainModelClient.js'
 import {
-  embedMemoryTexts,
-  getMemoryEmbeddingConfig,
   semanticTerms,
-} from './embeddingProvider.js'
-import {
-  getMemoryVectorProvider,
-  searchFaissVectorIndex,
-  writeFaissVectorIndex,
-  type MemoryVectorRecord,
-} from './faissProvider.js'
+  keywordScore,
+} from './keywordSearch.js'
 import type {
   MemoryLayer,
   MemoryV2DistillCandidate,
   MemoryV2Entry,
   MemoryV2LayerStatus,
   MemoryV2SearchResult,
-  MemoryV2StaleStatus,
   MemoryV2Status,
   MemoryV2WriteInput,
 } from './types.js'
 import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
+
+const L1_INDEX_MAX_LINES = 30
+const L1_INDEX_MAX_CHARS = 2500
+const L1_SECTION_MAX_CHARS = 520
 
 export function getMemoryV2Paths(memoryRoot = getAutoMemPath()) {
   const root = path.normalize(memoryRoot).replace(/[\\/]+$/, '')
@@ -42,10 +38,6 @@ export function getMemoryV2Paths(memoryRoot = getAutoMemPath()) {
     skillsDir: path.join(root, 'sops', 'skills'),
     sessionsDir: path.join(root, 'sessions'),
     summariesDir: path.join(root, 'sessions'),
-    vectorIndexPath: path.join(root, 'vectors.json'),
-    embeddingCachePath: path.join(root, 'embedding-cache.json'),
-    faissIndexPath: path.join(root, 'vectors.faiss'),
-    faissMetaPath: path.join(root, 'vectors.faiss.json'),
     candidatePath: path.join(root, 'distill-candidates.json'),
   }
 }
@@ -56,32 +48,20 @@ export async function getMemoryV2Status(): Promise<MemoryV2Status> {
   const paths = getMemoryV2Paths()
   await ensureMemoryV2Dirs(paths)
   const l1 = localizeMemoryEntry(await readIndexEntry(paths.indexPath))
-  const facts = (await enrichStaleStatuses(
-    (await listMarkdownEntries('L2', paths.factsDir)).filter(entry => !isLowValueMemory(entry)),
-  )).map(localizeMemoryEntry)
-  const sops = (await enrichStaleStatuses(
-    (await listL3Entries(paths)).filter(entry => !isLowValueMemory(entry)),
-  )).map(localizeMemoryEntry)
+  const facts = (await listMarkdownEntries('L2', paths.factsDir))
+    .filter(entry => !isLowValueMemory(entry))
+    .map(localizeMemoryEntry)
+  const sops = (await listL3Entries(paths))
+    .filter(entry => !isLowValueMemory(entry))
+    .map(localizeMemoryEntry)
   const l4 = (await listL4Entries(30)).map(localizeMemoryEntry)
   const layers = localizeMemoryLayers(buildLayers(paths, l1, facts, sops, l4))
-  const stale = [...facts, ...sops, ...l4].filter(entry => entry.stale?.stale)
-  await writeVectorIndex([l1, ...facts, ...sops, ...l4])
-  const embedding = await getMemoryEmbeddingConfig()
   return {
     ...paths,
-    vectorProvider: getMemoryVectorProvider(),
-    embeddingProvider: embedding.provider,
-    embeddingModel: embedding.model,
-    embeddingBaseUrl: embedding.baseUrl,
-    embeddingDimensions: embedding.dimensions,
-    embeddingRemote: embedding.provider !== 'local',
-    embeddingHasApiKey: embedding.hasApiKey,
-    embeddingMethod: embedding.method,
     entries: [...facts, ...sops],
     facts,
     sops,
     layers,
-    stale,
   }
 }
 
@@ -131,7 +111,7 @@ export async function updateMemoryV2Entry(input: {
   await ensureMemoryV2Dirs(paths)
 
   if (input.layer === 'L1') {
-    await fs.writeFile(paths.indexPath, input.content.trimEnd() + '\n', 'utf-8')
+    await fs.writeFile(paths.indexPath, enforceL1IndexBounds(input.content), 'utf-8')
     return readIndexEntry(paths.indexPath)
   }
 
@@ -152,12 +132,9 @@ export async function updateMemoryV2Entry(input: {
         'version: "1.0.0"',
         'user-invocable: true',
         '---',
-        '',
         `# ${title}`,
-        '',
-        input.content.trim(),
-        '',
-      ].join('\n'), 'utf-8')
+        compactMarkdownBlankLines(input.content),
+      ].join('\n').trimEnd() + '\n', 'utf-8')
       await rewriteCompactIndex(paths)
       return readSkillEntry(paths.skillsDir, skillName)
     }
@@ -196,7 +173,14 @@ export async function summarizeMemoryV2Sessions(
     const id = `session-${session.id}`
     const summaryPath = path.join(paths.summariesDir, `${id}.md`)
     const existing = await fs.stat(summaryPath).catch(() => null)
-    if (existing && existing.mtimeMs >= session.modifiedAtMs) {
+    const existingSummary = existing
+      ? await readMarkdownEntry('L4', summaryPath).catch(() => null)
+      : null
+    if (
+      existing &&
+      existing.mtimeMs >= session.modifiedAtMs &&
+      existingSummary?.title === session.title
+    ) {
       continue
     }
     const transcript = await readSessionTranscriptText(session.filePath)
@@ -228,62 +212,21 @@ export async function searchMemoryV2(query: string, limit = 20): Promise<MemoryV
   const facts = (await listMarkdownEntries('L2', paths.factsDir)).filter(entry => !isLowValueMemory(entry))
   const sops = (await listL3Entries(paths)).filter(entry => !isLowValueMemory(entry))
   const l4 = await listL4Entries(50)
-  const queryTerms = semanticTerms(normalized)
   const entries = [l1, ...facts, ...sops, ...l4]
-  await writeVectorIndex(entries)
   const texts = entries.map(entry => [entry.title, entry.source, entry.summary, entry.content].filter(Boolean).join('\n'))
-  const embeddings = await embedMemoryTexts({
-    texts: [normalized, ...texts],
-    cachePath: paths.embeddingCachePath,
-  })
-  const queryVector = embeddings.embeddings[0] ?? []
-  const nativeMatches = await searchFaissVectorIndex({
-    indexPath: paths.faissIndexPath,
-    metaPath: paths.faissMetaPath,
-    queryEmbedding: queryVector,
-    limit,
-  })
-  if (nativeMatches.length > 0) {
-    const byKey = new Map(entries.map((entry, index) => [`${entry.layer}:${entry.id}`, { entry, text: texts[index] }]))
-    const nativeResults = nativeMatches
-      .map(match => {
-        const item = byKey.get(`${match.layer}:${match.id}`)
-        if (!item) return null
-        const entryTerms = semanticTerms(item.text)
-        return {
-          entry: item.entry,
-          score: match.score,
-          matchedTerms: queryTerms.filter(term => entryTerms.includes(term)),
-          method: embeddings.config.method,
-        }
-      })
-      .filter((result): result is NonNullable<typeof result> => result !== null)
-      .filter(result => result.score > 0 || result.matchedTerms.length > 0)
-      .slice(0, limit)
-    if (nativeResults.length > 0) return nativeResults
-  }
-  const results = entries
+  return entries
     .map((entry, index) => {
-      const text = texts[index]
-      const entryVector = embeddings.embeddings[index + 1] ?? []
-      const entryTerms = semanticTerms(text)
-      const matchedTerms = queryTerms.filter(term => entryTerms.includes(term))
+      const { score, matchedTerms } = keywordScore(normalized, texts[index])
       return {
         entry,
-        score: cosineArray(queryVector, entryVector),
+        score,
         matchedTerms,
-        method: embeddings.config.method,
+        method: 'keyword' as const,
       }
     })
     .filter(result => result.score > 0 || result.matchedTerms.length > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
-  return results
-}
-
-export async function detectMemoryV2Stale(): Promise<MemoryV2Entry[]> {
-  const status = await getMemoryV2Status()
-  return status.layers.flatMap(layer => layer.entries).filter(entry => entry.stale?.stale)
 }
 
 export async function generateMemoryV2DistillCandidates(
@@ -317,7 +260,7 @@ async function extractMemoryCandidatesWithModel(entry: MemoryV2Entry): Promise<M
       '你是 claude-yh 的长期记忆抽取子智能体。',
       '只根据给定 L4 会话摘要判断是否值得沉淀长期记忆。',
       '必须返回 JSON，不要输出解释。',
-      'JSON 格式：{"candidates":[{"layer":"L2|L3","title":"...","content":"...","confidence":0.0,"reason":"...","evidence":"..."}]}。',
+      'JSON 格式：{"decision":"promote|skip","reason":"...","candidates":[{"layer":"L2|L3","title":"...","content":"...","confidence":0.0,"reason":"...","evidence":"..."}]}。',
       'L2 只保存长期稳定事实：用户明确表达的长期偏好、身份定位、稳定配置、长期规则、全局约束。',
       'L3 只保存抽象可复用流程：必须有适用触发条件、可复用步骤、验证/回退方式。',
       '必须区分“用户本人身份”和“助手/产品身份”：用户说“你是 claude-yh”“你改名字了”“你是我基于 claude-code 开发的智能体”时，指的是助手或产品 claude-yh，不是用户本人。',
@@ -325,7 +268,7 @@ async function extractMemoryCandidatesWithModel(entry: MemoryV2Entry): Promise<M
       '如果身份归属不确定，返回空 candidates，不要猜测。',
       '不要把一次性任务、搜索请求、天气查询、论文查询、B 站/CNKI/网页搜索、问候、工具询问、当前会话标题沉淀为记忆。',
       'SOP 标题必须是抽象流程名，不能是“去某网站搜索某内容”这种具体任务。',
-      '如果没有长期价值，返回 {"candidates":[]}。',
+      '如果没有长期价值，返回 {"decision":"skip","reason":"没有可沉淀的长期事实、偏好、稳定规则、SOP 或 Skill","candidates":[]}。',
       '不要保存密钥、token、cookie、账号密码等敏感内容。',
     ].join('\n'),
     userPrompt: JSON.stringify({
@@ -375,6 +318,14 @@ async function extractMemoryCandidatesWithModel(entry: MemoryV2Entry): Promise<M
   const candidates = rawCandidates
     .map((item, index) => normalizeModelMemoryCandidate(item, entry, index))
     .filter((candidate): candidate is MemoryV2DistillCandidate => candidate !== null)
+  const decision = typeof parsed?.decision === 'string'
+    ? parsed.decision
+    : candidates.length > 0 ? 'promote' : 'skip'
+  const reason = typeof parsed?.reason === 'string'
+    ? parsed.reason
+    : candidates.length > 0
+      ? '模型返回了可沉淀候选。'
+      : '模型未返回可沉淀候选。'
   logDiagnosticEvent({
     scope: 'memoryV2.distill',
     event: 'model_extract_completed',
@@ -385,12 +336,32 @@ async function extractMemoryCandidatesWithModel(entry: MemoryV2Entry): Promise<M
       sessionTitle: entry.title,
       entryTitle: entry.title,
       title: entry.title,
+      model: modelResult.model,
+      modelSource: modelResult.source,
+      decision,
+      reason,
+      modelOutput: truncateDiagnosticText(modelResult.content, 1800),
+      parsedJson: parsed ? truncateDiagnosticText(JSON.stringify(parsed, null, 2), 1800) : null,
       rawCandidates: rawCandidates.length,
       acceptedCandidates: candidates.length,
       acceptedTitles: candidates.map(candidate => candidate.title),
+      rejectedCandidates: Math.max(0, rawCandidates.length - candidates.length),
+      candidateDetails: candidates.map(candidate => ({
+        layer: candidate.layer,
+        title: candidate.title,
+        confidence: candidate.confidence,
+        reason: candidate.reason,
+      })),
     },
   })
   return candidates
+}
+
+function truncateDiagnosticText(value: string, maxLength: number): string {
+  const normalized = value.replace(/\s+$/g, '')
+  return normalized.length <= maxLength
+    ? normalized
+    : `${normalized.slice(0, maxLength - 3)}...`
 }
 
 function normalizeModelMemoryCandidate(
@@ -488,14 +459,11 @@ function defaultL1IndexContent(): string {
 function currentL1IndexContent(): string {
   return [
     '# 记忆索引',
-    '',
     '我是 claude-yh 的 L1 存在性索引，只保存 L2/L3 的入口、主题和触发词；具体内容按相对路径检索读取。',
-    '',
     '- L2 facts/：长期事实、偏好、稳定规则。',
     '- L3 sops/：可复用 SOP；sops/skills/：claude-yh 专属 Skill。',
     '- L4 sessions/：会话摘要和证据归档，只用于溯源，不直接注入上下文。',
-    '',
-  ].join('\n')
+  ].join('\n') + '\n'
 }
 
 function isBrokenDefaultL1Index(content: string): boolean {
@@ -504,8 +472,8 @@ function isBrokenDefaultL1Index(content: string): boolean {
   return (
     trimmed.includes('Memory Index') ||
     trimmed.includes('鐠佹澘') ||
-    trimmed.includes('璁板繂') ||
-    trimmed.includes('鎴戞槸') ||
+    trimmed.includes('记忆') ||
+    trimmed.includes('我是') ||
     trimmed.includes('L1 index: short pointers only')
   )
 }
@@ -609,41 +577,65 @@ function buildProseL1Index(
   sops: MemoryV2Entry[],
   l4: MemoryV2Entry[],
 ): string {
-  const skills = sops.filter(isSkillEntry)
   const regularSops = sops.filter(entry => !isSkillEntry(entry))
-  const l2Summary = summarizeL1MemoryEntries(facts, '暂无长期事实、偏好或稳定规则')
+  const userSummary = summarizeL1MemoryEntries(facts, '暂无长期偏好、角色定位或稳定事实')
+  const l2Summary = summarizeL1MemoryEntries(facts, '暂无 L2 主题')
   const l3Summary = summarizeL1MemoryEntries(regularSops, '暂无普通 SOP')
-  const skillSummary = summarizeL1MemoryEntries(skills, '暂无 claude-yh 专属 Skill')
   const l2Path = `${relativeMemoryPath(paths.root, paths.factsDir)}/`
   const sopPath = `${relativeMemoryPath(paths.root, paths.sopsDir)}/`
-  const skillPath = `${relativeMemoryPath(paths.root, paths.skillsDir)}/`
   const l4Path = `${relativeMemoryPath(paths.root, paths.summariesDir)}/`
 
-  return [
+  return enforceL1IndexBounds([
     '# 记忆索引',
-    '',
-    '我是 claude-yh 的 L1 存在性索引。对话开始只读取这里；需要细节时按相对路径检索 L2/L3，再用 source 回溯 L4。',
-    '',
-    `L2 facts \`${l2Path}\`：${l2Summary}。`,
-    '',
-    `L3 SOP \`${sopPath}\`：${l3Summary}。`,
-    '',
-    `L3 Skills \`${skillPath}\`：${skillSummary}。`,
-    '',
-    `L4 sessions \`${l4Path}\`：${l4.length} 条会话摘要和证据归档，只用于溯源，不直接作为长期事实注入上下文。`,
-    '',
-    '固定规则：No Execution, No Memory；L3 中 Skill 和 SOP 二选一，不能重复沉淀同一流程。',
-    '',
-  ].join('\n')
+    '角色定位：暂无已沉淀的长期角色定位。',
+    `用户长期偏好：${withChinesePeriod(userSummary)}`,
+    `L2 facts：${withChinesePeriod(l2Summary)} 细节见 \`${l2Path}\`。`,
+    `L3 SOP：${withChinesePeriod(l3Summary)} 细节见 \`${sopPath}\`。`,
+    `溯源：会话摘要见 \`${l4Path}\`，当前 ${l4.length} 条。`,
+  ].join('\n'))
 }
 
 function isSkillEntry(entry: MemoryV2Entry): boolean {
   return entry.id.startsWith('skill-') || entry.path.includes(`${path.sep}skills${path.sep}`)
 }
 
+function withChinesePeriod(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return '。'
+  return /[。！？!?]$/u.test(trimmed) ? trimmed : `${trimmed}。`
+}
+
+function trimTrailingSentencePunctuation(value: string): string {
+  return value.trim().replace(/[。！？!?]+$/u, '')
+}
+
 function summarizeL1MemoryEntries(entries: MemoryV2Entry[], empty: string): string {
-  const summary = summarizeEntryThemes(entries, 8)
-  return summary || empty
+  const summary = summarizeEntryThemes(entries, 5)
+  return truncateText(summary || empty, L1_SECTION_MAX_CHARS)
+}
+
+function enforceL1IndexBounds(content: string): string {
+  let lines = compactMarkdownBlankLines(content).split(/\r?\n/).slice(0, L1_INDEX_MAX_LINES)
+  let bounded = `${lines.join('\n').trimEnd()}\n`
+  if (bounded.length <= L1_INDEX_MAX_CHARS) return bounded
+
+  lines = lines.map((line, index) => {
+    if (index <= 2 || line.length <= 180) return line
+    return truncateText(line, 180)
+  })
+  bounded = `${lines.join('\n').trimEnd()}\n`
+  if (bounded.length <= L1_INDEX_MAX_CHARS) return bounded
+
+  return `${bounded.slice(0, L1_INDEX_MAX_CHARS - 4).trimEnd()}...\n`
+}
+
+function compactMarkdownBlankLines(content: string): string {
+  return content
+    .split(/\r?\n/)
+    .map(line => line.trimEnd())
+    .filter(line => line.trim().length > 0)
+    .join('\n')
+    .trim()
 }
 
 function summarizeEntryThemes(entries: MemoryV2Entry[], limit: number): string {
@@ -654,7 +646,7 @@ function summarizeEntryThemes(entries: MemoryV2Entry[], limit: number): string {
   const seen = new Set<string>()
   const selected: string[] = []
   for (const item of useful) {
-    const key = item.toLowerCase()
+    const key = normalizeL1ThemeKey(item)
     if (seen.has(key)) continue
     seen.add(key)
     selected.push(item)
@@ -664,13 +656,53 @@ function summarizeEntryThemes(entries: MemoryV2Entry[], limit: number): string {
 }
 
 function compactEntryTheme(entry: MemoryV2Entry): string {
-  const title = cleanMemoryTitle(entry.title)
-  const body = firstUsefulSentence(entry.content || entry.summary || '')
+  const title = normalizeL1ThemeDisplay(cleanMemoryTitle(entry.title))
+  const body = normalizeL1ThemeDisplay(firstUsefulSentence(entry.content || entry.summary || ''))
   const titleOnly = title && !/^(fact|sop|skill)$/i.test(title) ? title : ''
-  if (titleOnly && body && !body.toLowerCase().includes(titleOnly.toLowerCase())) {
-    return truncateText(`${titleOnly}：${body}`, 90)
+  const bodyTheme = stripGenericL1ThemePrefix(body)
+  if (bodyTheme) {
+    if (!titleOnly || isGenericL1ThemeTitle(titleOnly) || bodyTheme.toLowerCase().includes(titleOnly.toLowerCase())) {
+      return truncateText(bodyTheme, 90)
+    }
+    return truncateText(`${titleOnly}：${bodyTheme}`, 90)
   }
-  return truncateText(titleOnly || body, 90)
+  if (!titleOnly || isGenericL1ThemeTitle(titleOnly)) return ''
+  return truncateText(titleOnly, 90)
+}
+
+function normalizeL1ThemeKey(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/\b\d+\b/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+}
+
+function normalizeL1ThemeDisplay(value: string): string {
+  return stripGenericL1ThemePrefix(value)
+    .replace(/\s+\d+$/u, '')
+    .replace(/([\p{Script=Han}A-Za-z_-]+)\s+\d+\s*[:：]/gu, '$1：')
+    .replace(/[:：]\s*[:：]+/g, '：')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function stripGenericL1ThemePrefix(value: string): string {
+  let text = value.replace(/\s+/g, ' ').trim()
+  for (let i = 0; i < 3; i++) {
+    const next = text
+      .replace(/^(长期偏好与事实|用户长期偏好|可复用流程|流程)\s*\d*\s*[:：]\s*/u, '')
+      .replace(/^(长期偏好|用户偏好|稳定事实|事实|偏好)\s*\d*\s*[:：]\s*/u, '')
+      .replace(/^(Fact|SOP|Skill)\s*[:：]\s*/i, '')
+      .trim()
+    if (next === text) break
+    text = next
+  }
+  return text
+}
+
+function isGenericL1ThemeTitle(title: string): boolean {
+  return /^(长期偏好与事实|用户长期偏好|长期偏好|用户偏好|稳定事实|事实|偏好|可复用流程|流程)$/u.test(title.trim())
 }
 
 function cleanMemoryTitle(title: string): string {
@@ -687,8 +719,15 @@ function firstUsefulSentence(content: string): string {
     .replace(/\s+/g, ' ')
     .trim()
   if (!normalized) return ''
-  const [sentence] = normalized.split(/(?<=[。！？!?])\s+/u)
-  return sentence?.trim() || ''
+  const sentences = (normalized.match(/[^。！？!?]+[。！？!?]?/gu) ?? [normalized])
+    .map(sentence => sentence.trim())
+    .filter(Boolean)
+    .filter(sentence => !isL1SummaryNoiseSentence(sentence))
+  return sentences[0] || ''
+}
+
+function isL1SummaryNoiseSentence(sentence: string): boolean {
+  return /这里故意|故意写|用来测试|测试 L1|测试 L3|压测|demo/i.test(sentence)
 }
 
 function truncateText(value: string, maxLength: number): string {
@@ -1001,12 +1040,9 @@ async function writeEntryAtPath(
     `verified: ${input.verified}`,
     input.source ? `source: ${JSON.stringify(input.source)}` : '',
     '---',
-    '',
     `# ${input.title}`,
-    '',
-    input.content.trim(),
-    '',
-  ].filter(line => line !== '').join('\n')
+    compactMarkdownBlankLines(input.content),
+  ].filter(line => line !== '').join('\n').trimEnd() + '\n'
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   await fs.writeFile(filePath, markdown, 'utf-8')
   const stat = await fs.stat(filePath)
@@ -1017,10 +1053,9 @@ async function writeEntryAtPath(
     path: filePath,
     source: input.source,
     verified: input.verified,
-    content: input.content.trim(),
+    content: compactMarkdownBlankLines(input.content),
     summary: summarizeText(input.content),
     updatedAt: stat.mtime.toISOString(),
-    stale: staleStatus(layer, stat.mtime),
   }
 }
 
@@ -1036,7 +1071,6 @@ async function readIndexEntry(indexPath: string): Promise<MemoryV2Entry> {
     content,
     summary: summarizeText(content),
     updatedAt: stat.mtime.toISOString(),
-    stale: staleStatus('L1', stat.mtime),
   }
 }
 
@@ -1109,7 +1143,6 @@ async function readSkillEntry(skillsDir: string, skillName: string): Promise<Mem
     content: body,
     summary: summarizeText(body),
     updatedAt: stat.mtime.toISOString(),
-    stale: staleStatus('L3', stat.mtime),
   }
 }
 
@@ -1130,7 +1163,6 @@ async function listL4Entries(limit: number): Promise<MemoryV2Entry[]> {
           verified: true,
           summary: `${session.messageCount} messages; modified ${session.modifiedAt}`,
           updatedAt: session.modifiedAt,
-          stale: staleStatus('L4', new Date(session.modifiedAt)),
         }))
     : []
   return [...summaries, ...sessions]
@@ -1170,7 +1202,6 @@ async function readL4Entry(id: string): Promise<MemoryV2Entry> {
     content: await fs.readFile(session.filePath, 'utf-8').catch(() => ''),
     summary: `${session.messageCount} messages; modified ${session.modifiedAt}`,
     updatedAt: session.modifiedAt,
-    stale: staleStatus('L4', new Date(session.modifiedAt)),
   }
 }
 
@@ -1192,16 +1223,14 @@ async function readMarkdownEntry(
     content: body,
     summary: summarizeText(body),
     updatedAt: stat.mtime.toISOString(),
-    stale: staleStatus(layer, stat.mtime),
   }
 }
 
 function localizeMemoryEntry(entry: MemoryV2Entry): MemoryV2Entry {
-  if (entry.layer !== 'L1' && !entry.stale) return entry
+  if (entry.layer !== 'L1') return entry
   return {
     ...entry,
-    title: entry.layer === 'L1' ? '记忆索引' : entry.title,
-    stale: entry.stale ? localizeStaleStatus(entry.layer, entry.stale) : entry.stale,
+    title: entry.layer === 'L1' ? '\u8bb0\u5fc6\u7d22\u5f15' : entry.title,
   }
 }
 
@@ -1230,29 +1259,6 @@ function localizeMemoryLayers(layers: MemoryV2LayerStatus[]): MemoryV2LayerStatu
     description: meta[layer.layer].description,
     entries: layer.entries.map(localizeMemoryEntry),
   }))
-}
-
-function localizeStaleStatus(
-  layer: MemoryLayer,
-  stale: MemoryV2StaleStatus,
-): MemoryV2StaleStatus {
-  if (stale.ageDays === undefined) return stale
-  if (stale.severity === 'stale') {
-    return {
-      ...stale,
-      reason: `${layer} 条目已经 ${stale.ageDays} 天未刷新。`,
-    }
-  }
-  if (stale.severity === 'watch') {
-    return {
-      ...stale,
-      reason: `${layer} 条目已有 ${stale.ageDays} 天，继续依赖前建议复核。`,
-    }
-  }
-  return {
-    ...stale,
-    reason: `${layer} 条目是新鲜的。`,
-  }
 }
 
 function buildLayers(
@@ -1350,87 +1356,10 @@ function assertVerifiedPromotion(
   }
 }
 
-function staleStatus(layer: MemoryLayer, modifiedAt: Date): MemoryV2StaleStatus {
-  const ageDays = Math.max(0, Math.floor((Date.now() - modifiedAt.getTime()) / 86_400_000))
-  const threshold = layer === 'L2' ? 30 : layer === 'L3' ? 60 : layer === 'L4' ? 14 : 90
-  if (ageDays >= threshold) {
-    return {
-      stale: true,
-      reason: layer + ' 条目已经 ' + ageDays + ' 天未刷新。',
-      ageDays,
-      severity: 'stale',
-    }
-  }
-  if (ageDays >= Math.floor(threshold / 2)) {
-    return {
-      stale: false,
-      reason: layer + ' 条目已有 ' + ageDays + ' 天，依赖前建议复核。',
-      ageDays,
-      severity: 'watch',
-    }
-  }
-  return {
-    stale: false,
-    reason: layer + ' 条目是新鲜的。',
-    ageDays,
-    severity: 'fresh',
-  }
-}
-
 function summarizeText(value: string, max = 220): string {
   const normalized = value.replace(/\s+/g, ' ').trim()
   if (normalized.length <= max) return normalized
   return `${normalized.slice(0, max - 3).trimEnd()}...`
-}
-
-function legacySemanticTerms(value: string): string[] {
-  const tokens = value
-    .normalize('NFKC')
-    .toLowerCase()
-    .match(/[\p{L}\p{N}_-]+/gu) ?? []
-  const expanded = tokens.flatMap(token => {
-    if (token.length <= 1) return []
-    const synonyms: Record<string, string[]> = {
-      browser: ['chrome', 'tab', 'cdp', 'tmwd'],
-      chrome: ['browser', 'tab', 'cdp'],
-      memory: ['remember', 'recall', 'knowledge'],
-      skill: ['workflow', 'sop', 'procedure'],
-      test: ['verify', 'validation', 'check'],
-      error: ['failure', 'bug', 'exception'],
-      search: ['find', 'lookup', 'query'],
-      浏览器: ['browser', 'chrome', 'tab'],
-      记忆: ['memory', 'remember', 'recall'],
-      技能: ['skill', 'workflow', 'sop'],
-      测试: ['test', 'verify', 'check'],
-    }
-    return [token, ...(synonyms[token] ?? []), ...cjkBigrams(token)]
-  })
-  return [...new Set(expanded)]
-}
-
-function cjkBigrams(value: string): string[] {
-  const chars = [...value].filter(char => /\p{Script=Han}/u.test(char))
-  const result: string[] = []
-  for (let index = 0; index < chars.length - 1; index += 1) {
-    result.push(`${chars[index]}${chars[index + 1]}`)
-  }
-  return result
-}
-
-function cosineArray(a: readonly number[], b: readonly number[]): number {
-  let dot = 0
-  let aLen = 0
-  let bLen = 0
-  const length = Math.min(a.length, b.length)
-  for (let index = 0; index < length; index += 1) {
-    const left = a[index] ?? 0
-    const right = b[index] ?? 0
-    dot += left * right
-    aLen += left * left
-    bLen += right * right
-  }
-  if (aLen === 0 || bLen === 0) return 0
-  return dot / (Math.sqrt(aLen) * Math.sqrt(bLen))
 }
 
 async function readSessionTranscriptText(filePath: string): Promise<string> {
@@ -1478,13 +1407,9 @@ async function deepSessionSummary(input: {
     `Created: ${input.createdAt}`,
     `Modified: ${input.modifiedAt}`,
     `Source: ${input.filePath}`,
-    '',
     '## Semantic Summary',
-    '',
     `Goal and context: ${excerpts}`,
-    '',
     `Reusable signals: ${reusableSignals.join(', ') || 'none detected'}`,
-    '',
     'Outcome: This L4 entry is evidence only. Promote to L2/L3 only through verified automation rules.',
   ].join('\n')
   const modelSummary = await callConfiguredMainModel({
@@ -1512,7 +1437,7 @@ async function deepSessionSummary(input: {
   }).catch(() => null)
   const parsed = modelSummary ? parseJsonFromModelText(modelSummary.content) : null
   const summary = typeof parsed?.summary === 'string' ? parsed.summary.trim() : ''
-  if (!summary) return fallback
+  if (!summary) return compactMarkdownBlankLines(fallback)
 
   const outcome = typeof parsed?.outcome === 'string' ? parsed.outcome.trim() : ''
   const modelSignals = Array.isArray(parsed?.reusable_signals)
@@ -1522,102 +1447,23 @@ async function deepSessionSummary(input: {
     ? parsed.risks.filter((item): item is string => typeof item === 'string')
     : []
 
-  return [
+  const summaryMarkdown = [
     `Session: ${input.title}`,
     `Project: ${input.projectPath}`,
     `Messages: ${input.messageCount}`,
     `Created: ${input.createdAt}`,
     `Modified: ${input.modifiedAt}`,
     `Source: ${input.filePath}`,
-    '',
     '## Semantic Summary',
-    '',
     summary,
-    '',
     '## Outcome',
-    '',
     outcome || 'Model summary did not provide a separate outcome.',
-    '',
     '## Reusable Signals',
-    '',
     ...(modelSignals.length > 0 ? modelSignals.map(item => `- ${item}`) : [`- ${reusableSignals.join(', ') || 'none detected'}`]),
-    '',
     '## Risks And Promotion Rules',
-    '',
     ...(risks.length > 0 ? risks.map(item => `- ${item}`) : ['- This L4 entry is evidence only. Promote to L2/L3 only through verified automation rules.']),
   ].join('\n')
-}
-
-async function enrichStaleStatuses(entries: MemoryV2Entry[]): Promise<MemoryV2Entry[]> {
-  const titleCounts = new Map<string, number>()
-  for (const entry of entries) {
-    const key = entry.title.toLowerCase().trim()
-    titleCounts.set(key, (titleCounts.get(key) ?? 0) + 1)
-  }
-
-  return Promise.all(entries.map(async entry => {
-    const sourceChanged = await sourceIsNewer(entry)
-    const hasConflict = (titleCounts.get(entry.title.toLowerCase().trim()) ?? 0) > 1
-    if (sourceChanged || hasConflict) {
-      return {
-        ...entry,
-        stale: {
-          stale: true,
-          severity: 'stale' as const,
-          ageDays: entry.stale?.ageDays,
-          reason: sourceChanged
-            ? 'Source file changed after this memory entry was written.'
-            : 'Possible fact conflict: another memory entry has the same title.',
-        },
-      }
-    }
-    return entry
-  }))
-}
-
-async function sourceIsNewer(entry: MemoryV2Entry): Promise<boolean> {
-  if (!entry.source || !entry.updatedAt) return false
-  try {
-    const sourceStat = await fs.stat(entry.source)
-    return sourceStat.mtime.getTime() > new Date(entry.updatedAt).getTime() + 1000
-  } catch {
-    return false
-  }
-}
-
-async function writeVectorIndex(entries: MemoryV2Entry[]): Promise<void> {
-  const paths = getMemoryV2Paths()
-  const texts = entries.map(entry => [entry.title, entry.summary, entry.content].filter(Boolean).join('\n'))
-  const embeddings = await embedMemoryTexts({
-    texts,
-    cachePath: paths.embeddingCachePath,
-  })
-  const vectors: MemoryVectorRecord[] = entries.map((entry, index) => ({
-    layer: entry.layer,
-    id: entry.id,
-    path: entry.path,
-    title: entry.title,
-    embedding: embeddings.embeddings[index] ?? [],
-    dimensions: embeddings.config.dimensions,
-    updatedAt: entry.updatedAt,
-  }))
-  await fs.writeFile(paths.vectorIndexPath, JSON.stringify({
-    method: embeddings.config.method,
-    provider: getMemoryVectorProvider(),
-    embeddingProvider: embeddings.config.provider,
-    embeddingModel: embeddings.config.model,
-    embeddingRemote: embeddings.remote,
-    embeddingError: embeddings.error,
-    dimensions: embeddings.config.dimensions,
-    generatedAt: new Date().toISOString(),
-    vectors,
-  }, null, 2), 'utf-8')
-  await writeFaissVectorIndex({
-    indexPath: paths.faissIndexPath,
-    metaPath: paths.faissMetaPath,
-    records: vectors,
-    dimensions: embeddings.config.dimensions,
-  })
+  return compactMarkdownBlankLines(summaryMarkdown)
 }
 
 function slugify(value: string): string {
