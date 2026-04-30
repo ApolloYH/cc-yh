@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +8,20 @@ import { fileURLToPath } from 'node:url'
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const callerDir = process.env.CALLER_DIR || process.cwd()
 const cliArgs = process.argv.slice(2)
+
+function ensureRuntimeAliases() {
+  const nodeModulesDir = join(rootDir, 'node_modules')
+  const srcAlias = join(nodeModulesDir, 'src')
+  if (existsSync(srcAlias)) return
+
+  try {
+    mkdirSync(nodeModulesDir, { recursive: true })
+    symlinkSync(join(rootDir, 'src'), srcAlias, 'junction')
+  } catch {
+    // Some package managers may install into read-only locations. In that case,
+    // fall back to Bun's tsconfig path support from the package root.
+  }
+}
 
 function takeEnvFileArg(args) {
   for (let index = 0; index < args.length; index += 1) {
@@ -34,6 +48,8 @@ const emptyEnvFile = join(tmpdir(), 'claude-yh-empty.env')
 if (!existsSync(emptyEnvFile)) {
   writeFileSync(emptyEnvFile, '')
 }
+
+ensureRuntimeAliases()
 
 const bunArgs = []
 if (explicitEnvFile && process.env.CLAUDE_YH_SKIP_DOTENV !== '1') {
