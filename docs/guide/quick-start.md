@@ -37,14 +37,13 @@ cp .env.example .env
 
 ### Windows
 
-> **前置要求**：必须安装 [Git for Windows](https://git-scm.com/download/win)
-
 ```powershell
-# PowerShell / cmd 直接调用 Bun
-bun --env-file=.env ./src/entrypoints/cli.tsx
+bun run claude-yh                        # 交互 TUI 模式
+bun run claude-yh -- -p "your prompt here" # 无头模式
+bun run claude-yh -- --help              # 查看所有选项
 
-# 或在 Git Bash 中运行
-./bin/claude-yh
+# 也可以直接调用 Windows 包装脚本
+.\bin\claude-yh.ps1
 ```
 
 ## 4. 全局使用（可选）

@@ -21,21 +21,23 @@ alias claude-yh="$HOME/path/to/claude-yh/bin/claude-yh"
 source ~/.bashrc  # 或 source ~/.zshrc
 ```
 
-## Windows (Git Bash)
+## Windows (PowerShell)
 
-在 `~/.bashrc` 中添加：
+在 PowerShell 配置文件中添加：
 
-```bash
-export PATH="$HOME/path/to/claude-yh/bin:$PATH"
+```powershell
+function claude-yh {
+  & "C:\path\to\claude-yh\bin\claude-yh.ps1" @args
+}
 ```
 
 ## 验证
 
 配置完成后，进入任意项目目录测试：
 
-```bash
-cd ~/your-other-project
+```powershell
+cd C:\path\to\your-other-project
 claude-yh
-# 启动后询问「当前目录是什么？」，应显示 ~/your-other-project
+# 启动后询问「当前目录是什么？」，应显示当前项目目录
 ```
 

@@ -17,7 +17,7 @@
 
 </div>
 
-A **locally runnable version** repaired from the leaked Claude Code source, with support for any Anthropic-compatible API endpoint (MiniMax, OpenRouter, etc.). Beyond the full TUI, we've also completed Computer Use (macOS / Windows), built a GUI **desktop app**, and enabled **full remote control** via Telegram / Feishu.
+Claude YH is a **locally runnable agentic coding CLI** with support for any Anthropic-compatible API endpoint (MiniMax, OpenRouter, etc.). Beyond the full TUI, we've also completed Computer Use (macOS / Windows), built a GUI **desktop app**, and enabled **full remote control** via Telegram / Feishu.
 
 <p align="center">
   <a href="#features">Features</a> · <a href="#desktop-preview">Desktop</a> · <a href="#architecture-overview">Architecture</a> · <a href="#quick-start">Quick Start</a> · <a href="docs/en/guide/env-vars.md">Env Vars</a> · <a href="docs/en/guide/faq.md">FAQ</a> · <a href="docs/en/guide/global-usage.md">Global Usage</a> · <a href="#more-documentation">More Docs</a>
@@ -27,7 +27,7 @@ A **locally runnable version** repaired from the leaked Claude Code source, with
 
 ## Features
 
-- Full Ink TUI experience (matching the official Claude Code interface)
+- Full Ink TUI experience
 - `--print` headless mode for scripts and CI
 - MCP server, plugin, and Skills support
 - Custom API endpoint and model support ([Third-Party Models Guide](docs/en/guide/third-party-models.md))
@@ -110,24 +110,27 @@ cp .env.example .env
 
 ### 3. Start
 
-#### macOS / Linux
+After publishing to npm, install globally and run it from any directory:
 
 ```bash
-./bin/claude-yh                          # Interactive TUI mode
-./bin/claude-yh -p "your prompt here"    # Headless mode
-./bin/claude-yh --help                   # Show all options
+npm install -g claude-yh
+
+claude-yh                          # Interactive TUI mode
+claude-yh -p "your prompt here"    # Headless mode
+claude-yh --help                   # Show all options
 ```
 
-#### Windows
+By default, configuration is loaded from `~/.claude-yh/settings.json` only. To use a specific env file for one run:
 
-> **Prerequisite**: [Git for Windows](https://git-scm.com/download/win) must be installed.
+```bash
+claude-yh --env-file .env
+claude-yh --env-file C:\path\to\custom.env
+```
 
-```powershell
-# PowerShell / cmd — call Bun directly
-bun --env-file=.env ./src/entrypoints/cli.tsx
+For source development, you can still run:
 
-# Or run inside Git Bash
-./bin/claude-yh
+```bash
+bun run claude-yh
 ```
 
 ### 4. Global Usage (Optional)

@@ -127,7 +127,7 @@ export const zh: Record<TranslationKey, string> = {
 
   // Settings > Adapters
   'settings.tab.adapters': 'IM 接入',
-  'settings.adapters.description': '配置即时通讯适配器，通过 Telegram 或飞书与 Claude Code 对话。',
+  'settings.adapters.description': '配置即时通讯适配器，通过 Telegram 或飞书与 Claude YH 对话。',
   'settings.adapters.telegram': 'Telegram',
   'settings.adapters.feishu': '飞书 (Feishu)',
   'settings.adapters.botToken': 'Bot Token',
@@ -172,12 +172,12 @@ export const zh: Record<TranslationKey, string> = {
   // Settings > Agents
   'settings.tab.agents': 'Agents',
   'settings.agents.title': '已安装的 Agents',
-  'settings.agents.description': '浏览 Claude 当前可用的 Agents，包括内置、项目和用户来源。可在 TUI 中使用 /agents 查看当前生效项与覆盖关系。',
+  'settings.agents.description': '浏览 Claude YH 当前可用的 Agents，包括内置、项目和用户来源。可在 TUI 中使用 /agents 查看当前生效项与覆盖关系。',
   'settings.agents.browserTitle': '浏览已安装 Agents',
   'settings.agents.browserEyebrow': 'Agent 浏览器',
   'settings.agents.entryEyebrow': 'Agent 档案',
   'settings.agents.empty': '暂无可用 Agent。',
-  'settings.agents.emptyHint': '在 Claude 设置或当前项目中添加 Agent 定义后，就会显示在这里。',
+  'settings.agents.emptyHint': '在 Claude YH 设置或当前项目中添加 Agent 定义后，就会显示在这里。',
   'settings.agents.model': '模型',
   'settings.agents.tools': '工具',
   'settings.agents.systemPrompt': '系统提示词',
@@ -210,7 +210,7 @@ export const zh: Record<TranslationKey, string> = {
 
   // Settings > Skills
   'settings.skills.title': '已安装技能',
-  'settings.skills.description': '技能扩展 Claude 的能力。你可以在这里安装、本地导入、创建和删除用户技能，底层目录仍然是 ~/.claude-yh/skills/。',
+  'settings.skills.description': '技能扩展 Claude YH 的能力。你可以在这里安装、本地导入、创建和删除用户技能，底层目录仍然是 ~/.claude-yh/skills/。',
   'settings.skills.browserTitle': '浏览已安装技能',
   'settings.skills.browserEyebrow': '技能浏览器',
   'settings.skills.browserDescription': '查看内置、项目和用户技能，比较它们的来源与规模，并打开技能目录阅读文档和源码文件。',
@@ -290,7 +290,7 @@ export const zh: Record<TranslationKey, string> = {
   // Settings > Computer Use
   'settings.tab.computerUse': 'Computer Use',
   'settings.computerUse.title': 'Computer Use',
-  'settings.computerUse.description': '允许 Claude 截屏、点击、打字并控制你的电脑。需要 Python 3，macOS 上还需要辅助功能权限。',
+  'settings.computerUse.description': '允许 Claude YH 截屏、点击、打字并控制你的电脑。需要 Python 3，macOS 上还需要辅助功能权限。',
   'settings.computerUse.notSupported': 'Computer Use 仅支持 macOS 和 Windows。',
   'settings.computerUse.python': 'Python 3',
   'settings.computerUse.pythonNotFound': '未安装，请先安装 Python 3。',
@@ -316,7 +316,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.computerUse.recheckBtn': '重新检测',
   'settings.computerUse.requirementsLabel': '需要的 Python 包',
   'settings.computerUse.appsTitle': '已授权应用',
-  'settings.computerUse.appsDescription': '预先授权 App，Claude 将可以直接控制这些 App，无需运行时弹窗确认。',
+  'settings.computerUse.appsDescription': '预先授权 App，Claude YH 将可以直接控制这些 App，无需运行时弹窗确认。',
   'settings.computerUse.appsLoading': '加载已安装的 App...',
   'settings.computerUse.appsEmpty': '未找到已安装的 App，请先安装环境。',
   'settings.computerUse.appsSearch': '搜索 App...',
@@ -339,14 +339,14 @@ export const zh: Record<TranslationKey, string> = {
 
   // ─── Empty Session ──────────────────────────────────────
   'empty.title': '新建会话',
-  'empty.subtitle': '开始一个新的编码会话。Claude 已准备好帮你构建、调试和架构你的项目。',
+  'empty.subtitle': '开始一个新的编码会话。Claude YH 已准备好帮你构建、调试和架构你的项目。',
   'empty.placeholder': '随便问点什么...',
   'empty.addFiles': '添加文件或图片',
   'empty.slashCommands': '斜杠命令',
   'empty.failedToCreate': '创建会话失败',
 
   // ─── Chat Input ──────────────────────────────────────
-  'chat.placeholder': '让 Claude 编辑、调试或解释代码...',
+  'chat.placeholder': '让 Claude YH 编辑、调试或解释代码...',
   'chat.placeholderMissing': '此会话指向的工作目录缺失。请新建会话或选择其他项目。',
   'chat.addFiles': '添加文件或图片',
   'chat.slashCommands': '斜杠命令',
@@ -361,10 +361,10 @@ export const zh: Record<TranslationKey, string> = {
   'streaming.working': '工作中',
 
   // ─── Permission Dialog ──────────────────────────────────────
-  'permission.allowEditFile': '允许 Claude {toolName} {fileName}？',
-  'permission.allowEditFileGeneric': '允许 Claude {toolName}此文件？',
-  'permission.allowBash': '允许 Claude 执行此命令？',
-  'permission.allowTool': '允许 Claude 使用 {toolName}？',
+  'permission.allowEditFile': '允许 Claude YH {toolName} {fileName}？',
+  'permission.allowEditFileGeneric': '允许 Claude YH {toolName}此文件？',
+  'permission.allowBash': '允许 Claude YH 执行此命令？',
+  'permission.allowTool': '允许 Claude YH 使用 {toolName}？',
   'permission.awaitingApproval': '等待审批',
   'permission.responded': '已响应',
   'permission.allow': '允许',
@@ -375,7 +375,7 @@ export const zh: Record<TranslationKey, string> = {
   'permission.replacingContent': '替换文件内容',
 
   // ─── Ask User Question ──────────────────────────────────────
-  'question.needsInput': 'Claude 需要你的输入',
+  'question.needsInput': 'Claude YH 需要你的输入',
   'question.answered': '已回答',
   'question.customResponse': '或输入自定义回复:',
   'question.typePlaceholder': '输入你的回答...',
@@ -535,7 +535,7 @@ export const zh: Record<TranslationKey, string> = {
   'permMode.askPermissions': '询问权限',
   'permMode.askPermDesc': 'CLI 请求时确认文件编辑和高风险命令',
   'permMode.autoAccept': '自动接受编辑',
-  'permMode.autoAcceptDesc': 'Claude 无需询问即可写入磁盘',
+  'permMode.autoAcceptDesc': 'Claude YH 无需询问即可写入磁盘',
   'permMode.planMode': '计划模式',
   'permMode.planModeDesc': '仅架构和推理，不操作文件',
   'permMode.bypass': '跳过权限',
@@ -543,7 +543,7 @@ export const zh: Record<TranslationKey, string> = {
   'permMode.dontAsk': '不询问',
   'permMode.enableBypassTitle': '启用跳过权限？',
   'permMode.enableBypassSubtitle': '这将授予对系统的完全访问权限',
-  'permMode.enableBypassBody': 'Claude 将拥有<strong>不受限制的</strong>权限来执行 Shell 命令和修改以下目录中的文件:',
+  'permMode.enableBypassBody': 'Claude YH 将拥有<strong>不受限制的</strong>权限来执行 Shell 命令和修改以下目录中的文件:',
   'permMode.permReadWrite': '读取、写入和删除任何文件',
   'permMode.permShell': '执行任意 Shell 命令',
   'permMode.permPackages': '安装或移除软件包',

@@ -3,6 +3,7 @@
 // undici is lazy-required inside getProxyAgent/configureGlobalAgents to defer
 // ~1.5MB when no HTTPS_PROXY/mTLS env vars are set (the common case).
 import axios, { type AxiosInstance } from 'axios'
+import { execFileSync } from 'node:child_process'
 import type { LookupOptions } from 'dns'
 import type { Agent } from 'http'
 import { HttpsProxyAgent, type HttpsProxyAgentOptions } from 'https-proxy-agent'
@@ -25,6 +26,7 @@ import {
 // Under Node/undici, keepalive is a no-op for pooling, but undici
 // naturally evicts dead sockets from the pool on ECONNRESET.
 let keepAliveDisabled = false
+let windowsSystemProxyApplied = false
 
 export function disableKeepAlive(): void {
   keepAliveDisabled = true
@@ -56,12 +58,93 @@ export function getAddressFamily(options: LookupOptions): 0 | 4 | 6 {
 
 type EnvLike = Record<string, string | undefined>
 
+function normalizeProxyUrl(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  return /^[a-z]+:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`
+}
+
+function parseWindowsProxyServer(value: string): { http?: string; https?: string } {
+  const trimmed = value.trim()
+  if (!trimmed) return {}
+
+  if (!trimmed.includes('=')) {
+    const proxy = normalizeProxyUrl(trimmed)
+    return proxy ? { http: proxy, https: proxy } : {}
+  }
+
+  const result: { http?: string; https?: string } = {}
+  for (const segment of trimmed.split(';')) {
+    const [rawScheme, rawTarget] = segment.split('=', 2)
+    const scheme = rawScheme?.trim().toLowerCase()
+    const target = rawTarget?.trim()
+    if (!scheme || !target) continue
+    const proxy = normalizeProxyUrl(target)
+    if (!proxy) continue
+    if (scheme === 'http') result.http = proxy
+    if (scheme === 'https') result.https = proxy
+  }
+
+  if (!result.http && result.https) result.http = result.https
+  if (!result.https && result.http) result.https = result.http
+  return result
+}
+
+function applyWindowsSystemProxyEnv(): void {
+  if (windowsSystemProxyApplied) return
+  windowsSystemProxyApplied = true
+  if (process.platform !== 'win32') return
+  if (
+    process.env.HTTP_PROXY ||
+    process.env.HTTPS_PROXY ||
+    process.env.ALL_PROXY ||
+    process.env.http_proxy ||
+    process.env.https_proxy ||
+    process.env.all_proxy
+  ) {
+    return
+  }
+
+  try {
+    const output = execFileSync(
+      'reg',
+      ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    )
+    const proxyEnableMatch = output.match(/ProxyEnable\s+REG_DWORD\s+0x([0-9a-fA-F]+)/)
+    const proxyServerMatch = output.match(/ProxyServer\s+REG_SZ\s+(.+)/)
+
+    if (!proxyEnableMatch || Number.parseInt(proxyEnableMatch[1]!, 16) !== 1) return
+    if (!proxyServerMatch) return
+
+    const proxy = parseWindowsProxyServer(proxyServerMatch[1]!)
+    if (!proxy.http && !proxy.https) return
+
+    if (proxy.http) {
+      process.env.HTTP_PROXY = proxy.http
+      process.env.http_proxy = proxy.http
+    }
+    if (proxy.https) {
+      process.env.HTTPS_PROXY = proxy.https
+      process.env.https_proxy = proxy.https
+    }
+
+    logForDebugging(
+      `[proxy] using Windows system proxy ${proxy.https ?? proxy.http}`,
+      { level: 'info' },
+    )
+  } catch {
+    // Ignore system proxy detection failures and fall back to direct access.
+  }
+}
+
 /**
  * Get the active proxy URL if one is configured
  * Prefers lowercase variants over uppercase (https_proxy > HTTPS_PROXY > http_proxy > HTTP_PROXY)
  * @param env Environment variables to check (defaults to process.env for production use)
  */
 export function getProxyUrl(env: EnvLike = process.env): string | undefined {
+  if (env === process.env) applyWindowsSystemProxyEnv()
   return env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY
 }
 

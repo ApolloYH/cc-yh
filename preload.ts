@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from 'fs';
+import { homedir } from 'os';
 import { dirname, join, resolve } from 'path';
 
+process.env.CLAUDE_CONFIG_DIR ||= join(homedir(), '.claude-yh');
 bootstrapEnvFromNearestDotEnv();
 
 const version = process.env.CLAUDE_CODE_LOCAL_VERSION ?? '999.0.0-local';
@@ -61,7 +63,10 @@ if (process.env.CALLER_DIR) {
 export {}
 
 function bootstrapEnvFromNearestDotEnv() {
-  if (process.env.CLAUDE_YH_SKIP_DOTENV === '1') {
+  if (
+    process.env.CLAUDE_YH_SKIP_DOTENV === '1' ||
+    process.env.CLAUDE_YH_USE_DOTENV !== '1'
+  ) {
     sanitizeDesktopManagedProviderEnv();
     return;
   }

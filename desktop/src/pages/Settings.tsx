@@ -954,7 +954,7 @@ function AgentDetailView({ agent, onBack }: { agent: AgentDefinition; onBack: ()
         </button>
       </div>
 
-      <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] overflow-hidden">
+      <section className="cc-glass-card rounded-2xl border border-[var(--color-border)] overflow-hidden">
         <div className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.9fr)] lg:items-start">
           <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-text-tertiary)] mb-2">

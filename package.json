@@ -1,14 +1,31 @@
 {
-  "name": "claude-yh-local",
+  "name": "claude-yh",
   "version": "999.0.0-local",
-  "private": true,
+  "private": false,
   "type": "module",
   "bin": {
-    "claude-yh": "./bin/claude-yh"
+    "claude-yh": "./bin/claude-yh.js"
   },
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.2.0"
+  },
+  "files": [
+    "bin",
+    "src",
+    "!src/**/__tests__/**",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "!src/**/*.spec.ts",
+    "!src/**/*.spec.tsx",
+    "preload.ts",
+    "README.md",
+    "README.en.md",
+    "package.json"
+  ],
   "scripts": {
-    "claude-yh": "bun run ./bin/claude-yh",
-    "start": "bun run ./bin/claude-yh",
+    "claude-yh": "node ./bin/claude-yh.js",
+    "start": "node ./bin/claude-yh.js",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

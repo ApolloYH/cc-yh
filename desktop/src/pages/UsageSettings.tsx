@@ -139,7 +139,7 @@ export function UsageSettings() {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="cc-glass-card rounded-2xl border border-[var(--color-border)] p-4">
         <div className="flex flex-wrap items-center gap-2">
           {RANGE_OPTIONS.map((item) => (
             <button
@@ -197,7 +197,7 @@ export function UsageSettings() {
         />
       </div>
 
-      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="cc-glass-card rounded-2xl border border-[var(--color-border)] p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">使用趋势</h3>
           <span className="text-sm text-[var(--color-text-tertiary)]">
@@ -259,7 +259,7 @@ function UsageCard({
   }[tone]
 
   return (
-    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <div className="cc-glass-card rounded-2xl border border-[var(--color-border)] p-5">
       <div className="flex items-start justify-between">
         <div className="text-sm font-semibold text-[var(--color-text-secondary)]">{label}</div>
         <span className={`material-symbols-outlined rounded-xl p-2 text-[18px] ${toneClass}`}>{icon}</span>

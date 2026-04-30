@@ -125,7 +125,7 @@ export const en = {
 
   // Settings > Adapters
   'settings.tab.adapters': 'IM Adapters',
-  'settings.adapters.description': 'Configure IM adapters to chat with Claude Code via Telegram or Feishu.',
+  'settings.adapters.description': 'Configure IM adapters to chat with Claude YH via Telegram or Feishu.',
   'settings.adapters.telegram': 'Telegram',
   'settings.adapters.feishu': 'Feishu',
   'settings.adapters.botToken': 'Bot Token',
@@ -170,12 +170,12 @@ export const en = {
   // Settings > Agents
   'settings.tab.agents': 'Agents',
   'settings.agents.title': 'Installed Agents',
-  'settings.agents.description': 'Browse agents available to Claude across built-in, project, and user sources. Use /agents in TUI to inspect active sources and overrides.',
+  'settings.agents.description': 'Browse agents available to Claude YH across built-in, project, and user sources. Use /agents in TUI to inspect active sources and overrides.',
   'settings.agents.browserTitle': 'Browse installed agents',
   'settings.agents.browserEyebrow': 'Agent Browser',
   'settings.agents.entryEyebrow': 'Agent Profile',
   'settings.agents.empty': 'No agents available yet.',
-  'settings.agents.emptyHint': 'Add agent definitions in your Claude settings or project to see them here.',
+  'settings.agents.emptyHint': 'Add agent definitions in your Claude YH settings or project to see them here.',
   'settings.agents.model': 'Model',
   'settings.agents.tools': 'Tools',
   'settings.agents.systemPrompt': 'System Prompt',
@@ -208,7 +208,7 @@ export const en = {
 
   // Settings > Skills
   'settings.skills.title': 'Installed Skills',
-  'settings.skills.description': 'Skills extend Claude with specialized capabilities. Install, create, and manage user skills here, backed by ~/.claude-yh/skills/.',
+  'settings.skills.description': 'Skills extend Claude YH with specialized capabilities. Install, create, and manage user skills here, backed by ~/.claude-yh/skills/.',
   'settings.skills.browserTitle': 'Browse installed skills',
   'settings.skills.browserEyebrow': 'Skill Browser',
   'settings.skills.browserDescription': 'Inspect bundled, project, and user skills, compare their scope, and open each skill folder to read its docs and source files.',
@@ -288,7 +288,7 @@ export const en = {
   // Settings > Computer Use
   'settings.tab.computerUse': 'Computer Use',
   'settings.computerUse.title': 'Computer Use',
-  'settings.computerUse.description': 'Allow Claude to take screenshots, click, type, and control your computer. Requires Python 3. On macOS, accessibility permissions are also needed.',
+  'settings.computerUse.description': 'Allow Claude YH to take screenshots, click, type, and control your computer. Requires Python 3. On macOS, accessibility permissions are also needed.',
   'settings.computerUse.notSupported': 'Computer Use is only supported on macOS and Windows.',
   'settings.computerUse.python': 'Python 3',
   'settings.computerUse.pythonNotFound': 'Not installed. Please install Python 3 first.',
@@ -314,7 +314,7 @@ export const en = {
   'settings.computerUse.recheckBtn': 'Recheck Status',
   'settings.computerUse.requirementsLabel': 'Required packages',
   'settings.computerUse.appsTitle': 'Authorized Apps',
-  'settings.computerUse.appsDescription': 'Pre-authorize apps for Computer Use. Authorized apps can be controlled by Claude without runtime prompts.',
+  'settings.computerUse.appsDescription': 'Pre-authorize apps for Computer Use. Authorized apps can be controlled by Claude YH without runtime prompts.',
   'settings.computerUse.appsLoading': 'Loading installed apps...',
   'settings.computerUse.appsEmpty': 'No installed apps found. Please setup the environment first.',
   'settings.computerUse.appsSearch': 'Search apps...',
@@ -337,14 +337,14 @@ export const en = {
 
   // ─── Empty Session ──────────────────────────────────────
   'empty.title': 'New session',
-  'empty.subtitle': 'Start a fresh coding session. Claude is ready to help you build, debug, and architect your project.',
+  'empty.subtitle': 'Start a fresh coding session. Claude YH is ready to help you build, debug, and architect your project.',
   'empty.placeholder': 'Ask anything...',
   'empty.addFiles': 'Add files or photos',
   'empty.slashCommands': 'Slash commands',
   'empty.failedToCreate': 'Failed to create session',
 
   // ─── Chat Input ──────────────────────────────────────
-  'chat.placeholder': 'Ask Claude to edit, debug or explain...',
+  'chat.placeholder': 'Ask Claude YH to edit, debug or explain...',
   'chat.placeholderMissing': 'This session points to a missing workspace. Create a new session or pick another project.',
   'chat.addFiles': 'Add files or photos',
   'chat.slashCommands': 'Slash commands',
@@ -359,10 +359,10 @@ export const en = {
   'streaming.working': 'Working',
 
   // ─── Permission Dialog ──────────────────────────────────────
-  'permission.allowEditFile': 'Allow Claude to {toolName} {fileName}?',
-  'permission.allowEditFileGeneric': 'Allow Claude to {toolName} this file?',
-  'permission.allowBash': 'Allow Claude to run this command?',
-  'permission.allowTool': 'Allow Claude to use {toolName}?',
+  'permission.allowEditFile': 'Allow Claude YH to {toolName} {fileName}?',
+  'permission.allowEditFileGeneric': 'Allow Claude YH to {toolName} this file?',
+  'permission.allowBash': 'Allow Claude YH to run this command?',
+  'permission.allowTool': 'Allow Claude YH to use {toolName}?',
   'permission.awaitingApproval': 'Awaiting approval',
   'permission.responded': 'Responded',
   'permission.allow': 'Allow',
@@ -373,7 +373,7 @@ export const en = {
   'permission.replacingContent': 'Replacing content in file',
 
   // ─── Ask User Question ──────────────────────────────────────
-  'question.needsInput': 'Claude needs your input',
+  'question.needsInput': 'Claude YH needs your input',
   'question.answered': 'Answered',
   'question.customResponse': 'Or type a custom response:',
   'question.typePlaceholder': 'Type your answer...',
@@ -533,7 +533,7 @@ export const en = {
   'permMode.askPermissions': 'Ask permissions',
   'permMode.askPermDesc': 'Confirm file edits and higher-risk commands when CLI asks',
   'permMode.autoAccept': 'Auto accept edits',
-  'permMode.autoAcceptDesc': 'Claude writes to disk without asking',
+  'permMode.autoAcceptDesc': 'Claude YH writes to disk without asking',
   'permMode.planMode': 'Plan mode',
   'permMode.planModeDesc': 'Architecture & reasoning only, no files',
   'permMode.bypass': 'Bypass permissions',
@@ -541,7 +541,7 @@ export const en = {
   'permMode.dontAsk': "Don't ask",
   'permMode.enableBypassTitle': 'Enable bypass permissions?',
   'permMode.enableBypassSubtitle': 'This grants full access to your system',
-  'permMode.enableBypassBody': 'Claude will have <strong>unrestricted</strong> access to execute shell commands and modify files within:',
+  'permMode.enableBypassBody': 'Claude YH will have <strong>unrestricted</strong> access to execute shell commands and modify files within:',
   'permMode.permReadWrite': 'Read, write, and delete any files',
   'permMode.permShell': 'Execute arbitrary shell commands',
   'permMode.permPackages': 'Install or remove packages',

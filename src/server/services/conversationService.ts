@@ -550,6 +550,10 @@ export class ConversationService {
   }
 
   private getDesktopProviderEnv(): Record<string, string> {
+    if (process.env.CLAUDE_YH_EXPLICIT_ENV_FILE === '1') {
+      return {}
+    }
+
     const configDir =
       process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
     const unified = this.readProviderEnvFromSettings(

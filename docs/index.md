@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: Claude YH
-  text: 本地可运行的 Claude Code
+  text: 本地可运行的 Claude YH
   tagline: 基于泄露源码修复，支持接入任意 Anthropic 兼容 API（MiniMax、OpenRouter 等）
   image:
     src: /images/app-icon.png
@@ -19,7 +19,7 @@ hero:
 features:
   - icon: "\U0001F5A5"
     title: 完整 TUI 交互
-    details: 与官方 Claude Code 一致的 Ink 终端界面，支持 --print 无头模式
+    details: 完整 Ink 终端界面，支持 --print 无头模式
   - icon: "\U0001F9E0"
     title: 记忆系统
     details: 跨会话持久化记忆，自动提取、智能检索、AutoDream 做梦整合
@@ -38,7 +38,7 @@ features:
     link: /guide/third-party-models
   - icon: "\U0001F4AC"
     title: IM 接入
-    details: 在桌面端 webapp 配置 Telegram / 飞书，并通过独立 adapter 进程远程对话 Claude Code
+    details: 在桌面端 webapp 配置 Telegram / 飞书，并通过独立 adapter 进程远程对话 Claude YH
     link: /im/
   - icon: "\U0001F4BB"
     title: Computer Use

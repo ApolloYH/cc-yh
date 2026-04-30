@@ -37,14 +37,14 @@ See [Environment Variables](./env-vars.md) for the full reference.
 
 ### Windows
 
-> **Prerequisite**: [Git for Windows](https://git-scm.com/download/win) must be installed.
-
 ```powershell
-# PowerShell / cmd — call Bun directly
-bun --env-file=.env ./src/entrypoints/cli.tsx
+# PowerShell / cmd
+bun run claude-yh                          # Interactive TUI mode
+bun run claude-yh -- -p "your prompt here" # Headless mode
+bun run claude-yh -- --help                # Show all options
 
-# Or run inside Git Bash
-./bin/claude-yh
+# Or call the Windows wrapper directly
+.\bin\claude-yh.ps1
 ```
 
 ## 4. Global Usage (Optional)

@@ -2,7 +2,10 @@ import type {
   BetaContentBlock,
   BetaWebSearchTool20250305,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
-import { getAPIProvider } from 'src/utils/model/providers.js'
+import {
+  getAPIProvider,
+  isFirstPartyAnthropicBaseUrl,
+} from 'src/utils/model/providers.js'
 import type { PermissionResult } from 'src/utils/permissions/PermissionResult.js'
 import { z } from 'zod/v4'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
@@ -12,8 +15,10 @@ import { lazySchema } from '../../utils/lazySchema.js'
 import { logError } from '../../utils/log.js'
 import { createUserMessage } from '../../utils/messages.js'
 import { getMainLoopModel, getSmallFastModel } from '../../utils/model/model.js'
+import { getProxyFetchOptions } from '../../utils/proxy.js'
 import { jsonParse, jsonStringify } from '../../utils/slowOperations.js'
 import { asSystemPrompt } from '../../utils/systemPromptType.js'
+import { getWebFetchUserAgent } from '../../utils/http.js'
 import { getWebSearchPrompt, WEB_SEARCH_TOOL_NAME } from './prompt.js'
 import {
   getToolUseSummary,
@@ -68,6 +73,8 @@ type OutputSchema = ReturnType<typeof outputSchema>
 
 export type Output = z.infer<OutputSchema>
 
+const LOCAL_SEARCH_MAX_RESULTS = 8
+
 // Re-export WebSearchProgress from centralized types to break import cycles
 export type { WebSearchProgress } from '../../types/tools.js'
 
@@ -80,6 +87,130 @@ function makeToolSchema(input: Input): BetaWebSearchTool20250305 {
     allowed_domains: input.allowed_domains,
     blocked_domains: input.blocked_domains,
     max_uses: 8, // Hardcoded to 8 searches maximum
+  }
+}
+
+function shouldUseLocalWebSearch(): boolean {
+  return (
+    process.env.CLAUDE_CODE_COMPAT_PROVIDER === 'openai' ||
+    !isFirstPartyAnthropicBaseUrl()
+  )
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(Number.parseInt(code, 16)))
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
+function stripHtml(value: string): string {
+  return decodeHtmlEntities(value.replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function resolveDuckDuckGoUrl(rawUrl: string): string | null {
+  const decoded = decodeHtmlEntities(rawUrl)
+  try {
+    const parsed = new URL(decoded, 'https://duckduckgo.com')
+    const redirected = parsed.searchParams.get('uddg')
+    const result = redirected ? new URL(redirected) : parsed
+    if (result.protocol !== 'http:' && result.protocol !== 'https:') return null
+    if (result.hostname === 'duckduckgo.com') return null
+    return result.toString()
+  } catch {
+    return null
+  }
+}
+
+function domainMatches(hostname: string, domain: string): boolean {
+  const normalizedDomain = domain.toLowerCase().replace(/^https?:\/\//, '').split('/')[0] ?? ''
+  const normalizedHost = hostname.toLowerCase()
+  return normalizedHost === normalizedDomain || normalizedHost.endsWith(`.${normalizedDomain}`)
+}
+
+function isResultAllowed(url: string, input: Input): boolean {
+  try {
+    const hostname = new URL(url).hostname
+    if (input.allowed_domains?.length) {
+      return input.allowed_domains.some(domain => domainMatches(hostname, domain))
+    }
+    if (input.blocked_domains?.length) {
+      return !input.blocked_domains.some(domain => domainMatches(hostname, domain))
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function parseDuckDuckGoResults(html: string, input: Input): SearchResult['content'] {
+  const results: SearchResult['content'] = []
+  const seen = new Set<string>()
+  const linkPattern = /<a\b[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+
+  for (const match of html.matchAll(linkPattern)) {
+    const url = resolveDuckDuckGoUrl(match[1] ?? '')
+    const title = stripHtml(match[2] ?? '')
+    if (!url || !title || seen.has(url) || !isResultAllowed(url, input)) continue
+    seen.add(url)
+    results.push({ title, url })
+    if (results.length >= LOCAL_SEARCH_MAX_RESULTS) break
+  }
+
+  return results
+}
+
+async function localWebSearch(
+  input: Input,
+  signal: AbortSignal,
+  startTime: number,
+): Promise<Output> {
+  const searchUrl = new URL('https://duckduckgo.com/html/')
+  searchUrl.searchParams.set('q', input.query)
+
+  const response = await fetch(searchUrl, {
+    headers: {
+      Accept: 'text/html,application/xhtml+xml',
+      'User-Agent': getWebFetchUserAgent(),
+    },
+    signal,
+    ...getProxyFetchOptions(),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Local web search failed with status ${response.status}`)
+  }
+
+  const html = await response.text()
+  const hits = parseDuckDuckGoResults(html, input)
+  const durationSeconds = (performance.now() - startTime) / 1000
+  const results: Output['results'] = [
+    {
+      tool_use_id: 'local-web-search',
+      content: hits,
+    },
+  ]
+
+  if (hits.length === 0) {
+    results.unshift(
+      'Local web search returned no results. Try a broader query or adjust domain filters.',
+    )
+  } else {
+    results.unshift(
+      'Search completed with the local OpenAI-compatible fallback because the active provider does not support Anthropic server-side web_search.',
+    )
+  }
+
+  return {
+    query: input.query,
+    results,
+    durationSeconds,
   }
 }
 
@@ -254,6 +385,16 @@ export const WebSearchTool = buildTool({
   async call(input, context, _canUseTool, _parentMessage, onProgress) {
     const startTime = performance.now()
     const { query } = input
+
+    if (shouldUseLocalWebSearch()) {
+      const data = await localWebSearch(
+        input,
+        context.abortController.signal,
+        startTime,
+      )
+      return { data }
+    }
+
     const userMessage = createUserMessage({
       content: 'Perform a web search for the query: ' + query,
     })

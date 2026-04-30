@@ -2,7 +2,7 @@
 
 
 
-基于 Claude Code 泄露源码修复的**本地可运行版本**，支持接入任意 Anthropic 兼容 API（MiniMax、OpenRouter 等）。在完整 TUI 之外，还补全了 Computer Use（macOS / Windows）、打造了图形化**桌面端**，并支持通过 Telegram / 飞书**完整远程驱动**。
+Claude YH 是一个**本地可运行的 agentic coding CLI**，支持接入任意 Anthropic 兼容 API（MiniMax、OpenRouter 等）。在完整 TUI 之外，还补全了 Computer Use（macOS / Windows）、打造了图形化**桌面端**，并支持通过 Telegram / 飞书**完整远程驱动**。
 
 <p align="center">
   <a href="#功能">功能</a> · <a href="#桌面端预览">桌面端</a> · <a href="#架构概览">架构概览</a> · <a href="#快速开始">快速开始</a> · <a href="docs/guide/env-vars.md">环境变量</a> · <a href="docs/guide/faq.md">FAQ</a> · <a href="docs/guide/global-usage.md">全局使用</a> · <a href="#更多文档">更多文档</a>
@@ -29,7 +29,7 @@
 
 ## 功能
 
-- 完整的 Ink TUI 交互界面（与官方 Claude Code 一致）
+- 完整的 Ink TUI 交互界面
 - `--print` 无头模式（脚本/CI 场景）
 - 支持 MCP 服务器、插件、Skills
 - 支持自定义 API 端点和模型（[第三方模型使用指南](docs/guide/third-party-models.md)）
@@ -112,24 +112,27 @@ cp .env.example .env
 
 ### 3. 启动
 
-#### macOS / Linux
+发布到 npm 后推荐全局安装，之后在任意目录直接运行：
 
 ```bash
-./bin/claude-yh                          # 交互 TUI 模式
-./bin/claude-yh -p "your prompt here"    # 无头模式
-./bin/claude-yh --help                   # 查看所有选项
+npm install -g claude-yh
+
+claude-yh                          # 交互 TUI 模式
+claude-yh -p "your prompt here"    # 无头模式
+claude-yh --help                   # 查看所有选项
 ```
 
-#### Windows
+默认配置只读取 `~/.claude-yh/settings.json`。如果需要临时指定 env 文件：
 
-> **前置要求**：必须安装 [Git for Windows](https://git-scm.com/download/win)
+```bash
+claude-yh --env-file .env
+claude-yh --env-file C:\path\to\custom.env
+```
 
-```powershell
-# PowerShell / cmd 直接调用 Bun
-bun --env-file=.env ./src/entrypoints/cli.tsx
+源码开发时也可以直接运行：
 
-# 或在 Git Bash 中运行
-./bin/claude-yh
+```bash
+bun run claude-yh
 ```
 
 ### 4. 全局使用（可选）

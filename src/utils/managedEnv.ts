@@ -60,6 +60,22 @@ function withoutHostManagedProviderVars(
   return out
 }
 
+function withoutExplicitEnvFileProviderVars(
+  env: Record<string, string> | undefined,
+): Record<string, string> {
+  if (!env) return {}
+  if (!isEnvTruthy(process.env.CLAUDE_YH_EXPLICIT_ENV_FILE)) {
+    return env
+  }
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(env)) {
+    if (!isProviderManagedEnvVar(key)) {
+      out[key] = value
+    }
+  }
+  return out
+}
+
 /**
  * Snapshot of env keys present before any settings.env is applied — for CCD,
  * these are the keys the desktop host set to orchestrate the subprocess.
@@ -88,8 +104,40 @@ function filterSettingsEnv(
   env: Record<string, string> | undefined,
 ): Record<string, string> {
   return withoutCcdSpawnEnvKeys(
-    withoutHostManagedProviderVars(withoutSSHTunnelVars(env)),
+    withoutExplicitEnvFileProviderVars(
+      withoutHostManagedProviderVars(withoutSSHTunnelVars(env)),
+    ),
   )
+}
+
+function getUnifiedProviderEnv(): Record<string, string> | null {
+  try {
+    const unifiedSettings = join(getClaudeConfigHomeDir(), 'settings.json')
+    const unifiedRaw = readFileSync(unifiedSettings, 'utf-8')
+    const unifiedParsed = JSON.parse(unifiedRaw) as {
+      env?: Record<string, string>
+      claudeYhProviders?: unknown
+    }
+    const env = unifiedParsed.env ?? {}
+    const hasProviderConfig =
+      unifiedParsed.claudeYhProviders !== undefined ||
+      Object.keys(env).some((key) => isProviderManagedEnvVar(key))
+    return hasProviderConfig ? env : null
+  } catch {
+    return null
+  }
+}
+
+function clearInheritedProviderEnvForUnifiedSettings(): void {
+  if (isEnvTruthy(process.env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST)) return
+  if (isEnvTruthy(process.env.CLAUDE_YH_EXPLICIT_ENV_FILE)) return
+  if (!getUnifiedProviderEnv()) return
+
+  for (const key of Object.keys(process.env)) {
+    if (isProviderManagedEnvVar(key)) {
+      delete process.env[key]
+    }
+  }
 }
 
 /**
@@ -99,20 +147,7 @@ function filterSettingsEnv(
  * until ProviderService migrates them into the unified file.
  */
 function getLegacyCcHahaSettingsEnv(): Record<string, string> {
-  try {
-    const unifiedSettings = join(getClaudeConfigHomeDir(), 'settings.json')
-    const unifiedRaw = readFileSync(unifiedSettings, 'utf-8')
-    const unifiedParsed = JSON.parse(unifiedRaw) as { env?: Record<string, string> }
-    if (
-      Object.keys(unifiedParsed.env ?? {}).some((key) =>
-        isProviderManagedEnvVar(key),
-      )
-    ) {
-      return {}
-    }
-  } catch {
-    // Missing/invalid unified settings should not block legacy fallback.
-  }
+  if (getUnifiedProviderEnv()) return {}
 
   try {
     const ccHahaSettings = join(getClaudeConfigHomeDir(), 'claude-yh', 'settings.json')
@@ -156,6 +191,8 @@ const TRUSTED_SETTING_SOURCES = [
  * fully established via applyConfigEnvironmentVariables().
  */
 export function applySafeConfigEnvironmentVariables(): void {
+  clearInheritedProviderEnvForUnifiedSettings()
+
   // Capture CCD spawn-env keys before any settings.env is applied (once).
   if (ccdSpawnEnvKeys === undefined) {
     ccdSpawnEnvKeys =
@@ -224,6 +261,8 @@ export function applySafeConfigEnvironmentVariables(): void {
  * dangerous environment variables such as LD_PRELOAD, PATH, etc.
  */
 export function applyConfigEnvironmentVariables(): void {
+  clearInheritedProviderEnvForUnifiedSettings()
+
   Object.assign(process.env, filterSettingsEnv(getGlobalConfig().env))
 
   Object.assign(process.env, filterSettingsEnv(getSettings_DEPRECATED()?.env))

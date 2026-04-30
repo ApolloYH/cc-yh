@@ -21,21 +21,23 @@ Then reload the config:
 source ~/.bashrc  # or source ~/.zshrc
 ```
 
-## Windows (Git Bash)
+## Windows (PowerShell)
 
-Add to `~/.bashrc`:
+Add this function to your PowerShell profile:
 
-```bash
-export PATH="$HOME/path/to/claude-yh/bin:$PATH"
+```powershell
+function claude-yh {
+  & "C:\path\to\claude-yh\bin\claude-yh.ps1" @args
+}
 ```
 
 ## Verify
 
 After setup, navigate to any project directory and test:
 
-```bash
-cd ~/your-other-project
+```powershell
+cd C:\path\to\your-other-project
 claude-yh
-# Ask "What is the current directory?" — it should show ~/your-other-project
+# Ask "What is the current directory?" - it should show the current project directory
 ```
 

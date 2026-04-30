@@ -63,7 +63,7 @@ export const PermissionsSchema = lazySchema(() =>
             : EXTERNAL_PERMISSION_MODES,
         )
         .optional()
-        .describe('Default permission mode when Claude Code needs access'),
+        .describe('Default permission mode when Claude YH needs access'),
       disableBypassPermissionsMode: z
         .enum(['disable'])
         .optional()
@@ -258,7 +258,7 @@ export const SettingsSchema = lazySchema(() =>
       $schema: z
         .literal(CLAUDE_CODE_SETTINGS_SCHEMA_URL)
         .optional()
-        .describe('JSON Schema reference for Claude Code settings'),
+        .describe('JSON Schema reference for Claude YH settings'),
       apiKeyHelper: z
         .string()
         .optional()

@@ -8,6 +8,7 @@ import { queryHaiku } from '../../services/api/claude.js'
 import { AbortError } from '../../utils/errors.js'
 import { getWebFetchUserAgent } from '../../utils/http.js'
 import { logError } from '../../utils/log.js'
+import { isFirstPartyAnthropicBaseUrl } from '../../utils/model/providers.js'
 import {
   isBinaryContentType,
   persistBinaryContent,
@@ -80,6 +81,14 @@ const DOMAIN_CHECK_CACHE = new LRUCache<string, true>({
 export function clearWebFetchCache(): void {
   URL_CACHE.clear()
   DOMAIN_CHECK_CACHE.clear()
+}
+
+function shouldSkipDomainBlocklistPreflight(): boolean {
+  return (
+    getSettings_DEPRECATED().skipWebFetchPreflight === true ||
+    process.env.CLAUDE_CODE_COMPAT_PROVIDER === 'openai' ||
+    !isFirstPartyAnthropicBaseUrl()
+  )
 }
 
 // Lazy singleton — defers the turndown → @mixmark-io/domino import (~1.4MB
@@ -383,8 +392,7 @@ export async function getURLMarkdownContent(
     // Check if the user has opted to skip the blocklist check
     // This is for enterprise customers with restrictive security policies
     // that prevent outbound connections to claude.ai
-    const settings = getSettings_DEPRECATED()
-    if (!settings.skipWebFetchPreflight) {
+    if (!shouldSkipDomainBlocklistPreflight()) {
       const checkResult = await checkDomainBlocklist(hostname)
       switch (checkResult.status) {
         case 'allowed':

@@ -17,6 +17,12 @@
  * launcher-only 参数。
  */
 
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+
+process.env.CLAUDE_CONFIG_DIR ||= join(homedir(), '.claude-yh')
+process.env.CLAUDE_YH_SKIP_DOTENV ||= '1'
+
 const rawArgs = process.argv.slice(2)
 if (rawArgs.length === 0) {
   console.error('claude-sidecar: missing mode argument (expected "server", "cli" or "adapters")')

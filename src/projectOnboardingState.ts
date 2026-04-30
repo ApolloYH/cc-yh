@@ -32,7 +32,7 @@ export function getSteps(): Step[] {
     },
     {
       key: 'claudemd',
-      text: '运行 /init 创建 CLAUDE.md 文件，并写入项目说明',
+      text: '运行 /init 创建项目说明，并写入当前仓库规则',
       isComplete: hasClaudeMd,
       isCompletable: true,
       isEnabled: !isWorkspaceDirEmpty,

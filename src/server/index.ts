@@ -5,6 +5,7 @@
  * 读写与 CLI 完全相同的文件系统，确保 CLI/UI 数据互通。
  */
 
+import './envBootstrap.js'
 import { handleApiRequest } from './router.js'
 import { handleWebSocket, type WebSocketData } from './ws/handler.js'
 import { corsHeaders } from './middleware/cors.js'

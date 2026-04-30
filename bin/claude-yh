@@ -7,24 +7,48 @@ export CALLER_DIR="${CALLER_DIR:-$(pwd -W 2>/dev/null || pwd)}"
 
 cd "$ROOT_DIR"
 
-# When spawned by the desktop/web server as a child CLI process,
-# skip .env loading — the server has already set the correct env
-# via claude-yh/settings.json. Loading .env would re-inject stale
-# provider keys (e.g., a MiniMax key as ANTHROPIC_API_KEY) that
-# override the active provider config.
-if [[ "${CLAUDE_YH_SKIP_DOTENV:-0}" == "1" ]]; then
-  # Bun auto-loads .env by default; explicitly point to /dev/null to suppress.
-  ENV_FILE_FLAG="--env-file=/dev/null"
-elif [[ -f .env ]]; then
+# Use the unified ~/.claude-yh/settings.json by default. Loading the project
+# .env can re-inject stale provider keys and override the active settings.
+export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude-yh}"
+
+EXPLICIT_ENV_FILE="${CLAUDE_YH_ENV_FILE:-}"
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --env-file" >&2
+        exit 2
+      fi
+      EXPLICIT_ENV_FILE="$2"
+      shift 2
+      ;;
+    --env-file=*)
+      EXPLICIT_ENV_FILE="${1#--env-file=}"
+      shift
+      ;;
+    *)
+      ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "$EXPLICIT_ENV_FILE" && "${CLAUDE_YH_SKIP_DOTENV:-0}" != "1" ]]; then
+  ENV_FILE_FLAG="--env-file=$EXPLICIT_ENV_FILE"
+  export CLAUDE_YH_EXPLICIT_ENV_FILE=1
+elif [[ "${CLAUDE_YH_USE_DOTENV:-0}" == "1" && "${CLAUDE_YH_SKIP_DOTENV:-0}" != "1" && -f .env ]]; then
   ENV_FILE_FLAG="--env-file=.env"
+  export CLAUDE_YH_EXPLICIT_ENV_FILE=1
 else
-  ENV_FILE_FLAG=""
+  # Bun auto-loads .env by default; explicitly suppress it.
+  ENV_FILE_FLAG="--env-file=/dev/null"
 fi
 
 # Force recovery CLI (simple readline REPL, no Ink TUI)
 if [[ "${CLAUDE_CODE_FORCE_RECOVERY_CLI:-0}" == "1" ]]; then
-  exec bun $ENV_FILE_FLAG ./src/localRecoveryCli.ts "$@"
+  exec bun "$ENV_FILE_FLAG" ./src/localRecoveryCli.ts "${ARGS[@]}"
 fi
 
 # Default: full CLI with Ink TUI
-exec bun $ENV_FILE_FLAG ./src/entrypoints/cli.tsx "$@"
+exec bun "$ENV_FILE_FLAG" ./src/entrypoints/cli.tsx "${ARGS[@]}"
