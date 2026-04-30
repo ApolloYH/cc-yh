@@ -81,15 +81,116 @@ type ChatStore = {
   handleServerMessage: (sessionId: string, msg: ServerMessage) => void
 }
 
+type ChatStoreSet = (
+  partial:
+    | Partial<ChatStore>
+    | ((state: ChatStore) => Partial<ChatStore>),
+) => void
+
 const TASK_TOOL_NAMES = new Set(['TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'TodoWrite'])
 const pendingTaskToolUseIds = new Set<string>()
 
 let msgCounter = 0
 const nextId = () => `msg-${++msgCounter}-${Date.now()}`
 
-// Streaming throttle for content_delta
-let pendingDelta = ''
-let flushTimer: ReturnType<typeof setTimeout> | null = null
+type StreamingRenderState = {
+  pendingDelta: string
+  renderTimer: ReturnType<typeof setTimeout> | null
+}
+
+const STREAMING_RENDER_INTERVAL_MS = 18
+const streamingRenderStates = new Map<string, StreamingRenderState>()
+
+function getStreamingRenderState(sessionId: string): StreamingRenderState {
+  let state = streamingRenderStates.get(sessionId)
+  if (!state) {
+    state = { pendingDelta: '', renderTimer: null }
+    streamingRenderStates.set(sessionId, state)
+  }
+  return state
+}
+
+function getStreamingChunkSize(pendingLength: number): number {
+  if (pendingLength > 240) return 16
+  if (pendingLength > 120) return 10
+  if (pendingLength > 48) return 6
+  return 3
+}
+
+function clearStreamingTimer(sessionId: string): void {
+  const state = streamingRenderStates.get(sessionId)
+  if (state?.renderTimer) {
+    clearTimeout(state.renderTimer)
+    state.renderTimer = null
+  }
+}
+
+function flushStreamingBuffer(
+  sessionId: string,
+  set: ChatStoreSet,
+): string {
+  const state = streamingRenderStates.get(sessionId)
+  if (!state?.pendingDelta) {
+    clearStreamingTimer(sessionId)
+    return ''
+  }
+
+  const text = state.pendingDelta
+  state.pendingDelta = ''
+  clearStreamingTimer(sessionId)
+  set((s) => ({
+    sessions: updateSessionIn(s.sessions, sessionId, (sess) => ({
+      streamingText: sess.streamingText + text,
+    })),
+  }))
+  return text
+}
+
+function disposeStreamingBuffer(sessionId: string): void {
+  clearStreamingTimer(sessionId)
+  streamingRenderStates.delete(sessionId)
+}
+
+function scheduleStreamingRender(
+  sessionId: string,
+  set: ChatStoreSet,
+): void {
+  const state = getStreamingRenderState(sessionId)
+  if (state.renderTimer || state.pendingDelta.length === 0) return
+
+  state.renderTimer = setTimeout(() => {
+    state.renderTimer = null
+    const activeState = streamingRenderStates.get(sessionId)
+    if (!activeState || activeState.pendingDelta.length === 0) return
+
+    const chunkSize = getStreamingChunkSize(activeState.pendingDelta.length)
+    const text = activeState.pendingDelta.slice(0, chunkSize)
+    activeState.pendingDelta = activeState.pendingDelta.slice(chunkSize)
+
+    if (text) {
+      set((s) => ({
+        sessions: updateSessionIn(s.sessions, sessionId, (sess) => ({
+          streamingText: sess.streamingText + text,
+        })),
+      }))
+    }
+
+    if (activeState.pendingDelta.length > 0) {
+      scheduleStreamingRender(sessionId, set)
+    }
+  }, STREAMING_RENDER_INTERVAL_MS)
+}
+
+function enqueueStreamingDelta(
+  sessionId: string,
+  text: string,
+  set: ChatStoreSet,
+): void {
+  if (!text) return
+  const state = getStreamingRenderState(sessionId)
+  state.pendingDelta += text
+  scheduleStreamingRender(sessionId, set)
+}
 
 /** Helper: immutably update a specific session within the sessions record */
 function updateSessionIn(
@@ -149,13 +250,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   disconnectSession: (sessionId) => {
     const session = get().sessions[sessionId]
     if (session?.elapsedTimer) clearInterval(session.elapsedTimer)
-    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
-    if (pendingDelta) {
-      const text = pendingDelta
-      pendingDelta = ''
-      set((s) => ({ sessions: updateSessionIn(s.sessions, sessionId, (sess) => ({ streamingText: sess.streamingText + text })) }))
-    }
+    flushStreamingBuffer(sessionId, set)
     wsManager.disconnect(sessionId)
+    disposeStreamingBuffer(sessionId)
     set((s) => {
       const { [sessionId]: _, ...rest } = s.sessions
       return { sessions: rest }
@@ -177,16 +274,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
     const taskStore = useCLITaskStore.getState()
     const allTasksDone = taskStore.tasks.length > 0 && taskStore.tasks.every((t) => t.status === 'completed')
+    flushStreamingBuffer(sessionId, set)
 
     set((s) => {
       const session = s.sessions[sessionId] ?? createDefaultSessionState()
-      if (flushTimer) {
-        clearTimeout(flushTimer)
-        flushTimer = null
-      }
-      const bufferedDelta = pendingDelta
-      pendingDelta = ''
-      const pendingAssistantText = `${session.streamingText}${bufferedDelta}`.trim()
+      const pendingAssistantText = session.streamingText.trim()
 
       const newMessages = pendingAssistantText
         ? [
@@ -279,12 +371,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   stopGeneration: (sessionId) => {
     wsManager.send(sessionId, { type: 'stop_generation' })
-    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
-    if (pendingDelta) {
-      const text = pendingDelta
-      pendingDelta = ''
-      set((s) => ({ sessions: updateSessionIn(s.sessions, sessionId, (sess) => ({ streamingText: sess.streamingText + text })) }))
-    }
+    flushStreamingBuffer(sessionId, set)
     set((s) => {
       const session = s.sessions[sessionId]
       if (!session) return s
@@ -320,6 +407,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   clearMessages: (sessionId) => {
+    disposeStreamingBuffer(sessionId)
     set((s) => ({ sessions: updateSessionIn(s.sessions, sessionId, () => ({ messages: [], streamingText: '', chatState: 'idle' })) }))
   },
 
@@ -333,6 +421,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         break
 
       case 'status':
+        if (msg.state !== 'streaming') {
+          flushStreamingBuffer(sessionId, set)
+        }
         update((session) => {
           const pendingText = session.streamingText.trim()
           const shouldFlush = pendingText && session.chatState === 'streaming' && msg.state !== 'streaming'
@@ -359,6 +450,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         break
 
       case 'content_start': {
+        flushStreamingBuffer(sessionId, set)
         const session = get().sessions[sessionId]
         if (!session) break
         const pendingText = session.streamingText.trim()
@@ -384,20 +476,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       case 'content_delta':
         if (msg.text !== undefined) {
-          pendingDelta += msg.text
-          if (!flushTimer) {
-            flushTimer = setTimeout(() => {
-              const text = pendingDelta
-              pendingDelta = ''
-              flushTimer = null
-              update((s) => ({ streamingText: s.streamingText + text }))
-            }, 50)
-          }
+          enqueueStreamingDelta(sessionId, msg.text, set)
         }
         if (msg.toolInput !== undefined) update((s) => ({ streamingToolInput: s.streamingToolInput + msg.toolInput }))
         break
 
       case 'thinking':
+        flushStreamingBuffer(sessionId, set)
         update((s) => {
           const pendingText = s.streamingText.trim()
           const base = pendingText
@@ -466,6 +551,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         break
 
       case 'message_complete': {
+        flushStreamingBuffer(sessionId, set)
         const session = get().sessions[sessionId]
         if (!session) break
         const text = session.streamingText
@@ -481,6 +567,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       }
 
       case 'error':
+        flushStreamingBuffer(sessionId, set)
         update((s) => {
           const pendingText = s.streamingText.trim()
           const newMessages = [...s.messages]

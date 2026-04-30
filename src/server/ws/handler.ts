@@ -810,6 +810,10 @@ async function getRuntimeSettings(): Promise<{
   effort?: string
 }> {
   const userSettings = await settingsService.getUserSettings()
+  const settingsEnv =
+    userSettings.env && typeof userSettings.env === 'object'
+      ? (userSettings.env as Record<string, string>)
+      : {}
   const modelContext =
     typeof userSettings.modelContext === 'string' && userSettings.modelContext.trim()
       ? userSettings.modelContext
@@ -824,22 +828,49 @@ async function getRuntimeSettings(): Promise<{
 
   let model: string | undefined
   if (activeId) {
-    // Provider is active — only pass --model if user explicitly selected a non-default model.
-    // Otherwise the CLI should use ANTHROPIC_MODEL from env (set by syncToSettings).
-    // Default Anthropic model should be overridden by the provider's model.
+    // Provider is active — only pass --model when user explicitly selected another
+    // model from the provider's available mapping. Otherwise let ANTHROPIC_MODEL
+    // from managed env drive the CLI.
     const baseModel = (userSettings.model as string) || ''
-    if (baseModel && baseModel !== 'claude-sonnet-4-6') {
-      // User explicitly selected a different model — pass it through
+    const providerDefaultModel =
+      settingsEnv.ANTHROPIC_MODEL || process.env.ANTHROPIC_MODEL || ''
+    const providerModelIds = [
+      providerDefaultModel,
+      settingsEnv.ANTHROPIC_DEFAULT_HAIKU_MODEL || process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL,
+      settingsEnv.ANTHROPIC_DEFAULT_SONNET_MODEL || process.env.ANTHROPIC_DEFAULT_SONNET_MODEL,
+      settingsEnv.ANTHROPIC_DEFAULT_OPUS_MODEL || process.env.ANTHROPIC_DEFAULT_OPUS_MODEL,
+    ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    if (
+      baseModel &&
+      providerModelIds.includes(baseModel) &&
+      baseModel !== providerDefaultModel
+    ) {
       model = baseModel
       if (modelContext) model += `:${modelContext}`
     }
   } else {
-    // No provider — pass model normally
     const baseModel =
       typeof userSettings.model === 'string' && userSettings.model.trim()
         ? userSettings.model
         : undefined
-    model = baseModel ? (modelContext ? `${baseModel}:${modelContext}` : baseModel) : undefined
+    const envBackedModelIds = [
+      process.env.ANTHROPIC_MODEL,
+      process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL,
+      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL,
+      process.env.ANTHROPIC_DEFAULT_OPUS_MODEL,
+    ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    if (envBackedModelIds.length > 0) {
+      const envDefaultModel = process.env.ANTHROPIC_MODEL || envBackedModelIds[0]
+      if (
+        baseModel &&
+        envBackedModelIds.includes(baseModel) &&
+        baseModel !== envDefaultModel
+      ) {
+        model = modelContext ? `${baseModel}:${modelContext}` : baseModel
+      }
+    } else {
+      model = baseModel ? (modelContext ? `${baseModel}:${modelContext}` : baseModel) : undefined
+    }
   }
 
   return {

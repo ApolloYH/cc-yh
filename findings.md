@@ -53,3 +53,53 @@
   - upstream provider outages / overloads
   - user misconfiguring `apiFormat` relative to `baseUrl`
   - remaining non-critical `MACRO.VERSION` references outside the manually validated surfaces
+
+## Streaming Path Investigation
+
+- The codebase already implements an end-to-end streaming architecture.
+  - Upstream OpenAI-compatible calls force `stream: true` in:
+    - `src/services/api/openaiCompat.ts`
+    - `src/services/api/openaiResponsesCompat.ts`
+  - The desktop server launches the CLI in `stream-json` mode in:
+    - `src/server/services/conversationService.ts`
+  - The WebSocket bridge translates CLI `stream_event` payloads into:
+    - `content_start`
+    - `content_delta`
+    - `thinking`
+    - `message_complete`
+    in `src/server/ws/handler.ts`
+  - The desktop frontend stores and renders incremental text through:
+    - `streamingText`
+    - `chatState: 'streaming'`
+    in `desktop/src/stores/chatStore.ts`
+    and `desktop/src/components/chat/MessageList.tsx`
+- Because the codebase also has an explicit non-streaming fallback path, a user-visible â€œnot streamingâ€ symptom does not automatically mean the frontend lacks streaming support.
+  - `src/server/ws/handler.ts` falls back to processing the final `assistant` payload when no CLI `stream_event` arrives.
+- The most likely failure classes are:
+  - the upstream/provider path is returning a final message without incremental events
+  - the current runtime is not actually using the latest server/frontend build
+  - the CLI/bridge path is receiving only final assistant messages for the active provider/mode
+- Live reproduction against the running desktop server proved the provider was not the bottleneck:
+  - direct MiniMax OpenAI-compatible SSE calls returned many incremental `data:` chunks
+  - the desktop WebSocket path initially returned exactly one final `content_delta` and no `status: streaming`
+- Root cause:
+  - the desktop server spawned the CLI in `stream-json` mode, but did not pass `--include-partial-messages`
+  - `src/QueryEngine.ts` / `src/cli/print.ts` only emit `stream_event` payloads when `includePartialMessages` is enabled
+  - without those events, `src/server/ws/handler.ts` falls back to unpacking the final assistant payload into a single text block
+- Fix applied:
+  - `src/server/services/conversationService.ts` now adds `--include-partial-messages` to desktop session CLI startup args
+  - regression coverage added in `src/server/__tests__/conversation-service.test.ts`
+- Post-fix manual verification against the live local server passed:
+  - long-output probe received `status: streaming` and `32` separate `content_delta` events
+  - shorter-output probe received `status: streaming`, `13` separate `content_delta` events, and a final `message_complete`
+  - the observed deltas were real increments rather than duplicated full-message snapshots
+- The desktop frontend still had a user-visible streaming UX issue even after the backend fix:
+  - incoming `content_delta` text was appended in relatively large chunks, which feels abrupt
+  - the throttle state in `desktop/src/stores/chatStore.ts` used global module variables (`pendingDelta`, `flushTimer`) shared across all sessions, which created real cross-session display-bug risk
+- Frontend streaming presentation is now hardened:
+  - per-session streaming buffers and timers replaced the global throttle
+  - incremental text is rendered through a small-step smoothing loop instead of 50ms whole-chunk appends
+  - pending text is flushed safely before `message_complete`, `error`, `thinking`, `content_start`, `stopGeneration`, `disconnectSession`, and new user turns
+## 2026-04-24 ×ÀÃæ¶ËÄ£ĞÍ´íÂÒ¸ùÒò
+- Tauri »á×ÔÀ­ `claude-sidecar server`£¬Ö®Ç°ÕâÌõÁ´Â·Ã»ÓĞÏÔÊ½¼ÓÔØ²Ö¿â¸ùÄ¿Â¼ `.env`£¬Òò´Ë×ÀÃæ¿Ç¿ÉÄÜÍË»Ø¹Ù·½ Claude µÇÂ¼Ì¬/Ä¬ÈÏÄ£ĞÍ¡£
+- ½öĞŞÕı `/api/models/current` µÄÕ¹Ê¾²»¹»£»`src/server/ws/handler.ts` Ò²»á°Ñ¾ÉµÄ `settings.model` Í¸´«¸ø CLI£¬µ¼ÖÂÊµ¼ÊÔËĞĞÈÔ¿ÉÄÜ¼ÌĞøµ÷ÓÃ¾É¹Ù·½Ä£ĞÍ¡£

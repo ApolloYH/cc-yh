@@ -196,4 +196,26 @@ describe('ConversationService', () => {
       expect(args[0]).toContain(path.join('bin', 'claude-yh'))
     }
   })
+
+  test('buildStartSessionArgs enables partial streaming events for desktop sessions', () => {
+    const service = new ConversationService() as any
+    const args = service.buildStartSessionArgs(
+      'session-123',
+      'ws://127.0.0.1:3456/sdk/session-123?token=test',
+      { permissionMode: 'default', model: 'MiniMax-M2.7', effort: 'medium' },
+      false,
+      false,
+    ) as string[]
+
+    expect(args).toContain('--include-partial-messages')
+    expect(args).toContain('--input-format')
+    expect(args).toContain('stream-json')
+    expect(args).toContain('--output-format')
+    expect(args).toContain('--session-id')
+    expect(args).toContain('session-123')
+    expect(args).toContain('--model')
+    expect(args).toContain('MiniMax-M2.7')
+    expect(args).toContain('--effort')
+    expect(args).toContain('medium')
+  })
 })

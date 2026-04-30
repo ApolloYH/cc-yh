@@ -70,3 +70,39 @@
   - `MiniMax-M2.7-highspeed` works on the OpenAI-compatible endpoint
   - the same model on the native Anthropic endpoint returns upstream `500 api_error: your current token plan not support model, MiniMax-M2.7-highspeed (2061)`
   - this is an upstream model-availability difference, not a local protocol-translation failure
+
+## 2026-04-24 Streaming Investigation
+- Started a focused investigation into the user's report that desktop responses appear non-streaming.
+- Confirmed from source inspection that the codebase already has a full streaming stack:
+  - upstream OpenAI-compatible requests use `stream: true`
+  - CLI subprocess runs in `stream-json` mode
+  - server WebSocket bridge translates CLI `stream_event` into `content_delta` / `thinking`
+  - frontend chat store accumulates `streamingText` and renders it live
+- Identified a key architectural detail before live reproduction:
+  - the server explicitly falls back to final `assistant` message processing when no `stream_event` arrives
+  - so the remaining task is to determine whether the current runtime/provider path is failing to produce stream events, rather than assuming the frontend lacks streaming support
+- Reproduced the bug against the real running desktop server:
+  - created a session through `/api/sessions`
+  - connected to `/ws/:sessionId`
+  - sent a long real-model request
+  - observed no `status: streaming` and only a single final `content_delta`
+- Confirmed the upstream provider itself streams correctly by probing MiniMax directly with `stream: true`; multiple SSE chunks were returned.
+- Isolated the real local root cause:
+  - `ConversationService.startSession()` launched the CLI in `stream-json` mode but did not enable `--include-partial-messages`
+  - as a result, the CLI emitted no `stream_event` payloads for the desktop bridge
+- Fixed `src/server/services/conversationService.ts` to include `--include-partial-messages` in spawned desktop CLI args.
+- Added regression coverage in `src/server/__tests__/conversation-service.test.ts`.
+- Re-verified after restarting the local server:
+  - long-response probe returned `status: streaming` and `32` separate `content_delta` events
+  - short-response probe returned `status: streaming`, `13` separate `content_delta` events, and `message_complete`
+- Streaming is now working end-to-end on the live desktop server path.
+- Follow-up UX hardening on the desktop frontend:
+  - replaced the old global streaming throttle (`pendingDelta` / `flushTimer`) in `desktop/src/stores/chatStore.ts`
+  - introduced per-session streaming buffers/timers to remove cross-session rendering risk
+  - changed rendering from coarse 50ms whole-chunk appends to smaller-step smoothing for a more token-like feel
+  - added regression tests covering per-session isolation and flush-on-message-complete behavior
+## 2026-04-24 桌面端模型链路修复
+- 修复 `preload.ts`：sidecar/server/cli 启动时会向上查找并加载最近的 `.env`，保证 Tauri 开发壳拿到根目录 MiniMax 配置。
+- 修复 `src/server/api/models.ts`：当 `settings.model` 是过期的官方 Claude 型号，且当前实际可用模型来自 `.env` / provider 时，`/api/models/current` 会回退到真实可用模型，不再显示旧型号。
+- 修复 `src/server/ws/handler.ts`：运行时启动 CLI 时，如果当前是 env-backed 第三方模型，只在用户明确选择了同一可用列表里的其它模型时才透传 `--model`；否则让 `ANTHROPIC_MODEL` 接管，避免旧 `settings.model` 抢占实际调用。
+- 已重启根目录后端与 Tauri 开发壳；当前根后端 `/api/models/current` 返回 `MiniMax-M2.7`，桌面壳进程 `claude-code-desktop.exe` 已运行。

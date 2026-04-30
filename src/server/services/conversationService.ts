@@ -101,21 +101,13 @@ export class ConversationService {
     }
 
     const dangerousMode = process.env.CLAUDE_DANGEROUS_MODE === '1'
-    const args = this.resolveCliArgs([
-      '--print',
-      '--verbose',
-      '--sdk-url',
+    const args = this.buildStartSessionArgs(
+      sessionId,
       sdkUrl,
-      '--enable-auth-status',
-      '--input-format',
-      'stream-json',
-      '--output-format',
-      'stream-json',
-      ...(shouldResume ? ['--resume', sessionId] : ['--session-id', sessionId]),
-      '--replay-user-messages',
-      ...this.getRuntimeArgs(options),
-      ...this.getPermissionArgs(options?.permissionMode, dangerousMode),
-    ])
+      options,
+      shouldResume,
+      dangerousMode,
+    )
 
     console.log(
       `[ConversationService] Starting CLI for ${sessionId}, cwd: ${workDir} (process.cwd()=${process.cwd()}, CALLER_DIR will be pinned to workDir)`,
@@ -481,6 +473,31 @@ export class ConversationService {
     }
 
     return args
+  }
+
+  private buildStartSessionArgs(
+    sessionId: string,
+    sdkUrl: string,
+    options: SessionStartOptions | undefined,
+    shouldResume: boolean,
+    dangerousMode: boolean,
+  ): string[] {
+    return this.resolveCliArgs([
+      '--print',
+      '--verbose',
+      '--sdk-url',
+      sdkUrl,
+      '--enable-auth-status',
+      '--input-format',
+      'stream-json',
+      '--output-format',
+      'stream-json',
+      '--include-partial-messages',
+      ...(shouldResume ? ['--resume', sessionId] : ['--session-id', sessionId]),
+      '--replay-user-messages',
+      ...this.getRuntimeArgs(options),
+      ...this.getPermissionArgs(options?.permissionMode, dangerousMode),
+    ])
   }
 
   private async buildChildEnv(workDir: string): Promise<Record<string, string>> {

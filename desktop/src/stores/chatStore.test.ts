@@ -368,4 +368,106 @@ describe('chatStore history mapping', () => {
       pending: true,
     })
   })
+
+  it('keeps streaming buffers isolated per session', async () => {
+    vi.useFakeTimers()
+
+    useChatStore.setState({
+      sessions: {
+        sessionA: {
+          messages: [],
+          chatState: 'streaming',
+          connectionState: 'connected',
+          streamingText: '',
+          streamingToolInput: '',
+          activeToolUseId: null,
+          activeToolName: null,
+          activeThinkingId: null,
+          pendingPermission: null,
+          tokenUsage: { input_tokens: 0, output_tokens: 0 },
+          elapsedSeconds: 0,
+          statusVerb: '',
+          slashCommands: [],
+          agentTaskNotifications: {},
+          elapsedTimer: null,
+        },
+        sessionB: {
+          messages: [],
+          chatState: 'streaming',
+          connectionState: 'connected',
+          streamingText: '',
+          streamingToolInput: '',
+          activeToolUseId: null,
+          activeToolName: null,
+          activeThinkingId: null,
+          pendingPermission: null,
+          tokenUsage: { input_tokens: 0, output_tokens: 0 },
+          elapsedSeconds: 0,
+          statusVerb: '',
+          slashCommands: [],
+          agentTaskNotifications: {},
+          elapsedTimer: null,
+        },
+      },
+    })
+
+    useChatStore.getState().handleServerMessage('sessionA', {
+      type: 'content_delta',
+      text: 'ABCDEF',
+    })
+    useChatStore.getState().handleServerMessage('sessionB', {
+      type: 'content_delta',
+      text: '123456',
+    })
+
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(useChatStore.getState().sessions.sessionA?.streamingText).toBe('ABCDEF')
+    expect(useChatStore.getState().sessions.sessionB?.streamingText).toBe('123456')
+
+    vi.useRealTimers()
+  })
+
+  it('flushes any buffered streaming text before message completion', () => {
+    useChatStore.setState({
+      sessions: {
+        [TEST_SESSION_ID]: {
+          messages: [],
+          chatState: 'streaming',
+          connectionState: 'connected',
+          streamingText: '',
+          streamingToolInput: '',
+          activeToolUseId: null,
+          activeToolName: null,
+          activeThinkingId: null,
+          pendingPermission: null,
+          tokenUsage: { input_tokens: 0, output_tokens: 0 },
+          elapsedSeconds: 0,
+          statusVerb: '',
+          slashCommands: [],
+          agentTaskNotifications: {},
+          elapsedTimer: null,
+        },
+      },
+    })
+
+    useChatStore.getState().handleServerMessage(TEST_SESSION_ID, {
+      type: 'content_delta',
+      text: '最后这段不能丢',
+    })
+
+    useChatStore.getState().handleServerMessage(TEST_SESSION_ID, {
+      type: 'message_complete',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    })
+
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.messages).toMatchObject([
+      {
+        type: 'assistant_text',
+        content: '最后这段不能丢',
+      },
+    ])
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.streamingText).toBe('')
+    expect(useChatStore.getState().sessions[TEST_SESSION_ID]?.chatState).toBe('idle')
+  })
 })

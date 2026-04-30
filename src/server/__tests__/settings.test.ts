@@ -329,6 +329,38 @@ describe('Models API', () => {
     }
   })
 
+  it('GET /api/models/current should ignore stale saved model when env-backed models are active', async () => {
+    const svc = new SettingsService()
+    await svc.updateUserSettings({ model: 'claude-sonnet-4-6' })
+
+    const originalModel = process.env.ANTHROPIC_MODEL
+    const originalHaiku = process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+    const originalSonnet = process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
+    const originalOpus = process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
+    process.env.ANTHROPIC_MODEL = 'MiniMax-M2.7'
+    process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = 'MiniMax-M2.7-highspeed'
+    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'MiniMax-M2.7'
+    process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = 'MiniMax-M2.7'
+
+    try {
+      const { req, url, segments } = makeRequest('GET', '/api/models/current')
+      const res = await handleModelsApi(req, url, segments)
+
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.model.id).toBe('MiniMax-M2.7')
+    } finally {
+      if (originalModel === undefined) delete process.env.ANTHROPIC_MODEL
+      else process.env.ANTHROPIC_MODEL = originalModel
+      if (originalHaiku === undefined) delete process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+      else process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = originalHaiku
+      if (originalSonnet === undefined) delete process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
+      else process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = originalSonnet
+      if (originalOpus === undefined) delete process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
+      else process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = originalOpus
+    }
+  })
+
   it('PUT /api/models/current should switch model', async () => {
     const { req, url, segments } = makeRequest('PUT', '/api/models/current', {
       modelId: 'claude-opus-4-7',

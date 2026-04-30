@@ -1,3 +1,8 @@
+import { existsSync, readFileSync } from 'fs';
+import { dirname, join, resolve } from 'path';
+
+bootstrapEnvFromNearestDotEnv();
+
 const version = process.env.CLAUDE_CODE_LOCAL_VERSION ?? '999.0.0-local';
 const packageUrl = process.env.CLAUDE_CODE_LOCAL_PACKAGE_URL ?? 'claude-code-local';
 const buildTime = process.env.CLAUDE_CODE_LOCAL_BUILD_TIME ?? new Date().toISOString();
@@ -54,3 +59,70 @@ if (process.env.CALLER_DIR) {
   process.chdir(process.env.CALLER_DIR);
 }
 export {}
+
+function bootstrapEnvFromNearestDotEnv() {
+  const envPath = findNearestDotEnv();
+  if (!envPath) return;
+
+  for (const [key, value] of parseDotEnv(envPath)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function findNearestDotEnv(): string | null {
+  const searchRoots = new Set<string>();
+  const cwd = process.cwd();
+  if (cwd) searchRoots.add(resolve(cwd));
+  if (process.env.CLAUDE_APP_ROOT) {
+    searchRoots.add(resolve(process.env.CLAUDE_APP_ROOT));
+  }
+  if (process.execPath) {
+    searchRoots.add(dirname(resolve(process.execPath)));
+  }
+
+  for (const startDir of searchRoots) {
+    let current = startDir;
+    while (true) {
+      const candidate = join(current, '.env');
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+      const parent = dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+
+  return null;
+}
+
+function parseDotEnv(filePath: string): Array<[string, string]> {
+  const entries: Array<[string, string]> = [];
+  const raw = readFileSync(filePath, 'utf8');
+
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+
+    const [, key, rawValue] = match;
+    let value = rawValue;
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    value = value
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\t/g, '\t');
+    entries.push([key, value]);
+  }
+
+  return entries;
+}
