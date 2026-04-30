@@ -35,6 +35,9 @@ export type CronTask = {
   useWorktree?: boolean
   notification?: TaskNotificationConfig
   awayRunner?: Partial<AwayRunnerConfig>
+  origin?: 'jarvis' | 'scheduled'
+  jarvisTaskType?: 'reminder' | 'task'
+  jarvisReminderMessage?: string
 }
 
 type TasksFile = {

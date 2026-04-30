@@ -14,6 +14,13 @@ function hashString(str: string): string {
 const MAX_CACHED_REQUESTS = 5
 const cachedApiRequests: Array<{ timestamp: string; request: unknown }> = []
 
+function shouldDumpPromptsForDebugging(): boolean {
+  return (
+    process.env.USER_TYPE === 'ant' ||
+    process.env.CLAUDE_YH_DUMP_API_REQUEST === '1'
+  )
+}
+
 type DumpState = {
   initialized: boolean
   messageCountSeen: number
@@ -46,7 +53,7 @@ export function clearAllDumpState(): void {
 }
 
 export function addApiRequestToCache(requestData: unknown): void {
-  if (process.env.USER_TYPE !== 'ant') return
+  if (!shouldDumpPromptsForDebugging()) return
   cachedApiRequests.push({
     timestamp: new Date().toISOString(),
     request: requestData,
@@ -97,7 +104,7 @@ function dumpRequest(
     const req = jsonParse(body) as Record<string, unknown>
     addApiRequestToCache(req)
 
-    if (process.env.USER_TYPE !== 'ant') return
+    if (!shouldDumpPromptsForDebugging()) return
     const entries: string[] = []
     const messages = (req.messages ?? []) as Array<{ role?: string }>
 
@@ -171,7 +178,7 @@ export function createDumpPromptsFetch(
     const response = await globalThis.fetch(input, init)
 
     // Save response async
-    if (timestamp && response.ok && process.env.USER_TYPE === 'ant') {
+    if (timestamp && response.ok && shouldDumpPromptsForDebugging()) {
       const cloned = response.clone()
       void (async () => {
         try {

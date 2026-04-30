@@ -51,18 +51,11 @@ async function isSidecarFresh(outputPath: string): Promise<boolean> {
 
   const latestSourceMtime = await latestMtime([
     path.join(desktopRoot, 'sidecars'),
-    path.join(repoRoot, 'src', 'server'),
-    path.join(repoRoot, 'src', 'browserControl'),
-    path.join(repoRoot, 'src', 'bridge'),
-    path.join(repoRoot, 'src', 'memdir'),
-    path.join(repoRoot, 'src', 'memoryV2'),
-    path.join(repoRoot, 'src', 'runtime'),
-    path.join(repoRoot, 'src', 'sdk'),
-    path.join(repoRoot, 'src', 'services'),
-    path.join(repoRoot, 'src', 'skills'),
-    path.join(repoRoot, 'src', 'tools'),
-    path.join(repoRoot, 'src', 'utils'),
-    path.join(repoRoot, 'src', 'entrypoints'),
+    // The compiled desktop sidecar statically bundles imports reachable from
+    // desktop/sidecars/claude-sidecar.ts. Keep the freshness check broad so
+    // Jarvis/router/memory/runtime changes cannot be hidden by a stale binary.
+    path.join(repoRoot, 'src'),
+    path.join(repoRoot, 'adapters'),
   ])
   return outputStat.mtimeMs >= latestSourceMtime
 }
@@ -80,7 +73,10 @@ async function latestMtime(paths: string[]): Promise<number> {
 
     const entries = await readdir(item, { withFileTypes: true }).catch(() => [])
     for (const entry of entries) {
-      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'target') {
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'target' || entry.name === '__tests__') {
+        continue
+      }
+      if (/\.(test|spec)\.[cm]?[tj]sx?$/.test(entry.name)) {
         continue
       }
       latest = Math.max(latest, await latestMtime([path.join(item, entry.name)]))

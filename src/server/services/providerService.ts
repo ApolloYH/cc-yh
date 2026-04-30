@@ -55,7 +55,57 @@ function normalizeEnv(value: unknown): Record<string, string> {
 function hasManagedEnv(env: Record<string, string>): boolean {
   return MANAGED_ENV_KEYS.some(
     (key) => typeof env[key] === 'string' && env[key].trim().length > 0,
-  )
+)
+}
+
+function normalizeModelMapping(models: SavedProvider['models']): SavedProvider['models'] {
+  const main = models.main.trim()
+  return {
+    main,
+    haiku: models.haiku.trim() || main,
+    sonnet: models.sonnet.trim() || main,
+    opus: models.opus.trim() || main,
+  }
+}
+
+function normalizeKnownProviderModel(baseUrl: string | undefined, modelId: string): string {
+  const normalizedBase = baseUrl?.trim().toLowerCase() ?? ''
+  const trimmed = modelId.trim()
+  if (normalizedBase.includes('xiaomimimo.com') && /^mimo-/i.test(trimmed)) {
+    return trimmed.toLowerCase()
+  }
+  return trimmed
+}
+
+function normalizeKnownProviderModels(
+  baseUrl: string | undefined,
+  models: SavedProvider['models'],
+): SavedProvider['models'] {
+  const normalized = normalizeModelMapping(models)
+  return {
+    main: normalizeKnownProviderModel(baseUrl, normalized.main),
+    haiku: normalizeKnownProviderModel(baseUrl, normalized.haiku),
+    sonnet: normalizeKnownProviderModel(baseUrl, normalized.sonnet),
+    opus: normalizeKnownProviderModel(baseUrl, normalized.opus),
+  }
+}
+
+function normalizeProviderInput<T extends {
+  name?: string
+  apiKey?: string
+  baseUrl?: string
+  models?: SavedProvider['models']
+  notes?: string
+}>(input: T): T {
+  const baseUrl = input.baseUrl?.trim()
+  return {
+    ...input,
+    ...(input.name !== undefined && { name: input.name.trim() }),
+    ...(input.apiKey !== undefined && { apiKey: input.apiKey.trim() }),
+    ...(input.baseUrl !== undefined && { baseUrl }),
+    ...(input.models !== undefined && { models: normalizeKnownProviderModels(baseUrl, input.models) }),
+    ...(input.notes !== undefined && { notes: input.notes.trim() }),
+  }
 }
 
 type AuthStatusSource = 'claude-yh-provider' | 'original-settings' | 'env' | 'none'
@@ -284,16 +334,17 @@ export class ProviderService {
 
   async addProvider(input: CreateProviderInput): Promise<SavedProvider> {
     const index = await this.readIndex()
+    const normalized = normalizeProviderInput(input)
 
     const provider: SavedProvider = {
       id: crypto.randomUUID(),
-      presetId: input.presetId,
-      name: input.name,
-      apiKey: input.apiKey,
-      baseUrl: input.baseUrl,
-      apiFormat: input.apiFormat ?? 'anthropic',
-      models: input.models,
-      ...(input.notes !== undefined && { notes: input.notes }),
+      presetId: normalized.presetId,
+      name: normalized.name,
+      apiKey: normalized.apiKey,
+      baseUrl: normalized.baseUrl,
+      apiFormat: normalized.apiFormat ?? 'anthropic',
+      models: normalized.models,
+      ...(normalized.notes !== undefined && { notes: normalized.notes }),
     }
 
     index.providers.push(provider)
@@ -306,15 +357,16 @@ export class ProviderService {
     const idx = index.providers.findIndex((p) => p.id === id)
     if (idx === -1) throw ApiError.notFound(`Provider not found: ${id}`)
 
+    const normalized = normalizeProviderInput(input)
     const existing = index.providers[idx]
     const updated: SavedProvider = {
       ...existing,
-      ...(input.name !== undefined && { name: input.name }),
-      ...(input.apiKey !== undefined && { apiKey: input.apiKey }),
-      ...(input.baseUrl !== undefined && { baseUrl: input.baseUrl }),
-      ...(input.apiFormat !== undefined && { apiFormat: input.apiFormat }),
-      ...(input.models !== undefined && { models: input.models }),
-      ...(input.notes !== undefined && { notes: input.notes }),
+      ...(normalized.name !== undefined && { name: normalized.name }),
+      ...(normalized.apiKey !== undefined && { apiKey: normalized.apiKey }),
+      ...(normalized.baseUrl !== undefined && { baseUrl: normalized.baseUrl }),
+      ...(normalized.apiFormat !== undefined && { apiFormat: normalized.apiFormat }),
+      ...(normalized.models !== undefined && { models: normalized.models }),
+      ...(normalized.notes !== undefined && { notes: normalized.notes }),
     }
 
     index.providers[idx] = updated
@@ -369,6 +421,7 @@ export class ProviderService {
   private async syncToSettings(provider: SavedProvider): Promise<void> {
     const settings = await this.readSettings()
     const existingEnv = { ...((settings.env as Record<string, string>) || {}) }
+    const models = normalizeModelMapping(provider.models)
 
     for (const key of MANAGED_ENV_KEYS) {
       delete existingEnv[key]
@@ -376,12 +429,12 @@ export class ProviderService {
 
     const nextEnv: Record<string, string> = {
       ...existingEnv,
-      ANTHROPIC_BASE_URL: provider.baseUrl,
-      ANTHROPIC_AUTH_TOKEN: provider.apiKey,
-      ANTHROPIC_MODEL: provider.models.main,
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: provider.models.haiku,
-      ANTHROPIC_DEFAULT_SONNET_MODEL: provider.models.sonnet,
-      ANTHROPIC_DEFAULT_OPUS_MODEL: provider.models.opus,
+      ANTHROPIC_BASE_URL: provider.baseUrl.trim(),
+      ANTHROPIC_AUTH_TOKEN: provider.apiKey.trim(),
+      ANTHROPIC_MODEL: models.main,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: models.haiku,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: models.sonnet,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: models.opus,
     }
 
     if (provider.apiFormat === 'openai_chat') {
@@ -506,7 +559,7 @@ export class ProviderService {
   ): Promise<ProviderTestResult> {
     const provider = await this.getProvider(id)
     const baseUrl = overrides?.baseUrl || provider.baseUrl
-    const modelId = overrides?.modelId || provider.models.main
+    const modelId = (overrides?.modelId || provider.models.main).trim()
     const apiFormat = overrides?.apiFormat ?? provider.apiFormat ?? 'anthropic'
 
     if (!baseUrl || !provider.apiKey) {
@@ -523,10 +576,11 @@ export class ProviderService {
   async testProviderConfig(input: TestProviderInput): Promise<ProviderTestResult> {
     const format: ApiFormat = input.apiFormat ?? 'anthropic'
     const base = input.baseUrl.replace(/\/+$/, '')
+    const modelId = input.modelId.trim()
 
     // ── Step 1: Basic connectivity ───────────────────────────
     // Directly call the upstream API to verify URL, key, and model.
-    const step1 = await this.testConnectivity(base, input.apiKey, input.modelId, format)
+    const step1 = await this.testConnectivity(base, input.apiKey.trim(), modelId, format)
 
     // If connectivity failed, no point running step 2
     if (!step1.success) {
@@ -540,7 +594,7 @@ export class ProviderService {
 
     // ── Step 2: Full proxy pipeline ──────────────────────────
     // Anthropic request → transform → upstream → transform back → validate
-    const step2 = await this.testProxyPipeline(base, input.apiKey, input.modelId, format)
+    const step2 = await this.testProxyPipeline(base, input.apiKey.trim(), modelId, format)
 
     return { connectivity: step1, proxy: step2 }
   }

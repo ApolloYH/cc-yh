@@ -51,8 +51,9 @@ export const call: LocalCommandCall = async (args) => {
     if (!isRiskMode(value)) {
       return text('Usage: /jarvis mode observe|assisted|autonomous.')
     }
-    await updateJarvisConfig({ riskMode: value })
-    return text(await formatStatus(`Jarvis mode set to ${value}.`))
+    const mode = normalizeRiskMode(value)
+    await updateJarvisConfig({ riskMode: mode })
+    return text(await formatStatus(`Jarvis mode set to ${mode}.`))
   }
 
   if (action === 'companion' || action === 'lobster' || action === 'xiaolongxia') {
@@ -229,7 +230,7 @@ async function formatStatus(prefix?: string): Promise<string> {
   const lines = [
     ...(prefix ? [prefix, ''] : []),
     `Jarvis: ${config.enabled ? 'on' : 'off'}`,
-    `Mode: ${config.riskMode}`,
+    `Mode: ${normalizeRiskMode(config.riskMode)}`,
     `Proactive mode: ${config.companionModeEnabled ? 'on' : 'off'}`,
     `Interval: ${Math.round(config.intervalMs / 60_000)} minute(s)`,
     `Sources: ${sources || 'none'}`,
@@ -249,7 +250,14 @@ function text(value: string) {
 }
 
 function isRiskMode(value: string | undefined): value is JarvisRiskMode {
-  return value === 'observe' || value === 'assisted' || value === 'autonomous'
+  return value === 'observe' ||
+    value === 'assisted' ||
+    value === 'autonomous' ||
+    value === 'full_autonomous'
+}
+
+function normalizeRiskMode(value: JarvisRiskMode): JarvisRiskMode {
+  return value === 'full_autonomous' ? 'autonomous' : value
 }
 
 function isSource(

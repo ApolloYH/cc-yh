@@ -51,6 +51,7 @@ describe('/jarvis command', () => {
     if (mode.type === 'text') {
       expect(mode.value).toContain('Mode: autonomous')
     }
+    await call('mode observe', {} as never)
 
     const task = await call('enqueue summarize new sessions', {} as never)
     expect(task.type).toBe('text')
@@ -61,7 +62,7 @@ describe('/jarvis command', () => {
     const settings = JSON.parse(
       await fs.readFile(path.join(tmpDir, 'settings.json'), 'utf-8'),
     )
-    expect(settings.jarvisMode.riskMode).toBe('autonomous')
+    expect(settings.jarvisMode.riskMode).toBe('observe')
     const queue = JSON.parse(await fs.readFile(path.join(tmpDir, 'jarvis_queue.json'), 'utf-8'))
     expect(queue.items[0].goal).toBe('summarize new sessions')
 

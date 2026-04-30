@@ -1,4 +1,4 @@
-export type JarvisRiskMode = 'observe' | 'assisted' | 'autonomous'
+export type JarvisRiskMode = 'observe' | 'assisted' | 'autonomous' | 'full_autonomous'
 
 export type JarvisSourceKey = 'scheduledTasks' | 'sessions' | 'git'
 
@@ -114,6 +114,86 @@ export type JarvisApprovalRequest = {
   resolutionNote?: string
 }
 
+export type JarvisRunStatus =
+  | 'planning'
+  | 'running'
+  | 'paused'
+  | 'blocked'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export type JarvisWorkerRole =
+  | 'manager'
+  | 'explorer'
+  | 'implementer'
+  | 'tester'
+  | 'browser_operator'
+  | 'researcher'
+  | 'reviewer'
+  | 'writer'
+  | 'custom'
+
+export type JarvisWorkerStatus =
+  | 'pending'
+  | 'running'
+  | 'blocked'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export type JarvisReportPolicy = {
+  progressMode: 'normal' | 'quiet' | 'silent'
+  progressIntervalMs: number
+  reportOnlyWhenChanged: boolean
+  reportOnBlocked: boolean
+  reportOnRisk: boolean
+  finalReportRequired: boolean
+}
+
+export type JarvisManagerPlan = {
+  goal: string
+  strategy: string
+  workers: Array<{
+    role: JarvisWorkerRole
+    title: string
+    task: string
+    expectedOutput: string
+    timeoutMinutes: number
+  }>
+  reportPolicy: JarvisReportPolicy
+  riskNotes: string[]
+}
+
+export type JarvisWorkerTask = {
+  id: string
+  runId: string
+  queueItemId?: string
+  role: JarvisWorkerRole
+  title: string
+  prompt: string
+  expectedOutput?: string
+  status: JarvisWorkerStatus
+  assignedAt?: string
+  lastProgressAt?: string
+  timeoutAt?: string
+  checkpoint?: string
+  result?: string
+  error?: string
+}
+
+export type JarvisRun = {
+  id: string
+  goal: string
+  status: JarvisRunStatus
+  managerPlan?: JarvisManagerPlan
+  workers: JarvisWorkerTask[]
+  reportPolicy: JarvisReportPolicy
+  createdAt: string
+  updatedAt: string
+  finalReport?: string
+}
+
 export type JarvisStatus = {
   enabled: boolean
   running: boolean
@@ -133,6 +213,8 @@ export type JarvisStatus = {
     paused: number
     failed: number
     completed: number
+    cancelled?: number
+    stalled?: number
   }
   queueItems?: Array<{
     id: string
@@ -140,6 +222,15 @@ export type JarvisStatus = {
     title?: string
     goal?: string
     status: string
+    lane?: 'none' | 'read_only' | 'write' | 'external'
+    workdir?: string
+    permissionMode?: JarvisRiskMode
+    sessionId?: string
+    pid?: number
+    lastEventAt?: string
+    exitCode?: number
+    reportMuted?: boolean
+    supplementSummary?: string
     priority: number
     attempts: number
     maxAttempts: number
@@ -149,6 +240,7 @@ export type JarvisStatus = {
     createdAt: string
     updatedAt: string
   }>
+  runs?: JarvisRun[]
   reports?: Array<{
     id: string
     taskId?: string

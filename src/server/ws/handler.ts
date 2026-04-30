@@ -703,6 +703,9 @@ function translateCliMessage(cliMsg: any, sessionId: string): ServerMessage[] {
     case 'control_response':
       return []
 
+    case 'keep_alive':
+      return []
+
     case 'result': {
       // 对话结果（成功或错误）
       const usage = {

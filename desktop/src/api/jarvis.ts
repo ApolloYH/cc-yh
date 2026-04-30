@@ -32,12 +32,16 @@ export const jarvisApi = {
     return api.post<{ event: JarvisEvent; status: JarvisStatus }>('/api/jarvis/tick', {})
   },
 
-  submitTask(goal: string, priority?: number) {
-    return api.post<{ status: JarvisStatus }>('/api/jarvis/task', { goal, priority, source: 'desktop' })
+  submitTask(goal: string, priority?: number, clientMessageId?: string) {
+    return api.post<{ status: JarvisStatus }>('/api/jarvis/task', { goal, priority, source: 'desktop', clientMessageId })
   },
 
   queueAction(id: string, action: 'pause' | 'resume' | 'approve' | 'checkpoint' | 'delete') {
     return api.post<{ status: JarvisStatus }>('/api/jarvis/queue-action', { id, action })
+  },
+
+  runAction(id: string, action: 'pause' | 'resume' | 'cancel') {
+    return api.post<{ status: JarvisStatus }>('/api/jarvis/run-action', { id, action })
   },
 
   resolveApproval(id: string, decision: 'approved' | 'rejected', note?: string) {

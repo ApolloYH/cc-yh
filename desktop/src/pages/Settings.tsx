@@ -53,7 +53,6 @@ export function Settings() {
             <TabButton icon="shield" label={t('settings.tab.permissions')} active={activeTab === 'permissions'} onClick={() => setActiveTab('permissions')} />
             <TabButton icon="tune" label={t('settings.tab.general')} active={activeTab === 'general'} onClick={() => setActiveTab('general')} />
             <TabButton icon="chat" label={t('settings.tab.adapters')} active={activeTab === 'adapters'} onClick={() => setActiveTab('adapters')} />
-            <TabButton icon="smart_toy" label={t('settings.tab.agents')} active={activeTab === 'agents'} onClick={() => setActiveTab('agents')} />
             <TabButton icon="auto_awesome" label={t('settings.tab.skills')} active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
             <TabButton icon="language" label={t('settings.tab.browser')} active={activeTab === 'browser'} onClick={() => setActiveTab('browser')} />
             <TabButton icon="travel_explore" label={t('settings.tab.webSearch')} active={activeTab === 'webSearch'} onClick={() => setActiveTab('webSearch')} />
@@ -72,7 +71,7 @@ export function Settings() {
           {activeTab === 'permissions' && <PermissionSettings />}
           {activeTab === 'general' && <GeneralSettings />}
           {activeTab === 'adapters' && <AdapterSettings />}
-          {activeTab === 'agents' && <AgentsSettings />}
+          {(activeTab as string) === 'agents-disabled' && <AgentsSettings />}
           {activeTab === 'skills' && <SkillSettings />}
           {activeTab === 'browser' && <BrowserSettings />}
           {activeTab === 'webSearch' && <WebSearchSettings />}

@@ -179,6 +179,36 @@ async function buildStatusText(chatId: string): Promise<string> {
   })
 }
 
+async function submitTextToJarvis(ctx: Context, text: string): Promise<void> {
+  if (!ctx.from || !ctx.chat) return
+  const chatId = String(ctx.chat.id)
+  const displayName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
+  const projectDir = sessionStore.get(chatId)?.workDir || config.defaultProjectDir || undefined
+  const result = await httpClient.submitJarvisInbound('telegram', {
+    userId: ctx.from.id,
+    displayName,
+    text,
+    projectDir,
+  })
+  const replies = (result.messages ?? [])
+    .filter(message => message.role !== 'user')
+    .filter(message => message.message.trim())
+
+  if (replies.length === 0) {
+    await ctx.reply('已交给 Jarvis。')
+    return
+  }
+
+  for (const reply of replies) {
+    const body = reply.title
+      ? `${reply.title}\n\n${reply.message}`
+      : reply.message
+    for (const chunk of splitMessage(body, TELEGRAM_TEXT_LIMIT)) {
+      await ctx.reply(chunk)
+    }
+  }
+}
+
 async function flushToTelegram(chatId: string, newText: string, isComplete: boolean): Promise<void> {
   const numericChatId = Number(chatId)
   const prev = accumulatedText.get(chatId) ?? ''
@@ -617,6 +647,10 @@ async function routeUserMessage(
   enqueue(chatId, async () => {
     if (pendingProjectSelection.has(chatId)) {
       if (text.trim()) await startNewSession(chatId, text.trim())
+      return
+    }
+    if (attachments.length === 0) {
+      await submitTextToJarvis(ctx, text)
       return
     }
     const ready = await ensureSession(chatId)

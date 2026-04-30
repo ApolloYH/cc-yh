@@ -586,7 +586,8 @@ async function* queryLoop(
     // instead of all request bodies from the session (~500MB for long sessions).
     // Note: agentId is effectively constant during a query() call - it only changes
     // between queries (e.g., /clear command or session resume).
-    const dumpPromptsFetch = config.gates.isAnt
+    const dumpPromptsFetch =
+      config.gates.isAnt || process.env.CLAUDE_YH_DUMP_API_REQUEST === '1'
       ? createDumpPromptsFetch(toolUseContext.agentId ?? config.sessionId)
       : undefined
 

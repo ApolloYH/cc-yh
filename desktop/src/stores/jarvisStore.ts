@@ -12,8 +12,9 @@ type JarvisStore = {
   fetchStatus: () => Promise<void>
   updateConfig: (config: Partial<JarvisModeConfig>) => Promise<void>
   updateAutostart: (enabled: boolean) => Promise<void>
-  submitTask: (goal: string) => Promise<void>
+  submitTask: (goal: string, clientMessageId?: string) => Promise<void>
   queueAction: (id: string, action: 'pause' | 'resume' | 'approve' | 'checkpoint' | 'delete') => Promise<void>
+  runAction: (id: string, action: 'pause' | 'resume' | 'cancel') => Promise<void>
   resolveApproval: (id: string, decision: 'approved' | 'rejected', note?: string) => Promise<void>
   tick: () => Promise<void>
 }
@@ -58,10 +59,10 @@ export const useJarvisStore = create<JarvisStore>((set) => ({
     }
   },
 
-  submitTask: async (goal) => {
+  submitTask: async (goal, clientMessageId) => {
     set({ isSaving: true, error: null })
     try {
-      const { status } = await jarvisApi.submitTask(goal, 75)
+      const { status } = await jarvisApi.submitTask(goal, 75, clientMessageId)
       set({ status, isSaving: false })
     } catch (err) {
       set({ error: (err as Error).message, isSaving: false })
@@ -72,6 +73,16 @@ export const useJarvisStore = create<JarvisStore>((set) => ({
     set({ isSaving: true, error: null })
     try {
       const { status } = await jarvisApi.queueAction(id, action)
+      set({ status, isSaving: false })
+    } catch (err) {
+      set({ error: (err as Error).message, isSaving: false })
+    }
+  },
+
+  runAction: async (id, action) => {
+    set({ isSaving: true, error: null })
+    try {
+      const { status } = await jarvisApi.runAction(id, action)
       set({ status, isSaving: false })
     } catch (err) {
       set({ error: (err as Error).message, isSaving: false })

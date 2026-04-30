@@ -106,6 +106,51 @@ describe('ProviderService', () => {
     expect(env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('model-haiku')
   })
 
+  test('trims provider model ids before persisting and syncing env', async () => {
+    const svc = new ProviderService()
+    const provider = await svc.addProvider(sampleInput({
+      name: '  Trim Provider  ',
+      baseUrl: '  https://api.example.com/anthropic  ',
+      apiKey: '  sk-test-key-123  ',
+      models: {
+        main: ' MiMo-V2.5-Pro ',
+        haiku: ' ',
+        sonnet: ' MiMo-V2.5-Pro ',
+        opus: ' MiMo-V2.5-Pro ',
+      },
+    }))
+    await svc.activateProvider(provider.id)
+
+    const settings = await readCcHahaSettings()
+    const saved = (settings.claudeYhProviders.providers as any[])[0]
+    expect(saved.name).toBe('Trim Provider')
+    expect(saved.baseUrl).toBe('https://api.example.com/anthropic')
+    expect(saved.models.main).toBe('MiMo-V2.5-Pro')
+    expect(saved.models.haiku).toBe('MiMo-V2.5-Pro')
+    expect(settings.env.ANTHROPIC_MODEL).toBe('MiMo-V2.5-Pro')
+  })
+
+  test('canonicalizes MiMo model ids for the xiaomimimo endpoint', async () => {
+    const svc = new ProviderService()
+    const provider = await svc.addProvider(sampleInput({
+      name: 'MImo',
+      baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
+      models: {
+        main: ' MiMo-V2.5-Pro ',
+        haiku: ' ',
+        sonnet: ' MiMo-V2.5-Pro ',
+        opus: ' MiMo-V2.5-Pro ',
+      },
+    }))
+    await svc.activateProvider(provider.id)
+
+    const settings = await readCcHahaSettings()
+    const saved = (settings.claudeYhProviders.providers as any[])[0]
+    expect(saved.models.main).toBe('mimo-v2.5-pro')
+    expect(saved.models.haiku).toBe('mimo-v2.5-pro')
+    expect(settings.env.ANTHROPIC_MODEL).toBe('mimo-v2.5-pro')
+  })
+
   test('updateProvider re-syncs active provider env', async () => {
     const svc = new ProviderService()
     const provider = await svc.addProvider(sampleInput())

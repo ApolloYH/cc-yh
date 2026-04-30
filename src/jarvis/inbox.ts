@@ -2,6 +2,10 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
+import {
+  appendJarvisMessageToTranscript,
+  backupAndClearJarvisTranscript,
+} from './transcript.js'
 import type {
   JarvisApprovalRequest,
   JarvisApprovalStatus,
@@ -22,6 +26,23 @@ export function getJarvisInboxPath(): string {
 
 export function getJarvisApprovalsPath(): string {
   return path.join(getClaudeConfigHomeDir(), APPROVALS_FILE)
+}
+
+export async function backupAndClearJarvisInbox(): Promise<string> {
+  const inboxPath = getJarvisInboxPath()
+  const backupDir = path.join(getClaudeConfigHomeDir(), 'backups', 'jarvis')
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = path.join(backupDir, `jarvis_inbox.${stamp}.jsonl`)
+  await fs.mkdir(backupDir, { recursive: true })
+  try {
+    await fs.copyFile(inboxPath, backupPath)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    await fs.writeFile(backupPath, '', 'utf-8')
+  }
+  await writeJsonl(getJarvisInboxPath(), [])
+  await backupAndClearJarvisTranscript()
+  return backupPath
 }
 
 export async function appendJarvisInboxMessage(input: {
@@ -46,6 +67,7 @@ export async function appendJarvisInboxMessage(input: {
   }
   const messages = await readJarvisInboxMessages(MAX_INBOX_MESSAGES - 1)
   await writeJsonl(getJarvisInboxPath(), [...messages.reverse(), message].slice(-MAX_INBOX_MESSAGES))
+  await appendJarvisMessageToTranscript(message).catch(() => {})
   return message
 }
 

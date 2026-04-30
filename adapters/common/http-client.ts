@@ -22,6 +22,27 @@ export type SessionTask = {
   status: 'pending' | 'in_progress' | 'completed'
 }
 
+export type AdapterInboundChannel = 'telegram' | 'feishu' | 'dingtalk' | 'wecom'
+
+export type JarvisInboundMessage = {
+  id: string
+  role: 'user' | 'jarvis' | 'system'
+  source: AdapterInboundChannel | 'desktop' | 'web' | 'cli' | 'system'
+  createdAt: string
+  title?: string
+  message: string
+  taskId?: string
+  severity?: 'info' | 'warn' | 'error'
+}
+
+export type JarvisInboundResponse = {
+  ok: boolean
+  channel: AdapterInboundChannel
+  jarvis: true
+  messages?: JarvisInboundMessage[]
+  status?: unknown
+}
+
 export class AdapterHttpClient {
   readonly httpBaseUrl: string
 
@@ -103,5 +124,26 @@ export class AdapterHttpClient {
     }
     const data = (await res.json()) as { tasks?: SessionTask[] }
     return Array.isArray(data.tasks) ? data.tasks : []
+  }
+
+  async submitJarvisInbound(
+    channel: AdapterInboundChannel,
+    body: {
+      userId?: string | number
+      displayName?: string
+      text: string
+      projectDir?: string
+    },
+  ): Promise<JarvisInboundResponse> {
+    const res = await fetch(`${this.httpBaseUrl}/api/adapters/inbound/${channel}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }))
+      throw new Error(`Failed to submit Jarvis inbound message: ${(err as any).message}`)
+    }
+    return (await res.json()) as JarvisInboundResponse
   }
 }

@@ -5,6 +5,7 @@ import * as path from 'node:path'
 import {
   claimNextJarvisTask,
   deleteJarvisQueueItem,
+  getJarvisQueuePath,
   enqueueJarvisTask,
   listJarvisQueue,
   recoverInterruptedJarvisQueue,
@@ -77,5 +78,19 @@ describe('Jarvis persistent queue', () => {
     expect(new Set(ids).size).toBe(2)
     expect(ids).toContain(first.id)
     expect(ids).toContain(second.id)
+  })
+
+  it('repairs a partially written queue file without crashing status reads', async () => {
+    const valid = await enqueueJarvisTask({ prompt: 'keep me', priority: 50 })
+    const filePath = getJarvisQueuePath()
+    const raw = await fs.readFile(filePath, 'utf-8')
+    await fs.writeFile(filePath, raw.replace(/\n]\n}\n$/, ',\n  { "id": "broken"'), 'utf-8')
+
+    const items = await listJarvisQueue()
+
+    expect(items.map(item => item.id)).toContain(valid.id)
+    expect(items.every(item => item.id !== 'broken')).toBe(true)
+    const repaired = JSON.parse(await fs.readFile(filePath, 'utf-8')) as { items?: unknown[] }
+    expect(Array.isArray(repaired.items)).toBe(true)
   })
 })

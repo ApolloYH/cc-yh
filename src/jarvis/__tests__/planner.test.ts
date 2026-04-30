@@ -1,43 +1,30 @@
 import { describe, expect, it } from 'bun:test'
-import { normalizeJarvisPlanSteps } from '../planner.js'
+import { buildJarvisManagerPrompt } from '../taskEnvelope.js'
+import type { JarvisQueueItem } from '../queue.js'
 
-describe('Jarvis planner', () => {
-  it('keeps simple conversational goals as one queue item', () => {
-    const steps = normalizeJarvisPlanSteps('自我介绍', [
-      '以简洁友好的方式介绍自己',
-      '说明自己的核心能力和用途',
-      '说明自己在当前对话环境中的角色',
-    ])
+describe('Jarvis manager task envelope', () => {
+  it('does not contain Jarvis-side task breakdown steps', () => {
+    const item: JarvisQueueItem = {
+      id: 'task-1',
+      title: '研究项目',
+      goal: '研究这个项目并给出改进建议',
+      prompt: '研究这个项目并给出改进建议',
+      lane: 'read_only',
+      permissionMode: 'autonomous',
+      priority: 70,
+      status: 'pending',
+      approvalState: 'none',
+      attempts: 0,
+      maxAttempts: 3,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
 
-    expect(steps).toEqual(['自我介绍'])
-  })
+    const prompt = buildJarvisManagerPrompt(item)
 
-  it('keeps status queries as one queue item', () => {
-    const steps = normalizeJarvisPlanSteps('查询当前任务状态', [
-      '检查当前任务队列状态',
-      '返回任务列表或空闲状态',
-    ])
-
-    expect(steps).toEqual(['查询当前任务状态'])
-  })
-
-  it('follows native Claude criteria by not splitting fewer than 3 actions', () => {
-    const steps = normalizeJarvisPlanSteps('修复登录按钮样式并验证结果', [
-      '修复登录按钮样式',
-      '验证结果',
-    ])
-
-    expect(steps).toEqual(['修复登录按钮样式并验证结果'])
-  })
-
-  it('keeps genuinely staged goals split', () => {
-    const steps = normalizeJarvisPlanSteps('持续观察这个项目，发现失败任务就分析原因并尝试修复', [
-      '检查最近失败任务和日志',
-      '分析失败原因',
-      '尝试低风险修复',
-      '运行验证并汇报结果',
-    ])
-
-    expect(steps).toHaveLength(4)
+    expect(prompt).toContain('"taskId": "task-1"')
+    expect(prompt).toContain('"originalGoal": "研究这个项目并给出改进建议"')
+    expect(prompt).not.toContain('"steps"')
+    expect(prompt).not.toContain('Step 1/')
   })
 })

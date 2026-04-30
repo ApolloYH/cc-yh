@@ -23,6 +23,7 @@ import {
   type AwayRunnerConfig,
 } from '../../awayRunner/index.js'
 import { appendJarvisEvent } from '../../jarvis/store.js'
+import { recordJarvisRuntimeEvent } from '../../jarvis/eventRouter.js'
 import { logDiagnosticEvent } from '../../utils/diagnosticLog.js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -400,7 +401,11 @@ export class CronScheduler {
    * @param task The task to execute
    * @param options.createSession When true, creates a Session for rich output viewing (used for manual "Run Now")
    */
-  async executeTask(task: CronTask, options?: { createSession?: boolean }): Promise<TaskRun> {
+  async executeTask(task: CronTask, options?: {
+    createSession?: boolean
+    onStdoutLine?: (line: string) => void | Promise<void>
+    onProcessStarted?: (pid: number | undefined) => void | Promise<void>
+  }): Promise<TaskRun> {
     // Prevent concurrent executions of the same task
     const existing = this.runningTasks.get(task.id)
     if (existing) {
@@ -474,6 +479,47 @@ export class CronScheduler {
       },
     })
 
+    if (task.origin === 'jarvis' && task.jarvisTaskType === 'reminder') {
+      const completedAt = new Date().toISOString()
+      const reminderText = task.jarvisReminderMessage || task.prompt
+      const completedRun: TaskRun = {
+        ...run,
+        completedAt,
+        status: 'completed',
+        output: `时间到了：${reminderText}`,
+        exitCode: 0,
+        durationMs: new Date(completedAt).getTime() - new Date(startedAt).getTime(),
+      }
+      await updateRun(completedRun)
+      await recordJarvisRuntimeEvent({
+        kind: 'reminder_fired',
+        title: '提醒到了',
+        message: `时间到了，${reminderText}`,
+        taskId: task.id,
+        severity: 'info',
+        priority: 'interrupt',
+        metadata: {
+          runId,
+          cron: task.cron,
+          scheduledTaskId: task.id,
+        },
+      })
+      if (!task.recurring) {
+        await this.cronService.updateTask(task.id, { enabled: false }).catch(() => {})
+      }
+      logDiagnosticEvent({
+        scope: 'scheduledTasks.scheduler',
+        event: 'jarvis_reminder_delivered',
+        ok: true,
+        data: {
+          runId,
+          taskId: task.id,
+          messageLength: reminderText.length,
+        },
+      })
+      return completedRun
+    }
+
     const away = await this.prepareAwayRunner(task)
     logDiagnosticEvent({
       scope: 'scheduledTasks.scheduler',
@@ -501,6 +547,11 @@ export class CronScheduler {
       return pausedRun
     }
     const permissionMode = this.resolvePermissionMode(task, away.config)
+    const permissionArgs = permissionMode === 'bypassPermissions' || permissionMode === 'full_autonomous'
+      ? ['--dangerously-skip-permissions']
+      : permissionMode
+        ? ['--permission-mode', permissionMode]
+        : []
     const cliInvocation = this.resolveCliInvocation([
       '--print',
       '--verbose',
@@ -510,7 +561,7 @@ export class CronScheduler {
       'stream-json',
       ...(sessionId ? ['--session-id', sessionId] : []),
       ...(task.model ? ['--model', task.model] : []),
-      ...(permissionMode ? ['--permission-mode', permissionMode] : []),
+      ...permissionArgs,
     ])
     logDiagnosticEvent({
       scope: 'scheduledTasks.scheduler',
@@ -570,6 +621,7 @@ export class CronScheduler {
     })
 
     this.runningTasks.set(task.id, { proc, startedAt: Date.now(), runId })
+    await options?.onProcessStarted?.(proc.pid)
 
     // Write prompt to stdin then close it
     try {
@@ -615,6 +667,7 @@ export class CronScheduler {
     try {
       // Collect stdout
       const stdoutChunks: string[] = []
+      let stdoutCarry = ''
       if (proc.stdout) {
         const reader = proc.stdout.getReader()
         const decoder = new TextDecoder()
@@ -622,8 +675,16 @@ export class CronScheduler {
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
-            stdoutChunks.push(decoder.decode(value, { stream: true }))
+            const chunk = decoder.decode(value, { stream: true })
+            stdoutChunks.push(chunk)
+            stdoutCarry += chunk
+            const lines = stdoutCarry.split('\n')
+            stdoutCarry = lines.pop() ?? ''
+            for (const line of lines) {
+              if (line.trim()) await options?.onStdoutLine?.(line)
+            }
           }
+          if (stdoutCarry.trim()) await options?.onStdoutLine?.(stdoutCarry)
         } catch {
           // stream may be interrupted on kill
         }

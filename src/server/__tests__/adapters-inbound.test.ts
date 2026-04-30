@@ -28,7 +28,7 @@ describe('adapter inbound API', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('turns an allowed DingTalk inbound message into a Jarvis goal', async () => {
+  it('turns an allowed DingTalk inbound message into Jarvis transcript messages', async () => {
     await adapterService.updateConfig({
       dingtalk: {
         allowedUsers: ['user-1'],
@@ -42,7 +42,7 @@ describe('adapter inbound API', () => {
         body: JSON.stringify({
           userId: 'user-1',
           displayName: 'Alice',
-          text: 'summarize status',
+          text: '请分析 C:\\Users\\y1513\\Desktop\\demo 这个项目的结构',
           runNow: false,
         }),
       }),
@@ -55,10 +55,8 @@ describe('adapter inbound API', () => {
     expect(body.ok).toBe(true)
     expect(body.channel).toBe('dingtalk')
     expect(body.jarvis).toBe(true)
-    expect(body.status.queue.pending).toBeGreaterThan(0)
-    const queue = await listJarvisQueue()
-    expect(queue[0]?.goal).toContain('summarize status')
-    expect(queue[0]?.prompt).toContain('Jarvis background goal')
+    expect(body.messages.some((message: any) => message.role === 'user' && message.message.includes('demo'))).toBe(true)
+    expect(body.messages.some((message: any) => message.role === 'jarvis')).toBe(true)
   })
 
   it('rejects denied users for inbound messages', async () => {

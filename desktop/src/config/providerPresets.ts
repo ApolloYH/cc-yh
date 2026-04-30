@@ -67,6 +67,15 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     websiteUrl: 'https://platform.minimaxi.com',
   },
   {
+    id: 'mimo',
+    name: 'MiMo',
+    baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
+    apiFormat: 'anthropic',
+    defaultModels: { main: 'mimo-v2.5-pro', haiku: 'mimo-v2.5-pro', sonnet: 'mimo-v2.5-pro', opus: 'mimo-v2.5-pro' },
+    needsApiKey: true,
+    websiteUrl: 'https://token-plan-cn.xiaomimimo.com',
+  },
+  {
     id: 'custom',
     name: 'Custom',
     baseUrl: '',

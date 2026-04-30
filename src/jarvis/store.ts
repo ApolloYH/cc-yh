@@ -319,7 +319,10 @@ function clampNumber(
 }
 
 function isRiskMode(value: unknown): value is JarvisRiskMode {
-  return value === 'observe' || value === 'assisted' || value === 'autonomous'
+  return value === 'observe' ||
+    value === 'assisted' ||
+    value === 'autonomous' ||
+    value === 'full_autonomous'
 }
 
 function isNotificationChannel(

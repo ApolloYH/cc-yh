@@ -12,6 +12,20 @@ export type JarvisQueueItemStatus =
   | 'paused'
   | 'completed'
   | 'failed'
+  | 'cancelled'
+  | 'stalled'
+
+export type JarvisQueueLane =
+  | 'none'
+  | 'read_only'
+  | 'write'
+  | 'external'
+
+export type JarvisQueuePermissionMode =
+  | 'observe'
+  | 'assisted'
+  | 'autonomous'
+  | 'full_autonomous'
 
 export type JarvisQueueItem = {
   id: string
@@ -19,6 +33,15 @@ export type JarvisQueueItem = {
   title?: string
   goal?: string
   plan?: string[]
+  lane?: JarvisQueueLane
+  workdir?: string
+  permissionMode?: JarvisQueuePermissionMode
+  sessionId?: string
+  pid?: number
+  lastEventAt?: string
+  exitCode?: number
+  reportMuted?: boolean
+  supplementSummary?: string
   boundarySummary?: string
   priority: number
   status: JarvisQueueItemStatus
@@ -42,6 +65,11 @@ export async function enqueueJarvisTask(input: {
   title?: string
   goal?: string
   plan?: string[]
+  lane?: JarvisQueueLane
+  workdir?: string
+  permissionMode?: JarvisQueuePermissionMode
+  reportMuted?: boolean
+  supplementSummary?: string
   boundarySummary?: string
   priority?: number
   maxAttempts?: number
@@ -54,6 +82,11 @@ export async function enqueueJarvisTask(input: {
     title: input.title,
     goal: input.goal,
     plan: input.plan,
+    lane: input.lane,
+    workdir: input.workdir,
+    permissionMode: input.permissionMode,
+    reportMuted: input.reportMuted,
+    supplementSummary: input.supplementSummary,
     boundarySummary: input.boundarySummary,
     priority: clampPriority(input.priority),
     status: 'pending',
@@ -208,8 +241,9 @@ async function replaceQueueItem(next: JarvisQueueItem): Promise<void> {
 }
 
 async function readJarvisQueue(): Promise<JarvisQueueStore> {
+  const filePath = getJarvisQueuePath()
   try {
-    const raw = await fs.readFile(getJarvisQueuePath(), 'utf-8')
+    const raw = await fs.readFile(filePath, 'utf-8')
     const parsed = JSON.parse(raw) as Partial<JarvisQueueStore>
     return {
       version: 1,
@@ -221,21 +255,91 @@ async function readJarvisQueue(): Promise<JarvisQueueStore> {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return { version: 1, items: [] }
     }
+    if (error instanceof SyntaxError) {
+      const raw = await fs.readFile(filePath, 'utf-8').catch(() => '')
+      const items = salvageQueueItems(raw)
+      await backupCorruptQueue(filePath, raw)
+      const recovered: JarvisQueueStore = { version: 1, items }
+      await writeJarvisQueue(recovered)
+      logQueueDiagnostic('read_repaired', true, {
+        source: 'typescript',
+        recoveredItems: items.length,
+        reason: error.message,
+      })
+      return recovered
+    }
     throw error
   }
 }
 
 async function writeJarvisQueue(store: JarvisQueueStore): Promise<void> {
   const filePath = getJarvisQueuePath()
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   await fs.writeFile(
-    filePath,
+    tempPath,
     JSON.stringify({ version: 1, items: store.items.slice(0, 500) }, null, 2) + '\n',
     'utf-8',
   )
+  await fs.rename(tempPath, filePath)
 }
 
-function getJarvisQueuePath(): string {
+async function backupCorruptQueue(filePath: string, raw: string): Promise<void> {
+  if (!raw.trim()) return
+  const backupPath = `${filePath}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`
+  await fs.writeFile(backupPath, raw, 'utf-8').catch(() => {})
+}
+
+function salvageQueueItems(raw: string): JarvisQueueItem[] {
+  const itemsStart = raw.indexOf('"items"')
+  const arrayStart = itemsStart >= 0 ? raw.indexOf('[', itemsStart) : -1
+  if (arrayStart < 0) return []
+
+  const items: JarvisQueueItem[] = []
+  let depth = 0
+  let objectStart = -1
+  let inString = false
+  let escaped = false
+
+  for (let index = arrayStart + 1; index < raw.length; index++) {
+    const char = raw[index]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (char === '\\' && inString) {
+      escaped = true
+      continue
+    }
+    if (char === '"') {
+      inString = !inString
+      continue
+    }
+    if (inString) continue
+
+    if (char === '{') {
+      if (depth === 0) objectStart = index
+      depth++
+      continue
+    }
+    if (char !== '}') continue
+    depth--
+    if (depth !== 0 || objectStart < 0) continue
+
+    const chunk = raw.slice(objectStart, index + 1)
+    objectStart = -1
+    try {
+      const parsed = JSON.parse(chunk) as unknown
+      if (isQueueItem(parsed)) items.push(normalizeQueueItem(parsed))
+    } catch {
+      // Ignore a partially written final item.
+    }
+  }
+
+  return items
+}
+
+export function getJarvisQueuePath(): string {
   return path.join(getClaudeConfigHomeDir(), 'jarvis_queue.json')
 }
 
@@ -299,5 +403,22 @@ function normalizeQueueItem(item: JarvisQueueItem): JarvisQueueItem {
     plan: Array.isArray(item.plan)
       ? item.plan.filter((step): step is string => typeof step === 'string')
       : undefined,
+    lane: isQueueLane(item.lane) ? item.lane : undefined,
+    permissionMode: isQueuePermissionMode(item.permissionMode) ? item.permissionMode : undefined,
+    reportMuted: item.reportMuted === true,
   }
+}
+
+function isQueueLane(value: unknown): value is JarvisQueueLane {
+  return value === 'none' ||
+    value === 'read_only' ||
+    value === 'write' ||
+    value === 'external'
+}
+
+function isQueuePermissionMode(value: unknown): value is JarvisQueuePermissionMode {
+  return value === 'observe' ||
+    value === 'assisted' ||
+    value === 'autonomous' ||
+    value === 'full_autonomous'
 }

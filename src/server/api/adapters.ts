@@ -10,6 +10,7 @@ import { jarvisService } from '../services/jarvisService.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 import { parseAdapterWebhook, type AdapterInboundAction } from '../services/adapterWebhookParsers.js'
 import { listJarvisQueue, updateJarvisQueueItem } from '../../jarvis/queue.js'
+import { readJarvisInboxMessages } from '../../jarvis/inbox.js'
 
 const ALLOWED_TOP_KEYS = new Set([
   'serverUrl',
@@ -126,12 +127,17 @@ async function handleInboundAdapterPayload(
     '',
     text,
   ].filter(Boolean).join('\n')
+  const beforeIds = new Set((await readJarvisInboxMessages(200)).map(message => message.id))
   const status = await jarvisService.submitGoal(goal, 75, channel)
+  const messages = status.inboxMessages
+    .filter(message => !beforeIds.has(message.id))
+    .reverse()
 
   return Response.json({
     ok: true,
     channel,
     jarvis: true,
+    messages,
     status,
   }, { status: 202 })
 }

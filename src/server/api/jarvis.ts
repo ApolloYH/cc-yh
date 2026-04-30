@@ -60,6 +60,7 @@ export async function handleJarvisApi(
         goal,
         typeof body.priority === 'number' ? body.priority : undefined,
         isJarvisSource(body.source) ? body.source : 'web',
+        typeof body.clientMessageId === 'string' ? body.clientMessageId : undefined,
       )
       return Response.json({ status }, { status: 202 })
     }
@@ -129,6 +130,17 @@ export async function handleJarvisApi(
         })
       }
       return Response.json({ item, status: await jarvisService.getStatus() })
+    }
+
+    if (method === 'POST' && action === 'run-action') {
+      const body = await parseJsonBody(req)
+      const id = typeof body.id === 'string' ? body.id : ''
+      const runAction = String(body.action || '')
+      if (!id || !['pause', 'resume', 'cancel'].includes(runAction)) {
+        throw ApiError.badRequest('id and action=pause|resume|cancel are required')
+      }
+      const status = await jarvisService.runAction(id, runAction as 'pause' | 'resume' | 'cancel')
+      return Response.json({ status })
     }
 
     if (method === 'POST' && action === 'approval') {

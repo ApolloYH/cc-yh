@@ -62,7 +62,7 @@ const baseStatus: JarvisStatus = {
       role: 'jarvis',
       source: 'system',
       title: '任务已接收',
-      message: '已拆成 2 个步骤。',
+      message: '已创建一个 Manager CLI 任务。',
       createdAt: '2026-04-28T10:00:01.000Z',
     },
   ],
@@ -74,7 +74,7 @@ const baseStatus: JarvisStatus = {
       status: 'pending',
       createdAt: '2026-04-28T10:00:02.000Z',
       updatedAt: '2026-04-28T10:00:02.000Z',
-      title: 'Jarvis 等待确认',
+      title: '需要你确认',
       message: '需要用户确认后继续。',
       risk: 'external-send',
     },
@@ -97,6 +97,8 @@ const baseStatus: JarvisStatus = {
       prompt: '持续观察项目',
       title: '持续观察项目',
       goal: '持续观察项目',
+      lane: 'read_only',
+      permissionMode: 'assisted',
       status: 'pending',
       priority: 75,
       attempts: 0,
@@ -160,19 +162,18 @@ describe('JarvisMode', () => {
   })
 
   it('renders chat-first Jarvis UI with approval actions and submits goals', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<JarvisMode />)
 
     await screen.findByText('Jarvis 对话')
     expect(screen.getByText('任务已接收')).toBeInTheDocument()
     expect(screen.getByText('需要你确认')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '批准继续' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '批准' })).toBeInTheDocument()
     expect(screen.getByText(/任务队列/)).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText(/把目标交给 Jarvis/), {
       target: { value: '持续观察项目状态' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /交给 Jarvis/ }))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
 
     await waitFor(() => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
@@ -196,6 +197,70 @@ describe('JarvisMode', () => {
         }),
       )
     })
+  })
+
+  it('reconciles optimistic user messages by clientMessageId without merging repeated text', async () => {
+    const sentMessages: JarvisStatus['inboxMessages'] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/api/jarvis/autostart')) {
+        return jsonResponse(autostart)
+      }
+      if (url.endsWith('/api/jarvis/task') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as {
+          goal: string
+          clientMessageId?: string
+        }
+        sentMessages.push({
+          id: `server-${body.clientMessageId}`,
+          role: 'user',
+          source: 'desktop',
+          title: '交给 Jarvis 的消息',
+          message: body.goal,
+          createdAt: new Date(2026, 3, 28, 10, sentMessages.length).toISOString(),
+          metadata: { clientMessageId: body.clientMessageId },
+        })
+        return jsonResponse({
+          status: {
+            ...baseStatus,
+            inboxMessages: [...baseStatus.inboxMessages, ...sentMessages],
+          },
+        }, 202)
+      }
+      if (url.endsWith('/api/jarvis')) {
+        return jsonResponse({
+          ...baseStatus,
+          inboxMessages: [...baseStatus.inboxMessages, ...sentMessages],
+        })
+      }
+      return jsonResponse(baseStatus)
+    }))
+
+    render(<JarvisMode />)
+    await screen.findByText('Jarvis 对话')
+
+    const textbox = screen.getByRole('textbox')
+    fireEvent.change(textbox, { target: { value: 'same text' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('same text')).toHaveLength(1)
+    })
+
+    fireEvent.change(textbox, { target: { value: 'same text' } })
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('same text')).toHaveLength(2)
+    })
+
+    const taskCalls = vi.mocked(globalThis.fetch).mock.calls
+      .filter(([url, init]) => String(url).endsWith('/api/jarvis/task') && init?.method === 'POST')
+    const clientMessageIds = taskCalls.map(([, init]) => {
+      const body = JSON.parse(String(init?.body)) as { clientMessageId?: string }
+      return body.clientMessageId
+    })
+    expect(new Set(clientMessageIds).size).toBe(2)
   })
 })
 

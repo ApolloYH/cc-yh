@@ -14,6 +14,7 @@ import {
   type TaskRun,
 } from '../services/cronScheduler.js'
 import { CronService, type CronTask } from '../services/cronService.js'
+import { readJarvisInboxMessages } from '../../jarvis/inbox.js'
 
 // ─── Test helpers ───────────────────────────────────────────────────────────
 
@@ -274,6 +275,30 @@ describe('CronScheduler', () => {
     const updated = tasks.find((t) => t.id === task.id)
     // enabled should not have been set to false
     expect(updated?.enabled).not.toBe(false)
+  })
+
+  it('delivers Jarvis reminder tasks directly to the Jarvis inbox without spawning CLI', async () => {
+    const spawnSpy = spyOn(Bun as any, 'spawn')
+    const task = await cronService.createTask({
+      cron: '* * * * *',
+      prompt: '你好',
+      recurring: false,
+      origin: 'jarvis',
+      jarvisTaskType: 'reminder',
+      jarvisReminderMessage: '你好',
+    })
+
+    const run = await scheduler.executeTask(task)
+    const messages = await readJarvisInboxMessages(10)
+    const updated = (await cronService.listTasks()).find(entry => entry.id === task.id)
+
+    expect(spawnSpy).not.toHaveBeenCalled()
+    expect(run.status).toBe('completed')
+    expect(run.output).toBe('时间到了：你好')
+    expect(updated?.enabled).toBe(false)
+    expect(messages.some(message => message.title === '提醒到了' && message.message.includes('你好'))).toBe(true)
+
+    spawnSpy.mockRestore()
   })
 
   it('passes task model, permission mode, and isolated env to the spawned CLI', async () => {
