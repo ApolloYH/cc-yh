@@ -13,7 +13,7 @@ export function ScheduledTasksList() {
       {/* SideNavBar */}
       <aside className="fixed left-0 top-0 h-full w-[280px] bg-[#F4F4F0] flex flex-col p-4 gap-2 z-40">
         <div className="mb-6 px-2 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#AD5F45] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-[var(--color-primary-container)] flex items-center justify-center">
             <span
               className="material-symbols-outlined text-white"
               style={{ fontVariationSettings: "'FILL' 1" }}
@@ -31,7 +31,7 @@ export function ScheduledTasksList() {
           <span className="material-symbols-outlined">add</span>
           {t('sidebar.newSession')}
         </button>
-        <button className="flex items-center gap-3 px-3 py-2 w-full bg-[#FAF9F5] text-[#1B1C1A] rounded-lg relative before:content-[''] before:absolute before:left-[-8px] before:w-1 before:h-4 before:bg-[#8F482F] before:rounded-full font-medium text-sm duration-200 ease-in-out">
+        <button className="flex items-center gap-3 px-3 py-2 w-full bg-[#FAF9F5] text-[#1B1C1A] rounded-lg relative before:content-[''] before:absolute before:left-[-8px] before:w-1 before:h-4 before:bg-[var(--color-brand)] before:rounded-full font-medium text-sm duration-200 ease-in-out">
           <span
             className="material-symbols-outlined"
             style={{ fontVariationSettings: "'FILL' 1" }}
@@ -79,21 +79,21 @@ export function ScheduledTasksList() {
           <div className="flex items-center gap-8">
             <div className="font-[Manrope,sans-serif] font-bold text-[#1B1C1A] uppercase tracking-tighter text-sm">Claude YH</div>
             <nav className="flex items-center gap-6 font-[Manrope,sans-serif] font-semibold tracking-wide text-sm">
-              <a className="text-[#87736D] hover:text-[#8F482F] transition-colors" href="#">{t('titlebar.code')}</a>
-              <a className="text-[#87736D] hover:text-[#8F482F] transition-colors" href="#">{t('titlebar.terminal')}</a>
-              <a className="text-[#1B1C1A] border-b-2 border-[#8F482F] pb-1" href="#">{t('titlebar.history')}</a>
+              <a className="text-[#87736D] hover:text-[var(--color-brand)] transition-colors" href="#">{t('titlebar.code')}</a>
+              <a className="text-[#87736D] hover:text-[var(--color-brand)] transition-colors" href="#">{t('titlebar.terminal')}</a>
+              <a className="text-[#1B1C1A] border-b-2 border-[var(--color-brand)] pb-1" href="#">{t('titlebar.history')}</a>
             </nav>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <button className="p-1 text-[#87736D] hover:text-[#8F482F] transition-colors cursor-pointer active:opacity-70">
+              <button className="p-1 text-[#87736D] hover:text-[var(--color-brand)] transition-colors cursor-pointer active:opacity-70">
                 <span className="material-symbols-outlined text-[1rem]">arrow_back_ios</span>
               </button>
-              <button className="p-1 text-[#87736D] hover:text-[#8F482F] transition-colors cursor-pointer active:opacity-70">
+              <button className="p-1 text-[#87736D] hover:text-[var(--color-brand)] transition-colors cursor-pointer active:opacity-70">
                 <span className="material-symbols-outlined text-[1rem]">arrow_forward_ios</span>
               </button>
             </div>
-            <button className="font-[Manrope,sans-serif] font-semibold tracking-wide text-sm text-[#87736D] hover:text-[#8F482F] transition-colors cursor-pointer active:opacity-70 flex items-center gap-1">
+            <button className="font-[Manrope,sans-serif] font-semibold tracking-wide text-sm text-[#87736D] hover:text-[var(--color-brand)] transition-colors cursor-pointer active:opacity-70 flex items-center gap-1">
               <span className="material-symbols-outlined text-[1.1rem]">settings</span>
               {t('sidebar.settings')}
             </button>
@@ -112,7 +112,7 @@ export function ScheduledTasksList() {
                 <h1 className="font-[Manrope,sans-serif] text-3xl font-bold tracking-tight text-[#1B1C1A]">{t('scheduledPage.title')}</h1>
                 <p className="text-[#87736D] text-sm">{t('scheduledPage.subtitle')}</p>
               </div>
-              <button className="bg-[#8F482F] hover:bg-[#AD5F45] text-white px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-sm font-medium text-sm">
+              <button className="bg-[var(--color-brand)] hover:bg-[var(--color-primary-container)] text-white px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-sm font-medium text-sm">
                 <span className="material-symbols-outlined text-[1.1rem]">add_task</span>
                 {t('tasks.createNew')}
               </button>
@@ -124,7 +124,7 @@ export function ScheduledTasksList() {
               <div className="bg-[#F4F4F0] p-6 rounded-xl border border-[#DAC1BA]/10">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-xs font-bold uppercase tracking-widest text-[#87736D]">{t('tasks.totalTasks')}</span>
-                  <span className="material-symbols-outlined text-[#8F482F]">analytics</span>
+                  <span className="material-symbols-outlined text-[var(--color-brand)]">analytics</span>
                 </div>
                 <div className="text-4xl font-[Manrope,sans-serif] font-extrabold text-[#1B1C1A]">{stats.totalTasks}</div>
                 <div className="mt-2 flex items-center gap-1 text-[10px] text-[#4F6237] font-bold bg-[#677B4E]/20 px-2 py-0.5 rounded-full w-fit">
@@ -171,7 +171,7 @@ export function ScheduledTasksList() {
                   <tr className="group hover:bg-[#F4F4F0]/30 transition-colors">
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-[#FFDBD0] text-[#8F482F] rounded-lg">
+                        <div className="p-2 bg-[#FFDBD0] text-[var(--color-brand)] rounded-lg">
                           <span className="material-symbols-outlined text-[1.2rem]">code_blocks</span>
                         </div>
                         <div>
@@ -199,7 +199,7 @@ export function ScheduledTasksList() {
                     </td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 text-[#87736D] hover:text-[#8F482F] transition-colors">
+                        <button className="p-2 text-[#87736D] hover:text-[var(--color-brand)] transition-colors">
                           <span className="material-symbols-outlined text-[1.1rem]">edit</span>
                         </button>
                         <button className="p-2 text-[#87736D] hover:text-[#BA1A1A] transition-colors">
@@ -244,7 +244,7 @@ export function ScheduledTasksList() {
                     </td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 text-[#87736D] hover:text-[#8F482F] transition-colors">
+                        <button className="p-2 text-[#87736D] hover:text-[var(--color-brand)] transition-colors">
                           <span className="material-symbols-outlined text-[1.1rem]">edit</span>
                         </button>
                         <button className="p-2 text-[#87736D] hover:text-[#BA1A1A] transition-colors">
@@ -289,7 +289,7 @@ export function ScheduledTasksList() {
                     </td>
                     <td className="px-6 py-5 text-right">
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 text-[#87736D] hover:text-[#8F482F] transition-colors">
+                        <button className="p-2 text-[#87736D] hover:text-[var(--color-brand)] transition-colors">
                           <span className="material-symbols-outlined text-[1.1rem]">edit</span>
                         </button>
                         <button className="p-2 text-[#87736D] hover:text-[#BA1A1A] transition-colors">
@@ -342,15 +342,15 @@ export function ScheduledTasksList() {
                   </div>
                   <div className="mt-4 pt-4 border-t border-[#DAC1BA]/20 flex items-center justify-between">
                     <span className="text-[11px] uppercase tracking-tighter opacity-50">Log stream: active</span>
-                    <button className="text-[#8F482F] font-bold text-xs hover:underline">{t('scheduledPage.viewArtifacts')}</button>
+                    <button className="text-[var(--color-brand)] font-bold text-xs hover:underline">{t('scheduledPage.viewArtifacts')}</button>
                   </div>
                 </div>
               </div>
 
               {/* Resource Allocation Panel */}
               <div className="w-full md:w-80 shrink-0">
-                <div className="bg-[#AD5F45]/10 p-6 rounded-xl border border-[#8F482F]/10">
-                  <h3 className="font-[Manrope,sans-serif] font-bold text-[#8F482F] text-sm mb-3">{t('scheduledPage.resourceAllocation')}</h3>
+                <div className="bg-[var(--color-primary-container)]/10 p-6 rounded-xl border border-[var(--color-brand)]/10">
+                  <h3 className="font-[Manrope,sans-serif] font-bold text-[var(--color-brand)] text-sm mb-3">{t('scheduledPage.resourceAllocation')}</h3>
                   <div className="space-y-4">
                     <div className="space-y-1">
                       <div className="flex justify-between text-[11px] font-bold text-[#87736D] uppercase tracking-wider">
@@ -358,7 +358,7 @@ export function ScheduledTasksList() {
                         <span>42%</span>
                       </div>
                       <div className="w-full h-1 bg-[#DAC1BA]/30 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#8F482F]" style={{ width: '42%' }}></div>
+                        <div className="h-full bg-[var(--color-brand)]" style={{ width: '42%' }}></div>
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -404,7 +404,7 @@ export function ScheduledTasksList() {
               <span className="material-symbols-outlined text-[12px]">layers</span>
               {mockStatusBar.worktreeToggle}
             </button>
-            <button className="font-[Inter,sans-serif] text-xs tracking-tight text-[#8F482F] font-bold hover:bg-[#F4F4F0] px-2 py-0.5 rounded transition-colors flex items-center gap-1">
+            <button className="font-[Inter,sans-serif] text-xs tracking-tight text-[var(--color-brand)] font-bold hover:bg-[#F4F4F0] px-2 py-0.5 rounded transition-colors flex items-center gap-1">
               <span className="material-symbols-outlined text-[12px]">toggle_on</span>
               {mockStatusBar.localSwitch}
             </button>

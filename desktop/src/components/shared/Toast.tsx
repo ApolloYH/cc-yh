@@ -1,4 +1,5 @@
 import { useUIStore, type Toast as ToastType } from '../../stores/uiStore'
+import type { CSSProperties } from 'react'
 
 const typeStyles: Record<ToastType['type'], string> = {
   success: 'border-l-4 border-l-[var(--color-success)]',
@@ -16,8 +17,9 @@ function ToastItem({ toast }: { toast: ToastType }) {
         bg-[var(--color-surface)] rounded-[var(--radius-md)] shadow-[var(--shadow-dropdown)]
         px-4 py-3 text-sm text-[var(--color-text-primary)]
         ${typeStyles[toast.type]}
-        animate-in slide-in-from-right fade-in duration-200
+        cc-surface-pop
       `}
+      style={{ '--cc-pop-origin': '100% 100%' } as CSSProperties}
     >
       <div className="flex items-center justify-between gap-2">
         <span>{toast.message}</span>

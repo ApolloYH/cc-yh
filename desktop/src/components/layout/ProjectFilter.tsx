@@ -55,7 +55,7 @@ export function ProjectFilter() {
 
       {open && (
         <div
-          className="absolute left-0 top-full mt-1 z-50 min-w-[200px] max-h-[300px] overflow-y-auto bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] py-1"
+          className="cc-surface-pop absolute left-0 top-full mt-1 z-50 min-w-[200px] max-h-[300px] overflow-y-auto bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] py-1"
           style={{ boxShadow: 'var(--shadow-dropdown)' }}
         >
           {/* All projects */}

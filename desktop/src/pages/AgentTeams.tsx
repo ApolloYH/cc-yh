@@ -59,7 +59,7 @@ export function AgentTeams() {
                       {mockTeamMessages.assistantMessage}
                     </p>
                     <div className="bg-[#dbdad6] p-4 rounded-lg font-['JetBrains_Mono'] text-[13px] text-[#54433e] overflow-x-auto">
-                      <span className="text-[#ad5f45]">info:</span> spawning child_processes for parallel development
+                      <span className="text-[var(--color-primary-container)]">info:</span> spawning child_processes for parallel development
                       <br />
                       <span className="text-[#2d628f]">active:</span> session-dev cluster initiated
                       <br />
@@ -78,7 +78,7 @@ export function AgentTeams() {
                 {/* Team label */}
                 <div className="flex items-center gap-3 pr-4 md:border-r border-[#dac1ba]/30">
                   <div className="p-2 bg-[#ffb59d]/20 rounded-lg">
-                    <span className="material-symbols-outlined text-[#8F482F] text-xl">
+                    <span className="material-symbols-outlined text-[var(--color-brand)] text-xl">
                       groups
                     </span>
                   </div>
@@ -119,7 +119,7 @@ export function AgentTeams() {
                       return (
                         <div
                           key={member.id}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-[#e3e2df] rounded-full border border-[#8F482F]/20 animate-pulse-subtle group hover:border-[#8F482F]/50 transition-all cursor-pointer"
+                          className="flex items-center gap-2 px-3 py-1.5 bg-[#e3e2df] rounded-full border border-[var(--color-brand)]/20 animate-pulse-subtle group hover:border-[var(--color-brand)]/50 transition-all cursor-pointer"
                         >
                           <div className="w-2 h-2 rounded-full bg-[#f59e0b] shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
                           <span className="text-xs font-semibold font-['Inter'] text-[#1B1C1A]">
@@ -172,7 +172,7 @@ export function AgentTeams() {
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                 />
-                <button className="bg-[#8F482F] text-white w-9 h-9 rounded-lg flex items-center justify-center hover:bg-[#ad5f45] transition-all active:scale-95">
+                <button className="bg-[var(--color-brand)] text-white w-9 h-9 rounded-lg flex items-center justify-center hover:bg-[var(--color-primary-container)] transition-all active:scale-95">
                   <span
                     className="material-symbols-outlined text-lg"
                     style={{ fontVariationSettings: "'FILL' 1" }}

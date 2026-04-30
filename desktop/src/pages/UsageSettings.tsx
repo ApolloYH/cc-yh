@@ -281,7 +281,7 @@ function UsageCard({
 
 function UsageTrendChart({ trends }: { trends: UsageTrend[] }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const normalizedTrends = normalizeTrendSeries(trends)
+  const normalizedTrends = normalizeTrendSeries(trimTrailingEmptyTrendBuckets(trends))
   const tokenMax = Math.max(
     ...normalizedTrends.flatMap((item) => [
       item.totalInputTokens,
@@ -321,57 +321,58 @@ function UsageTrendChart({ trends }: { trends: UsageTrend[] }) {
           { point: output[hoveredIndex], color: '#22c55e' },
         ].flatMap((entry) => (entry.point ? [{ point: entry.point, color: entry.color }] : []))
 
-  if (trends.length === 0) {
+  if (normalizedTrends.length === 0) {
     return <EmptyState text="暂无趋势数据" />
   }
 
   return (
     <div className="relative h-[420px] w-full">
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        className="h-[340px] w-full overflow-visible"
-        onMouseLeave={() => setHoveredIndex(null)}
-      >
+      <div className="relative h-[340px] w-full" onMouseLeave={() => setHoveredIndex(null)}>
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="absolute inset-0 h-full w-full overflow-visible"
+        >
         <defs>
           <linearGradient id="inputGradient" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.24" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+            <stop offset="5%" stopColor="#3b82f6" stopOpacity="0.2" />
+            <stop offset="95%" stopColor="#3b82f6" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="outputGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="5%" stopColor="#22c55e" stopOpacity="0.2" />
+            <stop offset="95%" stopColor="#22c55e" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="cacheCreateGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="5%" stopColor="#f97316" stopOpacity="0.2" />
+            <stop offset="95%" stopColor="#f97316" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="cacheReadGradient" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="5%" stopColor="#8b5cf6" stopOpacity="0.2" />
+            <stop offset="95%" stopColor="#8b5cf6" stopOpacity="0" />
           </linearGradient>
         </defs>
         {[10, 30, 50, 70, 90].map((y) => (
           <line key={y} x1="0" x2="100" y1={y} y2={y} stroke="var(--color-border)" strokeWidth="0.22" strokeDasharray="1 1" />
         ))}
         <path d={areaPath(input)} fill="url(#inputGradient)" />
-        <SeriesLine points={cost} color="#ff3b5c" dash="1.8 1.4" />
+        <path d={areaPath(output)} fill="url(#outputGradient)" />
+        <path d={areaPath(cacheCreate)} fill="url(#cacheCreateGradient)" />
+        <path d={areaPath(cacheRead)} fill="url(#cacheReadGradient)" />
+        <SeriesLine points={cost} color="#ff3b5c" dash="4 4" />
         <SeriesLine points={cacheCreate} color="#f97316" />
         <SeriesLine points={cacheRead} color="#8b5cf6" />
         <SeriesLine points={input} color="#3b82f6" />
         <SeriesLine points={output} color="#22c55e" />
         {hoveredPoint && (
-          <>
-            <line
-              x1={hoveredPoint.x}
-              x2={hoveredPoint.x}
-              y1="8"
-              y2="92"
-              stroke="rgba(15,23,42,0.22)"
-              strokeWidth="1"
-              vectorEffect="non-scaling-stroke"
-            />
-            {hoverDots.map(({ point, color }, index) => (
-              <circle
-                key={`${color}-${index}`}
-                cx={point.x}
-                cy={point.y}
-                r="0.85"
-                fill={color}
-                stroke="white"
-                strokeWidth="0.45"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
-          </>
+          <line
+            x1={hoveredPoint.x}
+            x2={hoveredPoint.x}
+            y1="8"
+            y2="92"
+            stroke="rgba(15,23,42,0.18)"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+          />
         )}
         {normalizedTrends.map((item, index) => {
           const left = normalizedTrends.length <= 1 ? 0 : ((index - 0.5) / (normalizedTrends.length - 1)) * 100
@@ -389,13 +390,26 @@ function UsageTrendChart({ trends }: { trends: UsageTrend[] }) {
             />
           )
         })}
-      </svg>
+        </svg>
+        {hoverDots.map(({ point, color }, index) => (
+          <span
+            key={`${color}-${index}`}
+            className="pointer-events-none absolute z-10 h-3 w-3 rounded-full border-2 border-white shadow-[0_2px_8px_rgba(15,23,42,0.18)] transition-[left,top,opacity,transform] duration-300 ease-[var(--ease-out-quint)]"
+            style={{
+              left: `${point.x}%`,
+              top: `${point.y}%`,
+              backgroundColor: color,
+              transform: 'translate(-50%, -50%)',
+            }}
+          />
+        ))}
       {hoveredTrend && hoveredPoint && (
         <div
-          className="pointer-events-none absolute top-[118px] z-10 w-[240px] rounded-2xl border border-[var(--color-border)] bg-white/95 p-4 text-sm shadow-[0_18px_45px_rgba(15,23,42,0.16)] backdrop-blur"
+          className="pointer-events-none absolute z-20 min-w-max max-w-[320px] rounded-2xl border border-white/60 bg-white/82 px-4 py-3.5 text-sm shadow-[0_24px_70px_rgba(15,23,42,0.16)] backdrop-blur-xl transition-[left,top,opacity,transform] duration-300 ease-[var(--ease-out-quint)]"
           style={{
-            left: `min(max(${hoveredPoint.x}%, 130px), calc(100% - 130px))`,
-            transform: 'translateX(-50%)',
+            left: `clamp(132px, ${hoveredPoint.x}%, calc(100% - 132px))`,
+            top: `${Math.min(76, Math.max(16, hoveredPoint.y - 8))}%`,
+            transform: 'translate(-50%, -50%)',
           }}
         >
           <div className="mb-3 text-base font-semibold text-[var(--color-text-primary)]">
@@ -408,6 +422,7 @@ function UsageTrendChart({ trends }: { trends: UsageTrend[] }) {
           <TooltipRow color="#ff3b5c" label="成本" value={formatCost(hoveredTrend.totalCostUsd)} />
         </div>
       )}
+      </div>
       <div className="mt-2 flex justify-between gap-2 overflow-hidden text-[10px] text-[var(--color-text-tertiary)]">
         {labels.map((point) => (
           <span key={point.item.date} className="truncate">
@@ -451,10 +466,12 @@ function SeriesLine({
 
 function TooltipRow({ color, label, value }: { color: string; label: string; value: string }) {
   return (
-    <div className="mt-1.5 flex items-center gap-2">
-      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
-      <span className="font-semibold" style={{ color }}>{label}:</span>
-      <span className="font-medium text-[var(--color-text-primary)]">{value}</span>
+    <div className="mt-1.5 grid grid-cols-[auto_auto] items-center justify-between gap-x-4 whitespace-nowrap">
+      <span className="inline-flex items-center gap-2 font-semibold" style={{ color }}>
+        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+        {label}:
+      </span>
+      <span className="text-right font-medium tabular-nums text-[var(--color-text-primary)]">{value}</span>
     </div>
   )
 }
@@ -463,7 +480,7 @@ function smoothPath(points: Array<{ x: number; y: number }>): string {
   if (points.length === 0) return ''
   if (points.length === 1) {
     const point = points[0]!
-    return `M 0 ${point.y} C 25 ${point.y}, 75 ${point.y}, 100 ${point.y}`
+    return `M ${point.x - 1.6} ${point.y} L ${point.x + 1.6} ${point.y}`
   }
 
   const first = points[0]!
@@ -491,8 +508,14 @@ function clamp(value: number, min: number, max: number): number {
 
 function areaPath(points: Array<{ x: number; y: number }>): string {
   if (points.length === 0) return ''
+  if (points.length === 1) {
+    const point = points[0]!
+    const halfWidth = 1.6
+    return `M ${point.x - halfWidth} 92 L ${point.x - halfWidth} ${point.y} L ${point.x + halfWidth} ${point.y} L ${point.x + halfWidth} 92 Z`
+  }
   const first = points[0]!
-  return `M 0 92 L ${first.x} ${first.y} ${smoothPath(points).replace(/^M\s+[\d.-]+\s+[\d.-]+/, '')} L 100 92 Z`
+  const last = points[points.length - 1]!
+  return `M ${first.x} 92 L ${first.x} ${first.y} ${smoothPath(points).replace(/^M\s+[\d.-]+\s+[\d.-]+/, '')} L ${last.x} 92 Z`
 }
 
 function normalizeTrendSeries(trends: UsageTrend[]): UsageTrend[] {
@@ -503,6 +526,30 @@ function normalizeTrendSeries(trends: UsageTrend[]): UsageTrend[] {
     only,
     { ...only, totalInputTokens: 0, totalOutputTokens: 0, totalCacheReadTokens: 0, totalCacheCreationTokens: 0, totalTokens: 0, totalCostUsd: 0, requestCount: 0 },
   ]
+}
+
+function trimTrailingEmptyTrendBuckets(trends: UsageTrend[]): UsageTrend[] {
+  let lastDataIndex = -1
+  for (let index = trends.length - 1; index >= 0; index--) {
+    if (hasTrendValue(trends[index]!)) {
+      lastDataIndex = index
+      break
+    }
+  }
+  if (lastDataIndex === -1) return []
+  return trends.slice(0, lastDataIndex + 1)
+}
+
+function hasTrendValue(trend: UsageTrend): boolean {
+  return (
+    trend.requestCount > 0 ||
+    trend.totalInputTokens > 0 ||
+    trend.totalOutputTokens > 0 ||
+    trend.totalCacheReadTokens > 0 ||
+    trend.totalCacheCreationTokens > 0 ||
+    trend.totalTokens > 0 ||
+    trend.totalCostUsd > 0
+  )
 }
 
 function pickLabels<T extends { item: UsageTrend }>(points: T[]): T[] {

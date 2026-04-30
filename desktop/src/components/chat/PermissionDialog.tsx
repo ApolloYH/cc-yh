@@ -19,7 +19,7 @@ type Props = {
  */
 const TOOL_META: Record<string, { icon: string; label: string; color: string }> = {
   Bash: { icon: 'terminal', label: 'Bash', color: '#CA8A04' },
-  Edit: { icon: 'edit_note', label: 'Edit File', color: '#8F482F' },
+  Edit: { icon: 'edit_note', label: 'Edit File', color: 'var(--color-brand)' },
   Write: { icon: 'edit_document', label: 'Write File', color: '#16A34A' },
   Read: { icon: 'description', label: 'Read File', color: '#2D628F' },
   Glob: { icon: 'search', label: 'Glob Search', color: '#2D628F' },
@@ -27,7 +27,7 @@ const TOOL_META: Record<string, { icon: string; label: string; color: string }> 
   Agent: { icon: 'smart_toy', label: 'Agent', color: '#7C3AED' },
   WebSearch: { icon: 'travel_explore', label: 'Web Search', color: '#2D628F' },
   WebFetch: { icon: 'cloud_download', label: 'Web Fetch', color: '#2D628F' },
-  NotebookEdit: { icon: 'note', label: 'Notebook Edit', color: '#8F482F' },
+  NotebookEdit: { icon: 'note', label: 'Notebook Edit', color: 'var(--color-brand)' },
   Skill: { icon: 'auto_awesome', label: 'Skill', color: '#7C3AED' },
 }
 

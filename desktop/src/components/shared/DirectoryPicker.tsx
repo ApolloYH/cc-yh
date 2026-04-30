@@ -238,7 +238,7 @@ export function DirectoryPicker({
       {isOpen && dropdownPos && createPortal(
         <div
           ref={dropdownRef}
-          className="w-[400px] overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] shadow-[var(--shadow-dropdown)]"
+          className="cc-surface-pop w-[400px] overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] shadow-[var(--shadow-dropdown)]"
           style={{
             position: 'fixed',
             left: dropdownPos.left,

@@ -280,7 +280,7 @@ export function Sidebar() {
               }}
               onContextMenu={(e) => handleContextMenu(e, session.id)}
               className={`
-                w-full flex items-center gap-2 pl-4 pr-14 py-1.5 text-sm text-left rounded-[var(--radius-md)] transition-colors duration-200
+                cc-soft-item w-full flex items-center gap-2 pl-4 pr-14 py-1.5 text-sm text-left rounded-[var(--radius-md)]
                 ${session.id === activeTabId
                   ? 'bg-[var(--color-surface-selected)] text-[var(--color-text-primary)]'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
@@ -331,7 +331,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside onMouseDown={handleSidebarDrag} className="w-[var(--sidebar-width)] h-full flex flex-col bg-[var(--color-surface-sidebar)] border-r border-[var(--color-border)] shadow-[1px_0_18px_rgba(15,23,42,0.045)] select-none transition-[width] duration-200">
+    <aside onMouseDown={handleSidebarDrag} className="w-[var(--sidebar-width)] h-full flex flex-col bg-[var(--color-surface-sidebar)] border-r border-[var(--color-border)] shadow-[1px_0_18px_rgba(15,23,42,0.045)] select-none transition-[width] duration-300 ease-[var(--ease-out-quint)]">
       {/* Brand logo — extra top padding in desktop to clear macOS traffic lights (not needed on Windows) */}
       <div className={`px-3 pb-1.5 flex items-center ${sidebarOpen ? 'justify-between gap-2' : 'justify-center'} ${isTauri && !isWindows ? 'pt-[44px]' : 'pt-3'}`}>
         {sidebarOpen && (
@@ -518,7 +518,7 @@ export function Sidebar() {
       {/* Context menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl py-2 min-w-[220px]"
+          className="cc-surface-pop fixed z-50 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl py-2 min-w-[220px]"
           style={{ left: contextMenu.x, top: contextMenu.y, boxShadow: 'var(--shadow-dropdown)' }}
         >
           <MenuButton

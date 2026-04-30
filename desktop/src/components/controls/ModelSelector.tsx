@@ -68,7 +68,7 @@ export function ModelSelector({ value, onChange }: Props = {}) {
       </button>
 
       {open && (
-        <div className="absolute right-0 bottom-full mb-2 w-[340px] rounded-xl bg-[var(--color-surface-container-lowest)] border border-[var(--color-border)] shadow-[var(--shadow-dropdown)] z-50">
+        <div className="cc-surface-pop absolute right-0 bottom-full mb-2 w-[340px] rounded-xl bg-[var(--color-surface-container-lowest)] border border-[var(--color-border)] shadow-[var(--shadow-dropdown)] z-50">
           {/* Models */}
           <div className="p-3">
             <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-outline)] mb-2 px-1">

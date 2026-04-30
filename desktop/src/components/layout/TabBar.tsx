@@ -188,7 +188,7 @@ export function TabBar() {
 
       {contextMenu && (
         <div
-          className="fixed z-50 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] py-1 min-w-[160px]"
+          className="cc-surface-pop fixed z-50 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] py-1 min-w-[160px]"
           style={{ left: contextMenu.x, top: contextMenu.y, boxShadow: 'var(--shadow-dropdown)' }}
         >
           <button
@@ -226,8 +226,8 @@ export function TabBar() {
       )}
 
       {closingTabId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30">
-          <div className="bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-6 max-w-sm w-full mx-4" style={{ boxShadow: 'var(--shadow-dropdown)' }}>
+        <div className="cc-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/30">
+          <div className="cc-modal-panel bg-[var(--color-surface)] rounded-xl border border-[var(--color-border)] p-6 max-w-sm w-full mx-4" style={{ boxShadow: 'var(--shadow-dropdown)' }}>
             <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">{t('tabs.closeConfirmTitle')}</h3>
             <p className="text-xs text-[var(--color-text-secondary)] mb-4">{t('tabs.closeConfirmMessage')}</p>
             <div className="flex justify-end gap-2">
@@ -281,7 +281,7 @@ function TabItem({ tab, isActive, isDragOver, onClick, onClose, onContextMenu, o
       onDrop={onDrop}
       onDragEnd={onDragEnd}
       className={`
-        flex-shrink-0 flex items-center gap-1.5 px-3 min-h-[37px] cursor-pointer group transition-colors relative
+        cc-soft-item flex-shrink-0 flex items-center gap-1.5 px-3 min-h-[37px] cursor-pointer group relative
         ${isActive
           ? 'bg-[var(--color-surface)]'
           : 'bg-transparent hover:bg-[var(--color-surface-hover)]'

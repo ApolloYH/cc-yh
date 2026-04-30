@@ -114,7 +114,7 @@ export const FileSearchMenu = forwardRef<FileSearchMenuHandle, Props>(({ cwd, fi
   return (
     <div
       id="file-search-menu"
-      className="absolute left-0 bottom-full mb-2 z-50 w-full min-w-[480px] overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] shadow-[var(--shadow-dropdown)]"
+      className="cc-surface-pop absolute left-0 bottom-full mb-2 z-50 w-full min-w-[480px] overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] shadow-[var(--shadow-dropdown)]"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Header with path */}

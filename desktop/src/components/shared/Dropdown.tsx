@@ -54,10 +54,9 @@ export function Dropdown<T extends string>({
       {open && (
         <div
           className={`
-            absolute z-50 mt-1 py-1 rounded-[var(--radius-lg)]
+            cc-surface-pop absolute z-50 mt-1 py-1 rounded-[var(--radius-lg)]
             bg-[var(--color-surface)] border border-[var(--color-border)]
             shadow-[var(--shadow-dropdown)]
-            animate-in fade-in slide-in-from-top-1
             ${align === 'right' ? 'right-0' : 'left-0'}
           `}
           style={{ width }}

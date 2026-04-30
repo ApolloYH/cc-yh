@@ -24,7 +24,7 @@ const modelIcons: Record<string, string> = {
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   SessionControls  —  full-page component (sidebar + header + chat +
+   SessionControls  �? full-page component (sidebar + header + chat +
    two open dropdown panels + composer + footer)
    ════════════════════════════════════════════════════════════════════ */
 export default function SessionControls() {
@@ -45,13 +45,13 @@ export default function SessionControls() {
             Claude YH
           </span>
           <nav className="hidden md:flex gap-4">
-            <a className="text-[#1B1C1A] border-b-2 border-[#8F482F] pb-1 cursor-pointer active:opacity-70">
+            <a className="text-[#1B1C1A] border-b-2 border-[var(--color-brand)] pb-1 cursor-pointer active:opacity-70">
               Code
             </a>
-            <a className="text-[#87736D] hover:text-[#8F482F] transition-colors cursor-pointer active:opacity-70">
+            <a className="text-[#87736D] hover:text-[var(--color-brand)] transition-colors cursor-pointer active:opacity-70">
               Terminal
             </a>
-            <a className="text-[#87736D] hover:text-[#8F482F] transition-colors cursor-pointer active:opacity-70">
+            <a className="text-[#87736D] hover:text-[var(--color-brand)] transition-colors cursor-pointer active:opacity-70">
               History
             </a>
           </nav>
@@ -63,7 +63,7 @@ export default function SessionControls() {
           <span className="material-symbols-outlined text-[#87736D] cursor-pointer">
             arrow_forward_ios
           </span>
-          <button className="ml-2 px-3 py-1 bg-surface-container-high rounded text-[#8F482F] hover:bg-surface-container-highest transition-colors">
+          <button className="ml-2 px-3 py-1 bg-surface-container-high rounded text-[var(--color-brand)] hover:bg-surface-container-highest transition-colors">
             Settings
           </button>
         </div>
@@ -92,8 +92,8 @@ export default function SessionControls() {
         </div>
 
         {/* Nav items */}
-        <button className="w-full text-left p-2.5 bg-[#FAF9F5] text-[#1B1C1A] rounded-lg relative before:content-[''] before:absolute before:left-[-8px] before:w-1 before:h-4 before:bg-[#8F482F] before:rounded-full before:top-1/2 before:-translate-y-1/2 transition-all duration-200 ease-in-out flex items-center gap-3">
-          <span className="material-symbols-outlined text-[#8F482F]">add</span>
+        <button className="w-full text-left p-2.5 bg-[#FAF9F5] text-[#1B1C1A] rounded-lg relative before:content-[''] before:absolute before:left-[-8px] before:w-1 before:h-4 before:bg-[var(--color-brand)] before:rounded-full before:top-1/2 before:-translate-y-1/2 transition-all duration-200 ease-in-out flex items-center gap-3">
+          <span className="material-symbols-outlined text-[var(--color-brand)]">add</span>
           <span>New session</span>
         </button>
         <button className="w-full text-left p-2.5 text-[#87736D] hover:bg-[#EBEBE6] rounded-lg transition-all duration-200 ease-in-out flex items-center gap-3">

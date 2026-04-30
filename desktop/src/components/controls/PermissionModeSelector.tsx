@@ -112,7 +112,7 @@ export function PermissionModeSelector({ workDir: workDirProp, value, onChange }
       </button>
 
       {open && (
-        <div className="absolute left-0 bottom-full mb-2 w-[320px] rounded-xl bg-[var(--color-surface-container-lowest)] border border-[var(--color-border)] shadow-[var(--shadow-dropdown)] z-50 py-2">
+        <div className="cc-surface-pop absolute left-0 bottom-full mb-2 w-[320px] rounded-xl bg-[var(--color-surface-container-lowest)] border border-[var(--color-border)] shadow-[var(--shadow-dropdown)] z-50 py-2">
           <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-[var(--color-outline)]">
             {t('permMode.executionPermissions')}
           </div>
@@ -158,9 +158,9 @@ export function PermissionModeSelector({ workDir: workDirProp, value, onChange }
 
       {/* Bypass confirmation dialog */}
       {confirmDialog && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 pl-[var(--sidebar-width)]" onClick={() => setConfirmDialog(false)}>
+        <div className="cc-modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/35 pl-[var(--sidebar-width)]" onClick={() => setConfirmDialog(false)}>
           <div
-            className="w-[420px] rounded-2xl bg-[var(--color-surface-container-lowest)] border border-[var(--color-border)] shadow-[var(--shadow-dropdown)] overflow-hidden"
+            className="cc-modal-panel w-[420px] rounded-2xl bg-[var(--color-surface-container-lowest)] border border-[var(--color-border)] shadow-[var(--shadow-dropdown)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

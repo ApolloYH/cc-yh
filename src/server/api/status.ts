@@ -377,7 +377,6 @@ function resolveUsageRange(range: string): { startMs: number; endMs: number } {
   const now = new Date()
   const endMs = now.getTime()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime()
 
   switch (range) {
     case '1d':
@@ -390,7 +389,7 @@ function resolveUsageRange(range: string): { startMs: number; endMs: number } {
       return { startMs: 0, endMs }
     case 'today':
     default:
-      return { startMs: startOfToday, endMs: endOfToday }
+      return { startMs: startOfToday, endMs }
   }
 }
 

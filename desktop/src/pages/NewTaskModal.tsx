@@ -28,17 +28,17 @@ export default function NewTaskModal() {
             Claude YH
           </span>
           <nav className="hidden md:flex gap-4 font-[var(--font-headline)] font-semibold tracking-wide text-sm">
-            <a className="text-[#87736D] hover:text-[#8F482F] transition-colors cursor-pointer">Code</a>
-            <a className="text-[#87736D] hover:text-[#8F482F] transition-colors cursor-pointer">Terminal</a>
-            <a className="text-[#87736D] hover:text-[#8F482F] transition-colors cursor-pointer">History</a>
+            <a className="text-[#87736D] hover:text-[var(--color-brand)] transition-colors cursor-pointer">Code</a>
+            <a className="text-[#87736D] hover:text-[var(--color-brand)] transition-colors cursor-pointer">Terminal</a>
+            <a className="text-[#87736D] hover:text-[var(--color-brand)] transition-colors cursor-pointer">History</a>
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-[#8F482F]">
+          <div className="flex items-center gap-2 text-[var(--color-brand)]">
             <span className="material-symbols-outlined cursor-pointer active:opacity-70 text-sm">arrow_back_ios</span>
             <span className="material-symbols-outlined cursor-pointer active:opacity-70 text-sm">arrow_forward_ios</span>
           </div>
-          <span className="font-[var(--font-headline)] font-semibold tracking-wide text-sm text-[#87736D] cursor-pointer hover:text-[#8F482F] transition-colors">
+          <span className="font-[var(--font-headline)] font-semibold tracking-wide text-sm text-[#87736D] cursor-pointer hover:text-[var(--color-brand)] transition-colors">
             Settings
           </span>
         </div>
@@ -67,7 +67,7 @@ export default function NewTaskModal() {
             <div className="flex items-center gap-3 px-3 py-2 text-[#87736D]">
               <span className="material-symbols-outlined">add</span>New session
             </div>
-            <div className="flex items-center gap-3 px-3 py-2 bg-[#FAF9F5] text-[#1B1C1A] rounded-lg relative before:content-[''] before:absolute before:left-[-8px] before:w-1 before:h-4 before:bg-[#8F482F] before:rounded-full">
+            <div className="flex items-center gap-3 px-3 py-2 bg-[#FAF9F5] text-[#1B1C1A] rounded-lg relative before:content-[''] before:absolute before:left-[-8px] before:w-1 before:h-4 before:bg-[var(--color-brand)] before:rounded-full">
               <span className="material-symbols-outlined">calendar_today</span>Scheduled
             </div>
             <div className="flex items-center gap-3 px-3 py-2 text-[#87736D]">
@@ -98,7 +98,7 @@ export default function NewTaskModal() {
             </div>
           </div>
 
-          {/* ═══ MODAL OVERLAY ═══════════════════════════════════════ */}
+          {/* ══�?MODAL OVERLAY ══════════════════════════════════════�?*/}
           <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-[var(--color-on-surface)]/40 backdrop-blur-sm">
             <div
               className="bg-[var(--color-surface-container-lowest)] w-full max-w-lg rounded-xl overflow-hidden flex flex-col"
@@ -332,7 +332,7 @@ export default function NewTaskModal() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-[#8F482F] font-bold cursor-pointer">
+          <span className="text-[var(--color-brand)] font-bold cursor-pointer">
             {mockStatusBar.localSwitch}
           </span>
           <div className="flex items-center gap-1 text-[#87736D]">

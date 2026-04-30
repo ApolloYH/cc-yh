@@ -425,7 +425,7 @@ export function ChatInput() {
           {!isMemberSession && slashMenuOpen && filteredCommands.length > 0 && (
             <div
               ref={slashMenuRef}
-              className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] shadow-[var(--shadow-dropdown)]"
+              className="cc-surface-pop absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] shadow-[var(--shadow-dropdown)]"
             >
               <div className="max-h-[300px] overflow-y-auto py-1">
                 {filteredCommands.map((command, index) => (
@@ -503,7 +503,7 @@ export function ChatInput() {
 
                     {plusMenuOpen && (
                       <div
-                        className="absolute bottom-full left-0 z-50 mb-2 w-[240px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] py-1"
+                        className="cc-surface-pop absolute bottom-full left-0 z-50 mb-2 w-[240px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] py-1"
                         style={{ boxShadow: 'var(--shadow-dropdown)' }}
                       >
                         <button
@@ -543,7 +543,7 @@ export function ChatInput() {
                 }`}
               >
                 <span className="material-symbols-outlined text-[14px]">
-                  {!isMemberSession && isActive ? 'stop' : 'arrow_forward'}
+                  {!isMemberSession && isActive ? 'stop' : 'arrow_upward'}
                 </span>
                 {!isMemberSession && isActive ? t('common.stop') : isMemberSession ? t('common.send') : t('common.run')}
               </button>
