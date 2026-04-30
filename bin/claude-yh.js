@@ -12,14 +12,41 @@ const cliArgs = process.argv.slice(2)
 function ensureRuntimeAliases() {
   const nodeModulesDir = join(rootDir, 'node_modules')
   const srcAlias = join(nodeModulesDir, 'src')
-  if (existsSync(srcAlias)) return
 
   try {
-    mkdirSync(nodeModulesDir, { recursive: true })
-    symlinkSync(join(rootDir, 'src'), srcAlias, 'junction')
+    if (!existsSync(srcAlias)) {
+      mkdirSync(nodeModulesDir, { recursive: true })
+      symlinkSync(join(rootDir, 'src'), srcAlias, 'junction')
+    }
   } catch {
-    // Some package managers may install into read-only locations. In that case,
-    // fall back to Bun's tsconfig path support from the package root.
+    // Some package managers may install into read-only locations. Keep going so
+    // any real module-resolution error is reported by Bun with context.
+  }
+
+  const aliases = [
+    [
+      join(nodeModulesDir, '@ant', 'claude-for-chrome-mcp'),
+      "export * from '../../../stubs/ant-claude-for-chrome-mcp.ts'\n",
+    ],
+    [
+      join(nodeModulesDir, 'color-diff-napi'),
+      "export * from '../../stubs/color-diff-napi.ts'\n",
+    ],
+  ]
+
+  for (const [aliasDir, source] of aliases) {
+    try {
+      const indexPath = join(aliasDir, 'index.js')
+      if (existsSync(indexPath)) continue
+      mkdirSync(aliasDir, { recursive: true })
+      writeFileSync(
+        join(aliasDir, 'package.json'),
+        JSON.stringify({ type: 'module', main: './index.js' }, null, 2),
+      )
+      writeFileSync(indexPath, source)
+    } catch {
+      // Best-effort runtime aliases for tsconfig path stubs.
+    }
   }
 }
 
