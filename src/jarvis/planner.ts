@@ -24,9 +24,7 @@ export async function submitJarvisGoal(params: {
   if (!goal) throw new Error('goal is required')
   const planned = await planWithMainModel(goal, params.config).catch(() => null)
   const title = planned?.title || goal.slice(0, 80)
-  const steps = planned?.steps?.length
-    ? planned.steps.slice(0, 8)
-    : [goal]
+  const steps = normalizeJarvisPlanSteps(goal, planned?.steps)
   const boundarySummary = summarizeBoundaries(params.config)
 
   const items: JarvisQueueItem[] = []
@@ -87,6 +85,12 @@ async function planWithMainModel(
       'You are the Jarvis background planner for claude-yh.',
       'Turn a user goal into a short executable background plan.',
       'Return JSON only: {"title":"...","steps":["..."]}.',
+      'Follow the same task breakdown standard as native Claude TodoWrite and TaskCreate.',
+      'Split only when the goal requires 3 or more distinct executable steps/actions, is non-trivial and complex, or the user explicitly provides multiple tasks.',
+      'Do not split when there is only a single straightforward task, the task is trivial, it can be completed in fewer than 3 simple steps, or it is purely conversational or informational.',
+      'For simple conversational, status, or one-shot goals, return exactly one step equal to the user goal.',
+      'Never split a simple answer into rhetorical substeps such as style, abilities, role, summary, or final response.',
+      'Prefer 1 step. Use 3-6 steps only for genuinely complex background work.',
       'Steps must be safe, checkpointable, and respect the provided boundaries.',
       'Do not plan payment, captcha bypass, credential extraction, or irreversible external sending.',
     ].join(' '),
@@ -107,6 +111,85 @@ async function planWithMainModel(
   return steps.length > 0
     ? { title, steps, modelUsed: true }
     : null
+}
+
+export function normalizeJarvisPlanSteps(goal: string, plannedSteps: string[] | undefined): string[] {
+  const cleaned = (plannedSteps ?? [])
+    .map(step => step.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+
+  const deduped: string[] = []
+  for (const step of cleaned) {
+    if (deduped.some(existing => sameStep(existing, step))) continue
+    deduped.push(step)
+  }
+
+  if (shouldKeepSingleStep(goal, deduped)) return [goal]
+
+  return deduped.length > 0
+    ? deduped.slice(0, 6)
+    : [goal]
+}
+
+function shouldKeepSingleStep(goal: string, steps: string[]): boolean {
+  const normalizedGoal = goal.replace(/\s+/g, ' ').trim()
+  if (!normalizedGoal) return true
+  if (steps.length < 3) return true
+
+  const lower = normalizedGoal.toLowerCase()
+  const simpleGoalPatterns = [
+    '自我介绍',
+    '介绍一下你自己',
+    '介绍你自己',
+    '你是谁',
+    '你叫什么',
+    '你的名字',
+    '当前任务状态',
+    '查询任务状态',
+    '查看任务状态',
+    '任务列表',
+    'queue status',
+    'status',
+    'who are you',
+    'introduce yourself',
+  ]
+  if (simpleGoalPatterns.some(pattern => lower.includes(pattern))) return true
+
+  const isShort = normalizedGoal.length <= 40
+  const hasComplexSignals = [
+    '然后',
+    '同时',
+    '并且',
+    '再',
+    '持续',
+    '监控',
+    '修复',
+    '实现',
+    '整理',
+    '测试',
+    '部署',
+    '对比',
+    '分析',
+    '计划',
+    '长期',
+    '24小时',
+    '24 小时',
+  ].some(signal => normalizedGoal.includes(signal))
+
+  if (isShort && !hasComplexSignals) return true
+
+  const allStepsAreTiny = steps.every(step => step.length <= 30)
+  const looksLikeRhetoricalSplit = steps.every(step =>
+    /介绍|说明|返回|总结|检查|查询|查看|列出|answer|respond|describe|summarize/i.test(step),
+  )
+  return isShort && allStepsAreTiny && looksLikeRhetoricalSplit
+}
+
+function sameStep(left: string, right: string): boolean {
+  const normalize = (value: string) => value
+    .toLowerCase()
+    .replace(/[，。！？；：、,.!?;:\s]/g, '')
+  return normalize(left) === normalize(right)
 }
 
 function buildStepPrompt(input: {

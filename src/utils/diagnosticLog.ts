@@ -91,6 +91,16 @@ function isSensitiveDiagnosticKey(key: string): boolean {
 }
 
 function getAdditionalDiagnosticLogPaths(event: DiagnosticEvent): string[] {
+  if (event.scope === 'jarvis.service' || event.scope === 'jarvis.queue') {
+    return [getDiagnosticLogPath(new Date(), 'jarvis')]
+  }
+  if (
+    event.scope === 'scheduledTasks.scheduler' &&
+    typeof event.data?.taskId === 'string' &&
+    event.data.taskId.startsWith('jarvis-')
+  ) {
+    return [getDiagnosticLogPath(new Date(), 'jarvis')]
+  }
   if (isRustRuntimeScope(event.scope)) {
     return [getDiagnosticLogPath(new Date(), 'rust-runtime')]
   }

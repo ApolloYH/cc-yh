@@ -313,6 +313,7 @@ describe('CronScheduler', () => {
     expect(argv).toContain('MiniMax-M2.7-highspeed')
     expect(argv).toContain('--permission-mode')
     expect(argv).toContain('plan')
+    expect(argv.join(' ')).not.toContain('B:\\src\\entrypoints\\cli.tsx')
     expect(options.cwd).toBe(tmpDir)
     expect(options.env.CALLER_DIR).toBe(tmpDir)
     expect(options.env.PWD).toBe(tmpDir)

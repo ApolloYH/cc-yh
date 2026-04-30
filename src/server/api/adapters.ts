@@ -126,7 +126,7 @@ async function handleInboundAdapterPayload(
     '',
     text,
   ].filter(Boolean).join('\n')
-  const status = await jarvisService.submitGoal(goal, 75)
+  const status = await jarvisService.submitGoal(goal, 75, channel)
 
   return Response.json({
     ok: true,
@@ -178,6 +178,20 @@ async function handleInboundAdapterAction(
       ? items.find(entry => entry.id === action.targetId)
       : items.find(entry => entry.status === 'running' || entry.status === 'pending' || entry.status === 'paused')
     if (!target) throw ApiError.notFound('No Jarvis queue item found for action')
+    if (action.type === 'approve') {
+      const status = await jarvisService.getStatus()
+      const approval = status.approvals
+        .find(entry => entry.taskId === target.id && entry.status === 'pending')
+      if (approval) {
+        const nextStatus = await jarvisService.resolveApproval(approval.id, 'approved')
+        return Response.json({
+          ok: true,
+          channel,
+          action,
+          item: nextStatus.queueItems?.find(entry => entry.id === target.id) ?? null,
+        })
+      }
+    }
     const item = await updateJarvisQueueItem(target.id, {
       status: action.type === 'pause' ? 'paused' : 'pending',
       approvalState: action.type === 'approve' ? 'approved' : target.approvalState,

@@ -64,6 +64,14 @@ describe('/jarvis command', () => {
     expect(settings.jarvisMode.riskMode).toBe('autonomous')
     const queue = JSON.parse(await fs.readFile(path.join(tmpDir, 'jarvis_queue.json'), 'utf-8'))
     expect(queue.items[0].goal).toBe('summarize new sessions')
+
+    const deleted = await call(`delete ${queue.items[0].id}`, {} as never)
+    expect(deleted.type).toBe('text')
+    if (deleted.type === 'text') {
+      expect(deleted.value).toContain('deleted')
+    }
+    const queueAfterDelete = JSON.parse(await fs.readFile(path.join(tmpDir, 'jarvis_queue.json'), 'utf-8'))
+    expect(queueAfterDelete.items).toHaveLength(0)
   })
 
   it('enables companion mode from the CLI', async () => {

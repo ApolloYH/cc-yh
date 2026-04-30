@@ -87,6 +87,9 @@ export async function runRustSidecarParityHarness(
         if (!hasCapability(result, 'jarvis.queue.claim')) {
           throw new Error('hello response did not advertise jarvis.queue.claim')
         }
+        if (!hasCapability(result, 'jarvis.queue.delete')) {
+          throw new Error('hello response did not advertise jarvis.queue.delete')
+        }
       }),
       runScenario('echo_roundtrip', async () => {
         const expected = {
@@ -213,6 +216,14 @@ export async function runRustSidecarParityHarness(
           const recovered = await client.request('jarvis.queue.recover', { queuePath }) as { recovered?: unknown }
           if (recovered.recovered !== 1) {
             throw new Error('jarvis.queue.recover did not recover the running item')
+          }
+          const deleted = await client.request('jarvis.queue.delete', { queuePath, id: item.id }) as { item?: { id?: string } }
+          if (deleted.item?.id !== item.id) {
+            throw new Error('jarvis.queue.delete did not return the removed item')
+          }
+          const claimedAfterDelete = await client.request('jarvis.queue.claim', { queuePath }) as { item?: unknown }
+          if (claimedAfterDelete.item !== null) {
+            throw new Error('jarvis.queue.delete left the removed item claimable')
           }
         } finally {
           await fs.rm(tmpDir, { recursive: true, force: true })

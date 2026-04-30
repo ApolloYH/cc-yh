@@ -39,6 +39,7 @@ lines.on('line', line => {
               'fs.write',
               'jarvis.queue.enqueue',
               'jarvis.queue.claim',
+              'jarvis.queue.delete',
               'jarvis.queue.recover'
             ]
           }
@@ -148,7 +149,27 @@ lines.on('line', line => {
     return
   }
   if (request.method === 'jarvis.queue.claim') {
+    if (!globalThis.__queueItem) {
+      console.log(JSON.stringify({
+        protocolVersion: 1,
+        id: request.id,
+        ok: true,
+        result: { source: 'mock', item: null }
+      }))
+      return
+    }
     const item = { ...globalThis.__queueItem, status: 'running' }
+    console.log(JSON.stringify({
+      protocolVersion: 1,
+      id: request.id,
+      ok: true,
+      result: { source: 'mock', item }
+    }))
+    return
+  }
+  if (request.method === 'jarvis.queue.delete') {
+    const item = globalThis.__queueItem ?? null
+    globalThis.__queueItem = null
     console.log(JSON.stringify({
       protocolVersion: 1,
       id: request.id,
@@ -215,6 +236,7 @@ describe('RustSidecarClient', () => {
           'fs.write',
           'jarvis.queue.enqueue',
           'jarvis.queue.claim',
+          'jarvis.queue.delete',
           'jarvis.queue.recover',
         ],
       })

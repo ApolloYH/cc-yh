@@ -33,7 +33,15 @@ export const jarvisApi = {
   },
 
   submitTask(goal: string, priority?: number) {
-    return api.post<{ status: JarvisStatus }>('/api/jarvis/task', { goal, priority })
+    return api.post<{ status: JarvisStatus }>('/api/jarvis/task', { goal, priority, source: 'desktop' })
+  },
+
+  queueAction(id: string, action: 'pause' | 'resume' | 'approve' | 'checkpoint' | 'delete') {
+    return api.post<{ status: JarvisStatus }>('/api/jarvis/queue-action', { id, action })
+  },
+
+  resolveApproval(id: string, decision: 'approved' | 'rejected', note?: string) {
+    return api.post<{ status: JarvisStatus }>('/api/jarvis/approval', { id, decision, note })
   },
 
   autostart() {

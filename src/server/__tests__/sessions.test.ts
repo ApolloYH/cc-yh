@@ -154,6 +154,43 @@ describe('SessionService', () => {
     expect(session.projectPath).toBe('-tmp-testproject')
   })
 
+  it('should hide Jarvis background execution sessions from normal lists', async () => {
+    const visibleId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    const hiddenByPromptId = 'bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee'
+    const hiddenByMetaId = 'cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee'
+
+    await writeSessionFile('-tmp-testproject', visibleId, [
+      makeSnapshotEntry(),
+      makeUserEntry('Regular user chat'),
+    ])
+    await writeSessionFile('-tmp-testproject', hiddenByPromptId, [
+      makeSnapshotEntry(),
+      makeUserEntry('You are running under claude-yh Jarvis execution.\n\nOriginal task:\nCheck queue'),
+    ])
+    await writeSessionFile('-tmp-testproject', hiddenByMetaId, [
+      makeSnapshotEntry(),
+      makeUserEntry('Jarvis internal transcript'),
+      {
+        type: 'session-meta',
+        isMeta: true,
+        visibility: 'hidden',
+        hiddenFromSessionList: true,
+        origin: 'jarvis',
+        timestamp: '2026-01-01T00:03:00.000Z',
+      },
+    ])
+
+    const result = await service.listSessions()
+    expect(result.sessions.map(session => session.id)).toEqual([visibleId])
+
+    const withHidden = await service.listSessions({ includeHidden: true })
+    expect(withHidden.sessions.map(session => session.id).sort()).toEqual([
+      hiddenByMetaId,
+      hiddenByPromptId,
+      visibleId,
+    ].sort())
+  })
+
   it('should paginate results with limit and offset', async () => {
     // Create 3 sessions
     for (let i = 0; i < 3; i++) {

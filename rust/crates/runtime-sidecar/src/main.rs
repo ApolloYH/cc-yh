@@ -113,6 +113,7 @@ fn handle_line(raw: &str) -> Response {
                     "jarvis.queue.enqueue",
                     "jarvis.queue.claim",
                     "jarvis.queue.update",
+                    "jarvis.queue.delete",
                     "jarvis.queue.recover",
                     "parity.manifest"
                 ]
@@ -162,6 +163,10 @@ fn handle_line(raw: &str) -> Response {
         "jarvis.queue.update" => match jarvis_queue_update(&request.params) {
             Ok(result) => success(request.id, result),
             Err(message) => failure(request.id, "jarvis_queue_update_failed", &message),
+        },
+        "jarvis.queue.delete" => match jarvis_queue_delete(&request.params) {
+            Ok(result) => success(request.id, result),
+            Err(message) => failure(request.id, "jarvis_queue_delete_failed", &message),
         },
         "jarvis.queue.recover" => match jarvis_queue_recover(&request.params) {
             Ok(result) => success(request.id, result),
@@ -224,6 +229,11 @@ fn handle_line(raw: &str) -> Response {
                     },
                     {
                         "id": "jarvis_queue_atomic_claim",
+                        "status": "implemented",
+                        "owner": "rust-jarvis-queue"
+                    },
+                    {
+                        "id": "jarvis_queue_delete",
                         "status": "implemented",
                         "owner": "rust-jarvis-queue"
                     }
@@ -855,6 +865,34 @@ fn jarvis_queue_update(params: &Value) -> Result<Value, String> {
     Ok(json!({
         "source": "rust",
         "item": null,
+        "locked": true
+    }))
+}
+
+fn jarvis_queue_delete(params: &Value) -> Result<Value, String> {
+    let queue_path = jarvis_queue_path(params)?;
+    let id = required_str(params, "id")?;
+    let _guard = QueueLock::acquire(&queue_path)?;
+    let mut store = read_jarvis_queue_store(&queue_path)?;
+    let items = store
+        .get_mut("items")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "queue store items must be an array".to_string())?;
+    let Some(index) = items
+        .iter()
+        .position(|item| item.get("id").and_then(Value::as_str) == Some(id))
+    else {
+        return Ok(json!({
+            "source": "rust",
+            "item": null,
+            "locked": true
+        }));
+    };
+    let removed = items.remove(index);
+    write_jarvis_queue_store(&queue_path, &store)?;
+    Ok(json!({
+        "source": "rust",
+        "item": removed,
         "locked": true
     }))
 }

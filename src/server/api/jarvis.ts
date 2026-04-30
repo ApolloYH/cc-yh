@@ -59,6 +59,7 @@ export async function handleJarvisApi(
       const status = await jarvisService.submitGoal(
         goal,
         typeof body.priority === 'number' ? body.priority : undefined,
+        isJarvisSource(body.source) ? body.source : 'web',
       )
       return Response.json({ status }, { status: 202 })
     }
@@ -82,13 +83,34 @@ export async function handleJarvisApi(
       const body = await parseJsonBody(req)
       const id = typeof body.id === 'string' ? body.id : ''
       const queueAction = body.action
-      if (!id || !['pause', 'resume', 'approve', 'checkpoint'].includes(String(queueAction))) {
-        throw ApiError.badRequest('id and action=pause|resume|approve|checkpoint are required')
+      if (!id || !['pause', 'resume', 'approve', 'checkpoint', 'delete'].includes(String(queueAction))) {
+        throw ApiError.badRequest('id and action=pause|resume|approve|checkpoint|delete are required')
+      }
+      if (queueAction === 'delete') {
+        const result = await jarvisService.deleteQueueItem(id)
+        if (!result.item) throw ApiError.notFound(`Queue item not found: ${id}`)
+        return Response.json(result)
       }
       if (queueAction === 'checkpoint') {
         const item = (await listJarvisQueue()).find(entry => entry.id === id)
         if (!item) throw ApiError.notFound(`Queue item not found: ${id}`)
-        return Response.json({ item, checkpoint: item.checkpoint ?? null })
+        return Response.json({
+          item,
+          checkpoint: item.checkpoint ?? null,
+          status: await jarvisService.getStatus(),
+        })
+      }
+      if (queueAction === 'approve') {
+        const currentStatus = await jarvisService.getStatus()
+        const approval = currentStatus.approvals
+          .find(entry => entry.taskId === id && entry.status === 'pending')
+        if (approval) {
+          const status = await jarvisService.resolveApproval(approval.id, 'approved')
+          return Response.json({
+            item: status.queueItems?.find(entry => entry.id === id) ?? null,
+            status,
+          })
+        }
       }
       const patch = {
         status: queueAction === 'pause' ? 'paused' as const : 'pending' as const,
@@ -99,7 +121,29 @@ export async function handleJarvisApi(
       if (!item) {
         throw ApiError.notFound(`Queue item not found: ${id}`)
       }
-      return Response.json({ item })
+      if (queueAction === 'approve') {
+        await appendJarvisEvent({
+          type: 'approval',
+          title: 'Jarvis task approved',
+          message: `${item.title || item.id} approved from API.`,
+        })
+      }
+      return Response.json({ item, status: await jarvisService.getStatus() })
+    }
+
+    if (method === 'POST' && action === 'approval') {
+      const body = await parseJsonBody(req)
+      const id = typeof body.id === 'string' ? body.id : ''
+      const decision = String(body.decision || body.status || '')
+      if (!id || (decision !== 'approved' && decision !== 'rejected')) {
+        throw ApiError.badRequest('id and decision=approved|rejected are required')
+      }
+      const status = await jarvisService.resolveApproval(
+        id,
+        decision,
+        typeof body.note === 'string' ? body.note : undefined,
+      )
+      return Response.json({ status })
     }
 
     if (method === 'GET' && action === 'autostart') {
@@ -194,6 +238,18 @@ export async function handleJarvisApi(
   } catch (error) {
     return errorResponse(error)
   }
+}
+
+function isJarvisSource(value: unknown): value is 'desktop' | 'web' | 'cli' | 'telegram' | 'feishu' | 'dingtalk' | 'wecom' {
+  return (
+    value === 'desktop' ||
+    value === 'web' ||
+    value === 'cli' ||
+    value === 'telegram' ||
+    value === 'feishu' ||
+    value === 'dingtalk' ||
+    value === 'wecom'
+  )
 }
 
 async function requireCloudAuth(req: Request): Promise<void> {

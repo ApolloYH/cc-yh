@@ -18,6 +18,7 @@ export type RustSidecarMethod =
   | 'jarvis.queue.enqueue'
   | 'jarvis.queue.claim'
   | 'jarvis.queue.update'
+  | 'jarvis.queue.delete'
   | 'jarvis.queue.recover'
   | 'parity.manifest'
   | (string & {})

@@ -52,6 +52,8 @@ export type JarvisEventType =
   | 'heartbeat'
   | 'checkpoint'
   | 'report'
+  | 'inbox'
+  | 'approval'
   | 'config'
   | 'paused'
   | 'error'
@@ -73,6 +75,45 @@ export type JarvisMetrics = {
   enabledSince: string | null
 }
 
+export type JarvisInboxSource =
+  | 'desktop'
+  | 'web'
+  | 'cli'
+  | 'telegram'
+  | 'feishu'
+  | 'dingtalk'
+  | 'wecom'
+  | 'system'
+
+export type JarvisInboxRole = 'user' | 'jarvis' | 'system'
+
+export type JarvisInboxMessage = {
+  id: string
+  role: JarvisInboxRole
+  source: JarvisInboxSource
+  createdAt: string
+  title?: string
+  message: string
+  taskId?: string
+  severity?: JarvisEventSeverity
+  metadata?: Record<string, unknown>
+}
+
+export type JarvisApprovalStatus = 'pending' | 'approved' | 'rejected'
+
+export type JarvisApprovalRequest = {
+  id: string
+  taskId?: string
+  source: JarvisInboxSource
+  status: JarvisApprovalStatus
+  createdAt: string
+  updatedAt: string
+  title: string
+  message: string
+  risk: 'external-send' | 'login' | 'payment' | 'secret' | 'irreversible' | 'other'
+  resolutionNote?: string
+}
+
 export type JarvisStatus = {
   enabled: boolean
   running: boolean
@@ -82,6 +123,8 @@ export type JarvisStatus = {
   summary: string
   config: JarvisModeConfig
   recentEvents: JarvisEvent[]
+  inboxMessages: JarvisInboxMessage[]
+  approvals: JarvisApprovalRequest[]
   metrics: JarvisMetrics
   cloud: JarvisCloudConfig
   queue?: {
@@ -100,6 +143,7 @@ export type JarvisStatus = {
     priority: number
     attempts: number
     maxAttempts: number
+    approvalState?: 'none' | 'requested' | 'approved'
     checkpoint?: string
     error?: string
     createdAt: string

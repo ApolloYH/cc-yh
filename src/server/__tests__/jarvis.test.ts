@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { JarvisService } from '../services/jarvisService.js'
-import { enqueueJarvisTask } from '../../jarvis/queue.js'
+import { enqueueJarvisTask, listJarvisQueue, updateJarvisQueueItem } from '../../jarvis/queue.js'
 import { handleJarvisApi } from '../api/jarvis.js'
 import type { CronService, CronTask } from '../services/cronService.js'
 import type { SessionService } from '../services/sessionService.js'
@@ -152,6 +152,16 @@ describe('JarvisService', () => {
     expect(executedPrompt).toContain('watch inbox and summarize')
     const status = await service.getStatus()
     expect(status.queue?.completed).toBe(1)
+    expect(status.inboxMessages.some(message =>
+      message.role === 'jarvis' &&
+      message.title === '任务开始执行' &&
+      message.message.includes('watch inbox and summarize'),
+    )).toBe(true)
+    expect(status.inboxMessages.some(message =>
+      message.role === 'jarvis' &&
+      message.title === '任务完成' &&
+      message.message.includes('queue done'),
+    )).toBe(true)
     service.stop()
   })
 
@@ -192,6 +202,143 @@ describe('JarvisService', () => {
     expect(status.queueItems?.[0]?.goal).toBe('watch repo and report failures')
     expect(status.queueItems?.[0]?.prompt).toContain('Jarvis background goal')
     expect(status.queueItems?.[0]?.prompt).toContain('Allowed domains: example.com')
+    expect(status.inboxMessages.some(message =>
+      message.role === 'user' &&
+      message.source === 'desktop' &&
+      message.message.includes('watch repo and report failures'),
+    )).toBe(true)
+    expect(status.inboxMessages.some(message =>
+      message.role === 'jarvis' &&
+      message.title === '任务已接收',
+    )).toBe(true)
+    service.stop()
+  })
+
+  it('answers lightweight Jarvis interactions without creating background queue work', async () => {
+    let runCalled = false
+    const service = new JarvisService({
+      cronService,
+      sessionService,
+      runTask: async (task) => {
+        runCalled = true
+        return {
+          id: 'run-unexpected',
+          taskId: task.id,
+          taskName: task.name || 'task',
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          status: 'completed',
+          prompt: task.prompt,
+          output: 'should not run',
+        }
+      },
+    })
+
+    await service.updateConfig({ enabled: true, riskMode: 'autonomous' })
+    const status = await service.submitGoal('介绍一下你自己')
+
+    expect(runCalled).toBe(false)
+    expect((await listJarvisQueue()).length).toBe(0)
+    expect(status.queueItems?.length).toBe(0)
+    expect(status.inboxMessages.some(message =>
+      message.role === 'jarvis' &&
+      message.title === 'Jarvis 回复' &&
+      message.message.includes('轻量对话'),
+    )).toBe(true)
+    service.stop()
+  })
+
+  it('answers Jarvis task status directly from the queue summary', async () => {
+    const service = new JarvisService({ cronService, sessionService })
+
+    await enqueueJarvisTask({ prompt: 'queued background work', priority: 90 })
+    await service.updateConfig({ enabled: true, riskMode: 'autonomous' })
+    const status = await service.submitGoal('你现在有什么任务')
+
+    expect((await listJarvisQueue()).length).toBe(1)
+    expect(status.inboxMessages.some(message =>
+      message.role === 'jarvis' &&
+      message.title === '当前任务状态' &&
+      message.message.includes('待处理 1'),
+    )).toBe(true)
+    service.stop()
+  })
+
+  it('lets users mute and resume progress reports for running tasks', async () => {
+    const service = new JarvisService({ cronService, sessionService })
+    const item = await enqueueJarvisTask({ prompt: 'long background work', priority: 90 })
+    await updateJarvisQueueItem(item.id, { status: 'running' })
+    await service.updateConfig({ enabled: true, riskMode: 'autonomous' })
+
+    let status = await service.submitGoal('不要再报告中间进度了')
+    expect((await listJarvisQueue()).length).toBe(1)
+    expect(status.inboxMessages.some(message =>
+      message.role === 'jarvis' &&
+      message.title === '进度报告已关闭' &&
+      message.message.includes('最终完成、暂停或失败时仍会通知'),
+    )).toBe(true)
+
+    status = await service.submitGoal('恢复进度报告')
+    expect(status.inboxMessages.some(message =>
+      message.role === 'jarvis' &&
+      message.title === '进度报告已开启' &&
+      message.message.includes('已恢复 1 个运行中任务'),
+    )).toBe(true)
+    service.stop()
+  })
+
+  it('surfaces approval requests in the Jarvis inbox and resumes after approval', async () => {
+    let runCalled = false
+    const service = new JarvisService({
+      cronService,
+      sessionService,
+      runTask: async (task) => {
+        runCalled = true
+        return {
+          id: 'run-approved',
+          taskId: task.id,
+          taskName: task.name || 'task',
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          status: 'completed',
+          prompt: task.prompt,
+          output: 'approved work done',
+        }
+      },
+    })
+
+    const item = await enqueueJarvisTask({
+      prompt: 'send an external update',
+      priority: 90,
+      checkpoint: 'Needs user confirmation before sending externally.',
+    })
+    await updateJarvisQueueItem(item.id, { approvalState: 'requested' })
+    await service.updateConfig({
+      enabled: true,
+      intervalMs: 60_000,
+      riskMode: 'assisted',
+      requireApprovalForExternalActions: true,
+    })
+
+    await service.tick('manual')
+    let status = await service.getStatus()
+    const approval = status.approvals.find(entry => entry.taskId === item.id && entry.status === 'pending')
+    expect(approval).toBeTruthy()
+    expect(status.inboxMessages.some(message =>
+      message.taskId === item.id &&
+      message.title === 'Jarvis 等待确认',
+    )).toBe(true)
+    expect(runCalled).toBe(false)
+
+    await service.resolveApproval(approval!.id, 'approved')
+    status = await service.getStatus()
+    const queueItem = status.queueItems?.find(entry => entry.id === item.id)
+    expect(queueItem?.approvalState).toBe('approved')
+    expect(queueItem?.status).toBe('pending')
+    expect(status.inboxMessages.some(message =>
+      message.taskId === item.id &&
+      message.title === '审批已通过',
+    )).toBe(true)
     service.stop()
   })
 
@@ -238,5 +385,18 @@ describe('JarvisService', () => {
     const reportBody = await report.json()
     expect(reportBody.item.status).toBe('completed')
     expect(reportBody.item.checkpoint).toBe('cloud completed')
+  })
+
+  it('deletes queue items through the Jarvis API', async () => {
+    const item = await enqueueJarvisTask({ prompt: 'delete through api', priority: 50 })
+    const req = new Request('http://localhost/api/jarvis/queue-action', {
+      method: 'POST',
+      body: JSON.stringify({ id: item.id, action: 'delete' }),
+    })
+    const res = await handleJarvisApi(req, new URL(req.url), ['api', 'jarvis', 'queue-action'])
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.item.id).toBe(item.id)
+    expect((await listJarvisQueue()).find(entry => entry.id === item.id)).toBeUndefined()
   })
 })

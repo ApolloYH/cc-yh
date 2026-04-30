@@ -332,6 +332,28 @@ export class CronScheduler {
     console.log('[CronScheduler] Stopped')
   }
 
+  cancelTask(taskId: string): boolean {
+    const entry = this.runningTasks.get(taskId)
+    if (!entry) return false
+    try {
+      entry.proc.kill()
+    } catch {
+      // process may have already exited
+    }
+    this.runningTasks.delete(taskId)
+    logDiagnosticEvent({
+      scope: 'scheduledTasks.scheduler',
+      event: 'cancel_task',
+      ok: true,
+      data: {
+        taskId,
+        runId: entry.runId,
+        durationMs: Date.now() - entry.startedAt,
+      },
+    })
+    return true
+  }
+
   /** One tick of the scheduler — evaluate all tasks against the current time. */
   async tick(): Promise<void> {
     try {
@@ -434,13 +456,39 @@ export class CronScheduler {
 
     // Persist the "running" state
     await appendRun(run)
-
-    // Resolve paths relative to project root
-    const projectRoot = path.resolve(import.meta.dir, '../../..')
-    const cliPath = path.join(projectRoot, 'src/entrypoints/cli.tsx')
-    const preloadPath = path.join(projectRoot, 'preload.ts')
+    logDiagnosticEvent({
+      scope: 'scheduledTasks.scheduler',
+      event: 'execute_start',
+      ok: true,
+      data: {
+        runId,
+        taskId: task.id,
+        taskName: task.name || task.prompt.slice(0, 60),
+        workDir,
+        createSession: options?.createSession === true,
+        sessionId: sessionId ?? null,
+        recurring: task.recurring === true,
+        model: task.model ?? null,
+        promptHash: hashForDiagnostics(task.prompt),
+        promptLength: task.prompt.length,
+      },
+    })
 
     const away = await this.prepareAwayRunner(task)
+    logDiagnosticEvent({
+      scope: 'scheduledTasks.scheduler',
+      event: 'away_decision',
+      ok: away.status === 'allow' || away.status === 'disabled',
+      severity: away.status === 'allow' || away.status === 'disabled' ? 'info' : 'warn',
+      data: {
+        runId,
+        taskId: task.id,
+        status: away.status,
+        reasons: away.reasons,
+        mode: away.config?.mode ?? null,
+        allowedRisk: away.config?.allowedRisk ?? null,
+      },
+    })
     if (away.status === 'deny' || away.status === 'pause') {
       const pausedRun: TaskRun = {
         ...run,
@@ -452,6 +500,36 @@ export class CronScheduler {
       await updateRun(pausedRun)
       return pausedRun
     }
+    const permissionMode = this.resolvePermissionMode(task, away.config)
+    const cliInvocation = this.resolveCliInvocation([
+      '--print',
+      '--verbose',
+      '--input-format',
+      'stream-json',
+      '--output-format',
+      'stream-json',
+      ...(sessionId ? ['--session-id', sessionId] : []),
+      ...(task.model ? ['--model', task.model] : []),
+      ...(permissionMode ? ['--permission-mode', permissionMode] : []),
+    ])
+    logDiagnosticEvent({
+      scope: 'scheduledTasks.scheduler',
+      event: 'cli_resolved',
+      ok: true,
+      data: {
+        runId,
+        taskId: task.id,
+        executable: cliInvocation[0],
+        argv: cliInvocation,
+        cwd: workDir,
+        callerDir: workDir,
+        permissionMode: permissionMode ?? null,
+        hasSessionId: Boolean(sessionId),
+        sourceRoot: this.findSourceProjectRoot(),
+        binRoot: this.findBinProjectRoot(),
+        bundledCli: this.resolveBundledCliPath(),
+      },
+    })
 
     const prompt = away.prompt ?? task.prompt
     const inputPayload = JSON.stringify({
@@ -465,21 +543,7 @@ export class CronScheduler {
     }) + '\n'
 
     const proc = Bun.spawn(
-      [
-        'bun',
-        '--preload',
-        preloadPath,
-        cliPath,
-        '--print',
-        '--verbose',
-        '--input-format',
-        'stream-json',
-        '--output-format',
-        'stream-json',
-        ...(sessionId ? ['--session-id', sessionId] : []),
-        ...(task.model ? ['--model', task.model] : []),
-        ...(this.resolvePermissionMode(task, away.config) ? ['--permission-mode', this.resolvePermissionMode(task, away.config)!] : []),
-      ],
+      cliInvocation,
       {
         stdin: 'pipe',
         stdout: 'pipe',
@@ -493,6 +557,17 @@ export class CronScheduler {
         },
       },
     )
+    logDiagnosticEvent({
+      scope: 'scheduledTasks.scheduler',
+      event: 'spawn_started',
+      ok: true,
+      data: {
+        runId,
+        taskId: task.id,
+        executable: cliInvocation[0],
+        cwd: workDir,
+      },
+    })
 
     this.runningTasks.set(task.id, { proc, startedAt: Date.now(), runId })
 
@@ -500,13 +575,35 @@ export class CronScheduler {
     try {
       proc.stdin.write(inputPayload)
       proc.stdin.end()
-    } catch {
+    } catch (error) {
+      logDiagnosticEvent({
+        scope: 'scheduledTasks.scheduler',
+        event: 'stdin_write_failed',
+        ok: false,
+        severity: 'warn',
+        data: {
+          runId,
+          taskId: task.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
       // If writing fails, the process may have already exited
     }
 
     // Set up a timeout
     const timeoutId = setTimeout(() => {
       if (this.runningTasks.has(task.id)) {
+        logDiagnosticEvent({
+          scope: 'scheduledTasks.scheduler',
+          event: 'timeout_kill',
+          ok: false,
+          severity: 'warn',
+          data: {
+            runId,
+            taskId: task.id,
+            timeoutMs: TASK_TIMEOUT_MS,
+          },
+        })
         try {
           proc.kill()
         } catch {
@@ -562,9 +659,11 @@ export class CronScheduler {
       }
 
       // Collect stderr for error field
+      let stderrLength = 0
       if (exitCode !== 0 && proc.stderr) {
         try {
           const stderrText = await new Response(proc.stderr).text()
+          stderrLength = stderrText.length
           completedRun.error = stderrText.slice(0, 5_000)
         } catch {
           // ignore
@@ -572,6 +671,25 @@ export class CronScheduler {
       }
 
       await updateRun(completedRun)
+      await this.markJarvisExecutionSessionHidden(sessionId, task.id, runId)
+      logDiagnosticEvent({
+        scope: 'scheduledTasks.scheduler',
+        event: 'process_exit',
+        ok: completedRun.status === 'completed',
+        severity: completedRun.status === 'completed' ? 'info' : 'warn',
+        durationMs,
+        data: {
+          runId,
+          taskId: task.id,
+          status: completedRun.status,
+          exitCode,
+          rawOutputLength: rawOutput.length,
+          extractedOutputLength: output.length,
+          stderrLength,
+          error: completedRun.error,
+          outputPreview: output.slice(0, 600),
+        },
+      })
       await this.recordAwayRunnerCompletion(task, completedRun)
 
       // Send IM notification if configured
@@ -604,6 +722,19 @@ export class CronScheduler {
       }
 
       await updateRun(failedRun)
+      await this.markJarvisExecutionSessionHidden(sessionId, task.id, runId)
+      logDiagnosticEvent({
+        scope: 'scheduledTasks.scheduler',
+        event: 'execute_exception',
+        ok: false,
+        severity: 'error',
+        data: {
+          runId,
+          taskId: task.id,
+          error: failedRun.error,
+          durationMs: failedRun.durationMs,
+        },
+      })
       await this.recordAwayRunnerCompletion(task, failedRun)
 
       return failedRun
@@ -708,6 +839,120 @@ export class CronScheduler {
     return undefined
   }
 
+  private async markJarvisExecutionSessionHidden(
+    sessionId: string | undefined,
+    taskId: string,
+    runId: string,
+  ): Promise<void> {
+    if (!sessionId || !taskId.startsWith('jarvis-')) return
+    await this.sessionService.markSessionHidden(sessionId, {
+      origin: 'jarvis',
+      reason: 'background-execution-session',
+      taskId,
+      runId,
+    })
+    logDiagnosticEvent({
+      scope: 'scheduledTasks.scheduler',
+      event: 'hide_jarvis_session',
+      ok: true,
+      data: { sessionId, taskId, runId },
+    })
+  }
+
+  private resolveCliInvocation(baseArgs: string[]): string[] {
+    const explicitCli = process.env.CLAUDE_CLI_PATH
+    if (explicitCli) return this.wrapCliCommand(explicitCli, baseArgs)
+
+    const bundledCli = this.resolveBundledCliPath()
+    if (bundledCli) return this.wrapCliCommand(bundledCli, baseArgs)
+
+    const sourceRoot = this.findSourceProjectRoot()
+    if (sourceRoot) {
+      return [
+        'bun',
+        '--preload',
+        path.join(sourceRoot, 'preload.ts'),
+        path.join(sourceRoot, 'src', 'entrypoints', 'cli.tsx'),
+        ...baseArgs,
+      ]
+    }
+
+    const binRoot = this.findBinProjectRoot()
+    if (binRoot) {
+      return [
+        'node',
+        path.join(binRoot, 'bin', 'claude-yh.js'),
+        ...baseArgs,
+      ]
+    }
+
+    return ['claude-yh', ...baseArgs]
+  }
+
+  private wrapCliCommand(cliCommand: string, baseArgs: string[]): string[] {
+    const cliBaseName = path.basename(cliCommand)
+    if (cliBaseName.startsWith('claude-sidecar')) {
+      return process.env.CLAUDE_APP_ROOT
+        ? [cliCommand, 'cli', '--app-root', process.env.CLAUDE_APP_ROOT, ...baseArgs]
+        : [cliCommand, 'cli', ...baseArgs]
+    }
+    if (
+      process.env.CLAUDE_APP_ROOT &&
+      cliBaseName.startsWith('claude-cli')
+    ) {
+      return [cliCommand, '--app-root', process.env.CLAUDE_APP_ROOT, ...baseArgs]
+    }
+    if (/\.(?:[cm]?[jt]s|tsx?)$/i.test(cliCommand)) {
+      const root = this.findSourceProjectRoot() ?? process.cwd()
+      return ['bun', '--preload', path.join(root, 'preload.ts'), cliCommand, ...baseArgs]
+    }
+    return [cliCommand, ...baseArgs]
+  }
+
+  private resolveBundledCliPath(): string | null {
+    const execPath = process.execPath
+    const execName = path.basename(execPath)
+    if (execName.startsWith('claude-sidecar')) return execPath
+    if (execName.startsWith('claude-server')) {
+      const bundledCliPath = path.join(
+        path.dirname(execPath),
+        execName.replace(/^claude-server/, 'claude-cli'),
+      )
+      return existsSync(bundledCliPath) ? bundledCliPath : null
+    }
+    return null
+  }
+
+  private findSourceProjectRoot(): string | null {
+    return this.findProjectRootCandidate(root =>
+      existsSync(path.join(root, 'src', 'entrypoints', 'cli.tsx')) &&
+      existsSync(path.join(root, 'preload.ts')),
+    )
+  }
+
+  private findBinProjectRoot(): string | null {
+    return this.findProjectRootCandidate(root =>
+      existsSync(path.join(root, 'bin', 'claude-yh.js')),
+    )
+  }
+
+  private findProjectRootCandidate(predicate: (root: string) => boolean): string | null {
+    const candidates = [
+      process.env.CLAUDE_APP_ROOT,
+      process.env.CLAUDE_YH_ROOT,
+      process.cwd(),
+      path.resolve(process.cwd(), '..'),
+      path.resolve(process.cwd(), '..', '..'),
+      path.resolve(import.meta.dir, '../../..'),
+      path.resolve(import.meta.dir, '../../../..'),
+    ].filter((value): value is string => Boolean(value))
+
+    for (const candidate of new Set(candidates)) {
+      if (predicate(candidate)) return candidate
+    }
+    return null
+  }
+
   private async recordAwayRunnerCompletion(
     task: CronTask,
     run: TaskRun,
@@ -808,4 +1053,8 @@ function buildAwayRunnerPrompt(
     'Original task:',
     prompt,
   ].join('\n')
+}
+
+function hashForDiagnostics(value: string): string {
+  return crypto.createHash('sha256').update(value).digest('hex').slice(0, 16)
 }

@@ -82,7 +82,7 @@ export const call: LocalCommandCall = async (args) => {
     const prompt = args.slice(action.length).trim()
     if (!prompt) return text('Usage: /jarvis enqueue <task prompt>')
     const { jarvisService } = await import('../../server/services/jarvisService.js')
-    const status = await jarvisService.submitGoal(prompt, 70)
+    const status = await jarvisService.submitGoal(prompt, 70, 'cli')
     return text(`Jarvis accepted the goal. Queue pending=${status.queue?.pending ?? 0}, running=${status.queue?.running ?? 0}.`)
   }
 
@@ -104,6 +104,16 @@ export const call: LocalCommandCall = async (args) => {
       checkpoint: action === 'pause' ? 'Paused from CLI.' : 'Resumed from CLI.',
     })
     return text(item ? `Jarvis task ${id} ${action}d.` : `Jarvis task not found: ${id}`)
+  }
+
+  if (action === 'delete' || action === 'remove') {
+    const id = value
+    if (!id) return text(`Usage: /jarvis ${action} <queue-id>`)
+    const { jarvisService } = await import('../../server/services/jarvisService.js')
+    const result = await jarvisService.deleteQueueItem(id)
+    return text(result.item
+      ? `Jarvis task ${id} deleted.${result.cancelledRunningProcess ? ' Running process cancelled.' : ''}`
+      : `Jarvis task not found: ${id}`)
   }
 
   if (action === 'checkpoint') {
@@ -198,6 +208,7 @@ export const call: LocalCommandCall = async (args) => {
       '/jarvis queue',
       '/jarvis pause <queue-id>',
       '/jarvis resume <queue-id>',
+      '/jarvis delete <queue-id>',
       '/jarvis checkpoint <queue-id>',
       '/jarvis autostart on|off|status',
       '/jarvis cloud status|on|off|endpoint <url>|token <secret>',

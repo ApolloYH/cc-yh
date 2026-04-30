@@ -4,6 +4,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import {
   claimNextJarvisTask,
+  deleteJarvisQueueItem,
   enqueueJarvisTask,
   listJarvisQueue,
   recoverInterruptedJarvisQueue,
@@ -51,6 +52,16 @@ describe('Jarvis persistent queue', () => {
     const paused = (await listJarvisQueue()).find(entry => entry.id === item.id)
     expect(paused?.status).toBe('paused')
     expect(paused?.checkpoint).toContain('approval')
+  })
+
+  it('deletes queue items permanently', async () => {
+    const item = await enqueueJarvisTask({ prompt: 'remove me', priority: 50 })
+    const deleted = await deleteJarvisQueueItem(item.id)
+    expect(deleted?.id).toBe(item.id)
+
+    const items = await listJarvisQueue()
+    expect(items.find(entry => entry.id === item.id)).toBeUndefined()
+    expect(await deleteJarvisQueueItem(item.id)).toBeNull()
   })
 
   it('claims concurrent workers without duplicating queue ownership', async () => {

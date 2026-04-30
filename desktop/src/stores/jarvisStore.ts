@@ -13,6 +13,8 @@ type JarvisStore = {
   updateConfig: (config: Partial<JarvisModeConfig>) => Promise<void>
   updateAutostart: (enabled: boolean) => Promise<void>
   submitTask: (goal: string) => Promise<void>
+  queueAction: (id: string, action: 'pause' | 'resume' | 'approve' | 'checkpoint' | 'delete') => Promise<void>
+  resolveApproval: (id: string, decision: 'approved' | 'rejected', note?: string) => Promise<void>
   tick: () => Promise<void>
 }
 
@@ -60,6 +62,26 @@ export const useJarvisStore = create<JarvisStore>((set) => ({
     set({ isSaving: true, error: null })
     try {
       const { status } = await jarvisApi.submitTask(goal, 75)
+      set({ status, isSaving: false })
+    } catch (err) {
+      set({ error: (err as Error).message, isSaving: false })
+    }
+  },
+
+  queueAction: async (id, action) => {
+    set({ isSaving: true, error: null })
+    try {
+      const { status } = await jarvisApi.queueAction(id, action)
+      set({ status, isSaving: false })
+    } catch (err) {
+      set({ error: (err as Error).message, isSaving: false })
+    }
+  },
+
+  resolveApproval: async (id, decision, note) => {
+    set({ isSaving: true, error: null })
+    try {
+      const { status } = await jarvisApi.resolveApproval(id, decision, note)
       set({ status, isSaving: false })
     } catch (err) {
       set({ error: (err as Error).message, isSaving: false })

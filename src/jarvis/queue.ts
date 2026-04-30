@@ -139,6 +139,40 @@ export async function updateJarvisQueueItem(
   return next
 }
 
+export async function deleteJarvisQueueItem(id: string): Promise<JarvisQueueItem | null> {
+  const runtimeResult = await runtimeQueueRequest('jarvis.queue.delete', { id })
+  if (isRecord(runtimeResult)) {
+    const item = isQueueItem(runtimeResult.item)
+      ? normalizeQueueItem(runtimeResult.item)
+      : null
+    logQueueDiagnostic('delete', Boolean(item), {
+      itemId: id,
+      source: 'rust',
+    })
+    return item
+  }
+  const store = await readJarvisQueue()
+  const current = store.items.find(item => item.id === id)
+  if (!current) {
+    logQueueDiagnostic('delete', false, {
+      itemId: id,
+      source: 'typescript',
+      reason: 'not_found',
+    })
+    return null
+  }
+  await writeJarvisQueue({
+    version: 1,
+    items: store.items.filter(item => item.id !== id),
+  })
+  logQueueDiagnostic('delete', true, {
+    itemId: id,
+    source: 'typescript',
+    status: current.status,
+  })
+  return current
+}
+
 export async function recoverInterruptedJarvisQueue(): Promise<number> {
   const runtimeResult = await runtimeQueueRequest('jarvis.queue.recover', {})
   if (isRecord(runtimeResult) && typeof runtimeResult.recovered === 'number') {

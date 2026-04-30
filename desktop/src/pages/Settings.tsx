@@ -16,6 +16,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import type { AgentDefinition, AgentSource } from '../api/agents'
 import { MarkdownRenderer } from '../components/markdown/MarkdownRenderer'
 import { useSkillStore } from '../stores/skillStore'
+import { useJarvisStore } from '../stores/jarvisStore'
 import { SkillList } from '../components/skills/SkillList'
 import { SkillDetail } from '../components/skills/SkillDetail'
 import { ComputerUseSettings } from './ComputerUseSettings'
@@ -1766,7 +1767,17 @@ function PermissionSettings() {
 
 function GeneralSettings() {
   const { effortLevel, setEffort, locale, setLocale } = useSettingsStore()
+  const {
+    autostart,
+    isSaving: isJarvisSaving,
+    fetchStatus: fetchJarvisStatus,
+    updateAutostart,
+  } = useJarvisStore()
   const t = useTranslation()
+
+  useEffect(() => {
+    void fetchJarvisStatus()
+  }, [fetchJarvisStatus])
 
   const EFFORT_LABELS: Record<EffortLevel, string> = {
     low: t('settings.general.effort.low'),
@@ -1818,6 +1829,32 @@ function GeneralSettings() {
             {EFFORT_LABELS[level]}
           </button>
         ))}
+      </div>
+
+      {/* Startup */}
+      <div className="mt-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-container)] p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">开机自启</h2>
+            <p className="mt-1 text-sm text-[var(--color-text-tertiary)]">
+              系统登录后自动拉起 claude-yh 常驻服务，Jarvis 可以继续处理队列和恢复任务。
+            </p>
+            {autostart?.note && (
+              <p className="mt-2 text-xs text-[var(--color-text-tertiary)]">{autostart.note}</p>
+            )}
+          </div>
+          <label className={`relative inline-flex shrink-0 items-center ${autostart?.supported === false || isJarvisSaving ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+            <input
+              type="checkbox"
+              className="peer sr-only"
+              checked={autostart?.enabled ?? false}
+              disabled={autostart?.supported === false || isJarvisSaving}
+              onChange={(event) => void updateAutostart(event.target.checked)}
+            />
+            <span className="h-7 w-12 rounded-full bg-[var(--color-border)] transition-colors peer-checked:bg-[var(--color-brand)]" />
+            <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+          </label>
+        </div>
       </div>
     </div>
   )

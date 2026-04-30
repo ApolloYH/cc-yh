@@ -75,6 +75,9 @@ type RawEntry = {
   parent_tool_use_id?: string | null
   isSidechain?: boolean
   isMeta?: boolean
+  hiddenFromSessionList?: boolean
+  visibility?: string
+  origin?: string
   cwd?: string
   message?: {
     role?: string
@@ -465,6 +468,7 @@ export class SessionService {
     project?: string
     limit?: number
     offset?: number
+    includeHidden?: boolean
   }): Promise<{ sessions: SessionListItem[]; total: number }> {
     const sessionFiles = await this.discoverSessionFiles(options?.project)
 
@@ -475,6 +479,9 @@ export class SessionService {
       try {
         const stat = await fs.stat(filePath)
         const entries = await this.readJsonlFile(filePath)
+        if (!options?.includeHidden && this.isHiddenSession(entries)) {
+          continue
+        }
         const workDir = this.resolveWorkDirFromEntries(entries, projectDir)
         const workDirExists = await this.pathExists(workDir)
 
@@ -830,6 +837,26 @@ export class SessionService {
     }
   }
 
+  async markSessionHidden(
+    sessionId: string,
+    metadata: { origin: string; reason?: string; taskId?: string; runId?: string },
+  ): Promise<void> {
+    const found = await this.findSessionFile(sessionId)
+    if (!found) return
+
+    await this.appendJsonlEntry(found.filePath, {
+      type: 'session-meta',
+      isMeta: true,
+      visibility: 'hidden',
+      hiddenFromSessionList: true,
+      origin: metadata.origin,
+      reason: metadata.reason,
+      taskId: metadata.taskId,
+      runId: metadata.runId,
+      timestamp: new Date().toISOString(),
+    })
+  }
+
   // --------------------------------------------------------------------------
   // Private helpers
   // --------------------------------------------------------------------------
@@ -873,6 +900,45 @@ export class SessionService {
       }
     }
     return messages
+  }
+
+  private isHiddenSession(entries: RawEntry[]): boolean {
+    if (entries.some(entry =>
+      entry.type === 'session-meta' &&
+      (
+        entry.hiddenFromSessionList === true ||
+        entry.visibility === 'hidden' ||
+        entry.origin === 'jarvis'
+      ),
+    )) {
+      return true
+    }
+
+    for (const entry of entries) {
+      if (entry.isMeta || entry.type !== 'user' || entry.message?.role !== 'user') continue
+      const text = this.extractTextContent(entry.message.content)
+      return text.includes('You are running under claude-yh Jarvis execution.')
+    }
+    return false
+  }
+
+  private extractTextContent(content: unknown): string {
+    if (typeof content === 'string') return content
+    if (!Array.isArray(content)) return ''
+    return content
+      .map((block) => {
+        if (
+          block &&
+          typeof block === 'object' &&
+          (block as Record<string, unknown>).type === 'text' &&
+          typeof (block as Record<string, unknown>).text === 'string'
+        ) {
+          return (block as Record<string, unknown>).text as string
+        }
+        return ''
+      })
+      .filter(Boolean)
+      .join('\n')
   }
 
   private async pathExists(targetPath: string | null): Promise<boolean> {
