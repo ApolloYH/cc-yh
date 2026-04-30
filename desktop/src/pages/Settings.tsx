@@ -1220,14 +1220,6 @@ function SkillSettings() {
 
 // ─── About Settings ──────────────────────────────────────
 
-const GITHUB_REPO = 'https://github.com/NanmiCoder/claude-yh'
-const AUTHOR_GITHUB = 'https://github.com/NanmiCoder'
-const SOCIAL_LINKS = [
-  { name: 'Bilibili', icon: '/icons/bilibili.svg', url: 'https://space.bilibili.com/434377496', label: '程序员阿江-Relakkes' },
-  { name: 'Douyin', icon: '/icons/douyin.svg', url: 'https://www.douyin.com/user/MS4wLjABAAAATJPY7LAlaa5X-c8uNdWkvz0jUGgpw4eeXIwu_8BhvqE', label: '程序员阿江-Relakkes' },
-  { name: 'Xiaohongshu', icon: '/icons/xiaohongshu.svg', url: 'https://www.xiaohongshu.com/user/profile/5f58bd990000000001003753', label: '程序员阿江-Relakkes' },
-] as const
-
 function AboutSettings() {
   const t = useTranslation()
   const [version, setVersion] = useState('')
@@ -1248,10 +1240,6 @@ function AboutSettings() {
   useEffect(() => {
     void initialize()
   }, [initialize])
-
-  const openUrl = (url: string) => {
-    import('@tauri-apps/plugin-shell').then((mod) => mod.open(url)).catch(() => window.open(url, '_blank'))
-  }
 
   const checkedAtText =
     checkedAt
@@ -1281,26 +1269,11 @@ function AboutSettings() {
   return (
     <div className="w-full min-w-0 max-w-lg mx-auto flex flex-col items-center py-6">
       {/* Logo + App Name + Version */}
-      <img src="/app-icon.jpg" alt="Claude YH" className="w-20 h-20 rounded-2xl shadow-md mb-4" />
+      <img src="/app-icon.svg" alt="Claude YH" className="w-20 h-20 rounded-2xl shadow-md mb-4" />
       <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Claude YH</h1>
       {version && (
         <span className="text-xs text-[var(--color-text-tertiary)] mt-1">{t('settings.about.version')} {version}</span>
       )}
-
-      {/* GitHub Repo */}
-      <div className="mt-6 w-full">
-        <button
-          onClick={() => openUrl(GITHUB_REPO)}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--color-border)] hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer"
-        >
-          <img src="/icons/github.svg" alt="GitHub" className="w-5 h-5 opacity-70" />
-          <div className="flex-1 text-left">
-            <div className="text-sm font-medium text-[var(--color-text-primary)]">NanmiCoder/claude-yh</div>
-            <div className="text-xs text-[var(--color-text-tertiary)]">{t('settings.about.starHint')}</div>
-          </div>
-          <span className="material-symbols-outlined text-[16px] text-[var(--color-text-tertiary)]">open_in_new</span>
-        </button>
-      </div>
 
       <div className="mt-4 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
         <div className="flex items-start justify-between gap-3">
@@ -1387,48 +1360,6 @@ function AboutSettings() {
               </Button>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div className="w-full border-t border-[var(--color-border)]/40 my-6" />
-
-      {/* Author */}
-      <div className="w-full">
-        <h3 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">{t('settings.about.author')}</h3>
-        <button
-          onClick={() => openUrl(AUTHOR_GITHUB)}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer"
-        >
-          <img src="/icons/github.svg" alt="GitHub" className="w-4 h-4 opacity-60" />
-          <span className="text-sm text-[var(--color-text-primary)]">程序员阿江-Relakkes</span>
-          <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">GitHub</span>
-        </button>
-      </div>
-
-      {/* Social Media */}
-      <div className="w-full mt-4">
-        <h3 className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">{t('settings.about.socialMedia')}</h3>
-        <div className="flex flex-col gap-0.5">
-          {SOCIAL_LINKS.map((link) => (
-            <button
-              key={link.name}
-              onClick={() => openUrl(link.url)}
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer"
-            >
-              <img src={link.icon} alt={link.name} className="w-4 h-4 opacity-60" />
-              <span className="text-sm text-[var(--color-text-primary)]">{link.label}</span>
-              <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">{link.name}</span>
-            </button>
-          ))}
-          <button
-            onClick={() => openUrl('mailto:relakkes@gmail.com')}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-[var(--color-surface-hover)] transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[16px] opacity-60">mail</span>
-            <span className="text-sm text-[var(--color-text-primary)]">relakkes@gmail.com</span>
-            <span className="text-xs text-[var(--color-text-tertiary)] ml-auto">Email</span>
-          </button>
         </div>
       </div>
     </div>

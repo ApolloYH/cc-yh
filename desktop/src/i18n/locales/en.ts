@@ -19,6 +19,8 @@ export const en = {
   'sidebar.newSession': 'New session',
   'sidebar.scheduled': 'Scheduled',
   'sidebar.settings': 'Settings',
+  'sidebar.collapse': 'Collapse sidebar',
+  'sidebar.expand': 'Expand sidebar',
   'sidebar.searchPlaceholder': 'Search sessions...',
   'sidebar.noSessions': 'No sessions yet',
   'sidebar.noMatching': 'No matching sessions',
@@ -244,7 +246,7 @@ export const en = {
   'settings.about.author': 'Author',
   'settings.about.socialMedia': 'Social Media',
   'settings.about.updates': 'App Updates',
-  'settings.about.updatesDesc': 'Check GitHub Releases, download the installer, and relaunch after install.',
+  'settings.about.updatesDesc': 'Check for app updates, download the installer, and relaunch after install.',
 
   // Settings > Computer Use
   'settings.tab.computerUse': 'Computer Use',
@@ -586,7 +588,7 @@ export const en = {
   'update.currentVersionUnknown': 'Unknown',
   'update.newVersion': 'New version v{version} available',
   'update.downloading': 'Downloading...',
-  'update.idle': 'Check for updates to compare your installed version with the latest GitHub Release.',
+  'update.idle': 'Check for updates to compare your installed version with the latest available release.',
   'update.now': 'Update now',
   'update.later': 'Later',
   'update.progress': 'Downloading update... {progress}%',

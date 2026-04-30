@@ -21,6 +21,8 @@ export const zh: Record<TranslationKey, string> = {
   'sidebar.newSession': '新建会话',
   'sidebar.scheduled': '定时任务',
   'sidebar.settings': '设置',
+  'sidebar.collapse': '收起侧边栏',
+  'sidebar.expand': '展开侧边栏',
   'sidebar.searchPlaceholder': '搜索会话...',
   'sidebar.noSessions': '暂无会话',
   'sidebar.noMatching': '没有匹配的会话',
@@ -246,7 +248,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.about.author': '作者',
   'settings.about.socialMedia': '社交媒体',
   'settings.about.updates': '应用更新',
-  'settings.about.updatesDesc': '检查 GitHub Releases，下载安装包，并在安装后自动重启。',
+  'settings.about.updatesDesc': '检查应用更新，下载安装包，并在安装后自动重启。',
 
   // Settings > Computer Use
   'settings.tab.computerUse': 'Computer Use',
@@ -588,7 +590,7 @@ export const zh: Record<TranslationKey, string> = {
   'update.currentVersionUnknown': '未知版本',
   'update.newVersion': '新版本 v{version} 可用',
   'update.downloading': '下载中...',
-  'update.idle': '点击检查更新，对比当前安装版本和 GitHub Releases 的最新版本。',
+  'update.idle': '点击检查更新，对比当前安装版本和最新可用版本。',
   'update.now': '立即更新',
   'update.later': '稍后',
   'update.progress': '正在下载更新... {progress}%',

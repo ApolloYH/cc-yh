@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<svg baseProfile="full" height="640" version="1.1" viewBox="0 0 640 640" width="640" xmlns="http://www.w3.org/2000/svg">
+  <rect fill="none" height="640" width="640" x="0" y="0" />
+  <g transform="translate(75,30) scale(1.45)">
+    <path d="M50 120 L50 310 Q128 310 192 343 Q145 298 104 289 L104 171 Z M77 160 L124 186 L143 289 L121 215 L77 198 Z" fill="#14233C" fill-rule="evenodd" />
+    <path d="M50 120 L50 310 Q128 310 192 343 Q145 298 104 289 L104 171 Z M77 160 L124 186 L143 289 L121 215 L77 198 Z" fill="#14233C" fill-rule="evenodd" transform="translate(400,0) scale(-1,1)" />
+    <polygon fill="#C79250" points="70,360 330,360 350,380 50,380" />
+    <circle cx="200" cy="28" fill="#C79250" r="14" />
+    <path d="M96 106 H150 C166 106 171 112 171 125 V145" fill="none" stroke="#C79250" stroke-linecap="round" stroke-width="14" />
+    <path d="M304 106 H250 C234 106 229 112 229 125 V145" fill="none" stroke="#C79250" stroke-linecap="round" stroke-width="14" />
+    <line fill="none" stroke="#C79250" stroke-linecap="round" stroke-width="14" x1="200" x2="200" y1="106" y2="343" />
+    <line fill="none" stroke="#C79250" stroke-linecap="round" stroke-width="14" x1="135" x2="265" y1="155" y2="155" />
+    <line fill="none" stroke="#C79250" stroke-linecap="round" stroke-width="14" x1="132" x2="268" y1="193" y2="193" />
+    <line fill="none" stroke="#C79250" stroke-linecap="round" stroke-width="14" x1="140" x2="260" y1="231" y2="231" />
+    <line fill="none" stroke="#C79250" stroke-linecap="round" stroke-width="14" x1="150" x2="250" y1="270" y2="270" />
+  </g>
+</svg>

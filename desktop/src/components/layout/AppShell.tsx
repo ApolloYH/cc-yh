@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Sidebar } from './Sidebar'
 import { ContentRouter } from './ContentRouter'
 import { ToastContainer } from '../shared/Toast'
@@ -14,6 +14,7 @@ import { useTranslation } from '../../i18n'
 
 export function AppShell() {
   const fetchSettings = useSettingsStore((s) => s.fetchAll)
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const [ready, setReady] = useState(false)
   const [startupError, setStartupError] = useState<string | null>(null)
   const t = useTranslation()
@@ -93,8 +94,12 @@ export function AppShell() {
     )
   }
 
+  const shellStyle = {
+    '--sidebar-width': sidebarOpen ? '280px' : '72px',
+  } as CSSProperties
+
   return (
-    <div className="h-screen flex overflow-hidden">
+    <div className="h-screen flex overflow-hidden" style={shellStyle}>
       <Sidebar />
       <main id="content-area" className="flex-1 flex flex-col overflow-hidden">
         <TabBar />

@@ -339,7 +339,7 @@ export function EmptySession() {
     <div className="relative flex flex-1 flex-col overflow-hidden bg-[#FAF9F5]">
       <div className="flex flex-1 flex-col items-center justify-center p-8 pb-32">
         <div className="flex max-w-md flex-col items-center text-center">
-          <img src="/app-icon.jpg" alt="Claude YH" className="mb-6 h-24 w-24 rounded-[22px] shadow-[0_2px_12px_rgba(0,0,0,0.06)]" />
+          <img src="/app-icon.svg" alt="Claude YH" className="mb-6 h-24 w-24 rounded-[22px] shadow-[0_2px_12px_rgba(0,0,0,0.06)]" />
           <h1 className="mb-2 text-3xl font-extrabold tracking-tight text-[#1B1C1A]" style={{ fontFamily: "'Manrope', sans-serif" }}>
             {t('empty.title')}
           </h1>

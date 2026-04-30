@@ -13,6 +13,8 @@ vi.mock('../../i18n', () => ({
       'sidebar.newSession': 'New Session',
       'sidebar.scheduled': 'Scheduled',
       'sidebar.settings': 'Settings',
+      'sidebar.collapse': 'Collapse sidebar',
+      'sidebar.expand': 'Expand sidebar',
       'sidebar.searchPlaceholder': 'Search sessions',
       'sidebar.noSessions': 'No sessions',
       'sidebar.noMatching': 'No matching sessions',
@@ -65,6 +67,7 @@ describe('Sidebar', () => {
       connectToSession,
     } as Partial<ReturnType<typeof useChatStore.getState>>)
     useUIStore.setState({
+      sidebarOpen: true,
       addToast,
     } as Partial<ReturnType<typeof useUIStore.getState>>)
   })
@@ -111,5 +114,18 @@ describe('Sidebar', () => {
     })
 
     expect(useTabStore.getState().tabs).toEqual([])
+  })
+
+  it('toggles sidebar collapsed state', async () => {
+    render(<Sidebar />)
+
+    const toggle = screen.getByRole('button', { name: 'Collapse sidebar' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(useUIStore.getState().sidebarOpen).toBe(false)
   })
 })
