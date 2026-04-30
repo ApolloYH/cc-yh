@@ -307,6 +307,14 @@ export function EmptySession() {
     setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
   }
 
+  const insertGuidePrompt = (value: string) => {
+    setInput(value)
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(value.length, value.length)
+    })
+  }
+
   const selectSlashCommand = (command: string) => {
     const el = textareaRef.current
     if (!el) return
@@ -415,6 +423,26 @@ export function EmptySession() {
 
             {attachments.length > 0 && (
               <AttachmentGallery attachments={attachments} variant="composer" onRemove={removeAttachment} />
+            )}
+
+            {!input.trim() && attachments.length === 0 && (
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ['浏览器', '读取当前 Chrome 标签页，确认 BrowserControl 是否能读 DOM、截图和点击测试按钮'],
+                  ['网页搜索', '检查 Web 搜索配置，并用当前配置搜索一个简单问题'],
+                  ['Windows 诊断', '在 Windows/PowerShell 环境下诊断当前问题。请使用 Get-Process、Select-String、Get-NetTCPConnection，不要使用 grep。'],
+                  ['Jarvis', '查看 Jarvis 当前状态、队列和最近 checkpoint，并告诉我是否卡住'],
+                ] as Array<[string, string]>).map(([label, value]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => insertGuidePrompt(value)}
+                    className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:border-[var(--color-border-focus)] hover:bg-[var(--color-surface-hover)]"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             )}
 
             <div className="flex items-start gap-3">

@@ -348,13 +348,25 @@ export function SkillList() {
 
                   <div className="flex flex-col p-2">
                     {group.map((skill) => (
-                      <button
+                      <div
                         key={`${skill.source}-${skill.name}`}
                         onClick={() =>
                           skill.hasDirectory && fetchSkillDetail(skill.source, skill.name)
                         }
-                        disabled={!skill.hasDirectory}
-                        className="group rounded-xl border border-transparent px-3 py-3 text-left transition-all hover:border-[var(--color-border-focus)] hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)] disabled:opacity-60 disabled:cursor-default disabled:hover:bg-transparent disabled:hover:border-transparent"
+                        onKeyDown={(event) => {
+                          if (!skill.hasDirectory) return
+                          if (event.key !== 'Enter' && event.key !== ' ') return
+                          event.preventDefault()
+                          fetchSkillDetail(skill.source, skill.name)
+                        }}
+                        role="button"
+                        tabIndex={skill.hasDirectory ? 0 : -1}
+                        aria-disabled={!skill.hasDirectory}
+                        className={`group rounded-xl border border-transparent px-3 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)] ${
+                          skill.hasDirectory
+                            ? 'cursor-pointer hover:border-[var(--color-border-focus)] hover:bg-[var(--color-surface-hover)]'
+                            : 'cursor-default opacity-60'
+                        }`}
                       >
                         <div className="flex items-start gap-3">
                           <span className="mt-0.5 material-symbols-outlined text-[18px] text-[var(--color-text-tertiary)]">
@@ -409,7 +421,7 @@ export function SkillList() {
                             </span>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </section>

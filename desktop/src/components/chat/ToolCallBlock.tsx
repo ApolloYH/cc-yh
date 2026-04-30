@@ -38,10 +38,11 @@ export function ToolCallBlock({ toolName, input, result, compact = false }: Prop
   const filePath = typeof obj.file_path === 'string' ? obj.file_path : ''
   const summary = getToolSummary(toolName, obj, t)
   const outputSummary = getToolResultSummary(toolName, result?.content, t)
+  const errorText = result?.isError ? extractTextContent(result.content) : null
 
   const preview = useMemo(() => renderPreview(toolName, obj, result, t), [obj, result, toolName, t])
   const details = useMemo(() => renderDetails(toolName, obj, t), [obj, toolName, t])
-  const expandable = toolName === 'Edit' || toolName === 'Write'
+  const expandable = true
 
   return (
     <div className={`overflow-hidden rounded-lg border border-[var(--color-border)]/50 bg-[var(--color-surface-container-lowest)] ${
@@ -50,9 +51,7 @@ export function ToolCallBlock({ toolName, input, result, compact = false }: Prop
       <button
         type="button"
         onClick={() => {
-          if (expandable) {
-            setExpanded((value) => !value)
-          }
+          setExpanded((value) => !value)
         }}
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--color-surface-hover)]/50"
       >
@@ -77,7 +76,21 @@ export function ToolCallBlock({ toolName, input, result, compact = false }: Prop
           </span>
         )}
         {result?.isError && (
-          <span className="material-symbols-outlined shrink-0 text-[14px] text-[var(--color-error)]">error</span>
+          <span
+            className="group/error relative inline-flex shrink-0 items-center"
+            title={errorText ?? '工具执行失败'}
+            onClick={event => {
+              event.stopPropagation()
+              setExpanded(true)
+            }}
+          >
+            <span className="material-symbols-outlined text-[14px] text-[var(--color-error)]">error</span>
+            {errorText && (
+              <span className="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden max-w-[520px] whitespace-pre-wrap break-words rounded-lg border border-[var(--color-error)]/25 bg-[var(--color-surface-container-highest)] px-3 py-2 text-[11px] font-normal leading-5 text-[var(--color-text-primary)] shadow-xl group-hover/error:block">
+                {errorText}
+              </span>
+            )}
+          </span>
         )}
         {expandable && (
           <span className="material-symbols-outlined text-[14px] text-[var(--color-outline)]">
@@ -114,18 +127,24 @@ function renderPreview(
 
   if (toolName === 'Bash' && typeof obj.command === 'string') {
     return (
-      <TerminalChrome title={typeof obj.description === 'string' ? obj.description : filePath}>
-        <div className="px-3 py-2.5 font-[var(--font-mono)] text-[11px] leading-[1.3] text-[#d8d8d8]">
-          <span className="text-[#28c840]">$</span> {obj.command}
-        </div>
-      </TerminalChrome>
+      <>
+        <TerminalChrome title={typeof obj.description === 'string' ? obj.description : filePath}>
+          <div className="px-3 py-2.5 font-[var(--font-mono)] text-[11px] leading-[1.3] text-[#d8d8d8]">
+            <span className="text-[#28c840]">$</span> {obj.command}
+          </div>
+        </TerminalChrome>
+        {renderResultOutput(result, t)}
+      </>
     )
   }
 
-  if (toolName === 'Read') {
-    return null
-  }
+  return renderResultOutput(result, t)
+}
 
+function renderResultOutput(
+  result?: { content: unknown; isError: boolean } | null,
+  t?: (key: TranslationKey, params?: Record<string, string | number>) => string,
+) {
   if (result) {
     const text = extractTextContent(result.content)
     if (text) {

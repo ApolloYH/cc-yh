@@ -12,7 +12,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { useTranslation } from '../../i18n'
 import { ProjectFilter } from './ProjectFilter'
 import type { SessionListItem } from '../../types/session'
-import { useTabStore, SETTINGS_TAB_ID, SCHEDULED_TAB_ID, JARVIS_TAB_ID, WORKBENCH_TAB_ID } from '../../stores/tabStore'
+import { useTabStore, SETTINGS_TAB_ID, SCHEDULED_TAB_ID, JARVIS_TAB_ID } from '../../stores/tabStore'
 import { useChatStore } from '../../stores/chatStore'
 import { sessionsApi } from '../../api/sessions'
 
@@ -250,7 +250,6 @@ export function Sidebar() {
   const newSessionLabel = t('sidebar.newSession')
   const scheduledLabel = t('sidebar.scheduled')
   const jarvisLabel = t('sidebar.jarvis')
-  const workbenchLabel = t('sidebar.workbench')
   const settingsLabel = t('sidebar.settings')
   const sidebarToggleLabel = sidebarOpen ? t('sidebar.collapse') : t('sidebar.expand')
   const renderSessionRow = (session: SessionListItem) => {
@@ -401,15 +400,6 @@ export function Sidebar() {
           icon={<span className="material-symbols-outlined text-[18px]">sensors</span>}
         >
           {jarvisLabel}
-        </NavItem>
-        <NavItem
-          active={activeTabId === WORKBENCH_TAB_ID}
-          collapsed={!sidebarOpen}
-          label={workbenchLabel}
-          onClick={() => useTabStore.getState().openTab(WORKBENCH_TAB_ID, workbenchLabel, 'workbench')}
-          icon={<span className="material-symbols-outlined text-[18px]">hub</span>}
-        >
-          {workbenchLabel}
         </NavItem>
       </div>
 

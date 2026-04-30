@@ -1,8 +1,28 @@
 import { api } from './client'
-import type {
-  BrowserControlExecutionResult,
-  BrowserControlPolicy,
-} from './agentWorkbench'
+
+export type BrowserControlDecision = {
+  decision: 'allow' | 'confirm' | 'deny'
+  reason: string
+  confirmation?: string
+}
+
+export type BrowserControlExecutionResult = {
+  ok: boolean
+  backendId: string
+  decision: BrowserControlDecision
+  auditId: string
+  data?: unknown
+  error?: string
+}
+
+export type BrowserControlPolicy = {
+  enabled: boolean
+  allowedDomains: string[]
+  deniedDomains?: string[]
+  allowHighRiskBackends?: boolean
+  allowHighRiskCapabilities?: boolean
+  requireConfirmationForSensitiveActions?: boolean
+}
 
 export type BrowserControlStatus = {
   policy: BrowserControlPolicy

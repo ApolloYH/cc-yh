@@ -88,6 +88,17 @@ export type MemoryEmbeddingConfig = {
   source: 'env' | 'settings' | 'default'
 }
 
+export type MemoryEvent = {
+  timestamp?: string
+  scope?: string
+  event?: string
+  severity?: 'debug' | 'info' | 'warn' | 'error'
+  ok?: boolean
+  durationMs?: number
+  data?: Record<string, unknown>
+  error?: string
+}
+
 export const memoryApi = {
   status() {
     return api.get<MemoryV2Status>('/api/memory-v2')
@@ -120,5 +131,8 @@ export const memoryApi = {
   },
   updateEmbedding(input: Partial<MemoryEmbeddingConfig> & { apiKey?: string; apiKeyEnv?: string }) {
     return api.put<{ config: MemoryEmbeddingConfig }>('/api/memory-v2/embedding', input)
+  },
+  events(limit = 50) {
+    return api.get<{ path: string; events: MemoryEvent[] }>(`/api/memory-v2/events?limit=${limit}`)
   },
 }

@@ -6,9 +6,8 @@ const TAB_STORAGE_KEY = 'claude-yh-open-tabs'
 export const SETTINGS_TAB_ID = '__settings__'
 export const SCHEDULED_TAB_ID = '__scheduled__'
 export const JARVIS_TAB_ID = '__jarvis__'
-export const WORKBENCH_TAB_ID = '__agent_workbench__'
 
-export type TabType = 'session' | 'settings' | 'scheduled' | 'jarvis' | 'workbench'
+export type TabType = 'session' | 'settings' | 'scheduled' | 'jarvis'
 
 export type Tab = {
   sessionId: string
@@ -18,7 +17,7 @@ export type Tab = {
 }
 
 type TabPersistence = {
-  openTabs: Array<{ sessionId: string; title: string; type?: TabType }>
+  openTabs: Array<{ sessionId: string; title: string; type?: TabType | string }>
   activeTabId: string | null
 }
 
@@ -143,12 +142,12 @@ export const useTabStore = create<TabStore>((set, get) => ({
       const validTabs: Tab[] = data.openTabs
         .filter((t) => {
           // Special tabs are always valid
-          if (t.type === 'settings' || t.type === 'scheduled' || t.type === 'jarvis' || t.type === 'workbench') return true
+          if (t.type === 'settings' || t.type === 'scheduled' || t.type === 'jarvis') return true
           // Session tabs must exist on server
           return existingIds.has(t.sessionId)
         })
         .map((t) => {
-          if (t.type === 'settings' || t.type === 'scheduled' || t.type === 'jarvis' || t.type === 'workbench') {
+          if (t.type === 'settings' || t.type === 'scheduled' || t.type === 'jarvis') {
             return { sessionId: t.sessionId, title: t.title, type: t.type, status: 'idle' as const }
           }
           return {

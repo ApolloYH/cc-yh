@@ -164,6 +164,15 @@ export function AppShell() {
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
       <Sidebar />
       <main id="content-area" className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {showWindowControls && (
+          <div
+            data-tauri-drag-region
+            className="flex h-[28px] flex-shrink-0 items-stretch bg-[var(--color-surface)] select-none"
+          >
+            <div className="min-w-0 flex-1" data-tauri-drag-region />
+            <WindowControls />
+          </div>
+        )}
         <ContentRouter />
       </main>
     </div>
@@ -171,15 +180,6 @@ export function AppShell() {
 
   return (
     <div className="cc-app-shell-enter flex h-screen min-h-0 min-w-0 flex-col overflow-hidden" style={shellStyle}>
-      {showWindowControls && (
-        <div
-          data-tauri-drag-region
-          className="flex h-[28px] flex-shrink-0 items-stretch border-b border-[var(--color-border)] bg-[var(--color-surface-container)] select-none"
-        >
-          <div className="min-w-0 flex-1" data-tauri-drag-region />
-          <WindowControls />
-        </div>
-      )}
       {appContent}
       <ToastContainer />
       <UpdateChecker />

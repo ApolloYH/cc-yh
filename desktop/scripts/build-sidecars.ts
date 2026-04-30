@@ -52,7 +52,15 @@ async function isSidecarFresh(outputPath: string): Promise<boolean> {
   const latestSourceMtime = await latestMtime([
     path.join(desktopRoot, 'sidecars'),
     path.join(repoRoot, 'src', 'server'),
+    path.join(repoRoot, 'src', 'browserControl'),
+    path.join(repoRoot, 'src', 'bridge'),
+    path.join(repoRoot, 'src', 'memdir'),
+    path.join(repoRoot, 'src', 'memoryV2'),
+    path.join(repoRoot, 'src', 'runtime'),
     path.join(repoRoot, 'src', 'sdk'),
+    path.join(repoRoot, 'src', 'services'),
+    path.join(repoRoot, 'src', 'skills'),
+    path.join(repoRoot, 'src', 'tools'),
     path.join(repoRoot, 'src', 'utils'),
     path.join(repoRoot, 'src', 'entrypoints'),
   ])
@@ -185,7 +193,6 @@ async function compileExecutable({
       // ant-internal / 可选工具
       '@anthropic-ai/mcpb',
       'fflate',
-      'turndown',
       'sharp',
       'react-devtools-core',
     ],

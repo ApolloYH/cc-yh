@@ -16,7 +16,7 @@ describe('chat blocks', () => {
   it('keeps thinking collapsed by default', () => {
     const { container } = render(<ThinkingBlock content="this is a long internal reasoning trace" isActive />)
 
-    expect(screen.getByText(/Thinking/)).toBeTruthy()
+    expect(screen.getByText(/思考中|Thinking/)).toBeTruthy()
     expect(container.textContent).toContain('this is a long internal reasoning trace')
     expect(container.querySelector('.thinking-cursor')).toBeNull()
   })
@@ -27,7 +27,7 @@ describe('chat blocks', () => {
     expect(container.querySelector('.thinking-inline-cursor')).toBeNull()
   })
 
-  it('shows tool previews only after expanding the tool block', () => {
+  it('shows tool previews after expanding the tool block', () => {
     const { container } = render(
       <ToolCallBlock
         toolName="Read"
@@ -41,11 +41,11 @@ describe('chat blocks', () => {
 
     fireEvent.click(screen.getByRole('button'))
 
-    expect(container.textContent).not.toContain('Tool Input')
-    expect(container.textContent).not.toContain('const answer = 42')
+    expect(container.textContent).toMatch(/Tool Input|工具输入/)
+    expect(container.textContent).toContain('const answer = 42')
   })
 
-  it('does not surface bash stdout in the transcript preview', () => {
+  it('keeps bash stdout collapsed until the tool block is expanded', () => {
     const { container } = render(
       <ToolCallBlock
         toolName="Bash"
@@ -60,7 +60,7 @@ describe('chat blocks', () => {
     fireEvent.click(screen.getByRole('button'))
 
     expect(container.textContent).toContain('ls -la')
-    expect(container.textContent).not.toContain('file-a')
+    expect(container.textContent).toContain('file-a')
   })
 
   it('shows a diff preview for edit permission requests', () => {
@@ -107,7 +107,7 @@ describe('chat blocks', () => {
     )
 
     expect(container.textContent).toContain('/tmp/example.ts')
-    expect(container.textContent).toContain('Allow')
+    expect(container.textContent).toMatch(/Allow|允许/)
     // react-diff-viewer-continued uses styled-components tables that don't
     // fully render in jsdom, so we verify the DiffViewer wrapper is mounted
     expect(container.querySelector('[class*="rounded-[var(--radius-lg)]"]')).toBeTruthy()

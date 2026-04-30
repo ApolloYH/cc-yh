@@ -18,8 +18,7 @@ export const en = {
   // ─── Sidebar ──────────────────────────────────────
   'sidebar.newSession': 'New session',
   'sidebar.scheduled': 'Scheduled',
-  'sidebar.jarvis': 'Away Session',
-  'sidebar.workbench': 'Agent Workbench',
+  'sidebar.jarvis': 'Jarvis',
   'sidebar.settings': 'Settings',
   'sidebar.collapse': 'Collapse sidebar',
   'sidebar.expand': 'Expand sidebar',
@@ -54,6 +53,7 @@ export const en = {
   'settings.tab.general': 'General',
   'settings.tab.skills': 'Skills',
   'settings.tab.browser': 'Browser',
+  'settings.tab.webSearch': 'Web Search',
   'settings.tab.memory': 'Memory',
 
   // Settings > Claude Official Login
@@ -212,7 +212,7 @@ export const en = {
 
   // Settings > Skills
   'settings.skills.title': 'Installed Skills',
-  'settings.skills.description': 'Skills extend Claude YH with specialized capabilities. Install, create, and manage user skills here, backed by ~/.claude-yh/skills/.',
+  'settings.skills.description': 'Skills extend Claude YH with specialized capabilities. Installed, imported, and created skills are stored in global L3: ~/.claude-yh/memory/sops/skills/.',
   'settings.skills.browserTitle': 'Browse installed skills',
   'settings.skills.browserEyebrow': 'Skill Browser',
   'settings.skills.browserDescription': 'Inspect bundled, project, and user skills, compare their scope, and open each skill folder to read its docs and source files.',
@@ -230,7 +230,7 @@ export const en = {
   'settings.skills.ready': 'Ready',
   'settings.skills.unavailable': 'Unavailable',
   'settings.skills.empty': 'No skills installed',
-  'settings.skills.emptyHint': 'Add skills to ~/.claude-yh/skills/ to get started',
+  'settings.skills.emptyHint': 'Add skills to ~/.claude-yh/memory/sops/skills/ to get started',
   'settings.skills.back': 'Back to list',
   'settings.skills.refresh': 'Refresh',
   'settings.skills.installLocal': 'Install skill',
@@ -254,7 +254,7 @@ export const en = {
   'settings.skills.installConfirm': 'Install',
   'settings.skills.browse': 'Browse',
   'settings.skills.createModalTitle': 'Create a new skill',
-  'settings.skills.createModalHint': 'Create a starter skill scaffold directly inside ~/.claude-yh/skills.',
+  'settings.skills.createModalHint': 'Create a starter skill scaffold directly inside ~/.claude-yh/memory/sops/skills.',
   'settings.skills.createConfirm': 'Create skill',
   'settings.skills.newSkillNameLabel': 'Skill folder name',
   'settings.skills.newSkillNamePlaceholder': 'e.g. internal-reviewer',

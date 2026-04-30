@@ -5,7 +5,7 @@ import { useTranslation } from '../i18n'
 import { Modal } from '../components/shared/Modal'
 import { Input } from '../components/shared/Input'
 import { Button } from '../components/shared/Button'
-import type { PermissionMode, EffortLevel } from '../types/settings'
+import type { PermissionMode, EffortLevel, WebSearchSettings as WebSearchSettingsConfig } from '../types/settings'
 import type { Locale } from '../i18n'
 import { PROVIDER_PRESETS } from '../config/providerPresets'
 import type { ProviderPreset } from '../config/providerPresets'
@@ -22,10 +22,14 @@ import { ComputerUseSettings } from './ComputerUseSettings'
 import { UsageSettings } from './UsageSettings'
 import { useUIStore, type SettingsTab } from '../stores/uiStore'
 import { useUpdateStore } from '../stores/updateStore'
+import { settingsApi } from '../api/settings'
 import { providersApi, type AuthStatusResponse } from '../api/providers'
-import { browserControlApi } from '../api/browserControl'
-import type { BrowserControlPolicy, BrowserControlExecutionResult } from '../api/agentWorkbench'
-import { memoryApi, type MemoryEmbeddingConfig, type MemoryLayer, type MemoryV2Entry, type MemoryV2SearchResult } from '../api/memory'
+import {
+  browserControlApi,
+  type BrowserControlPolicy,
+  type BrowserControlExecutionResult,
+} from '../api/browserControl'
+import { memoryApi, type MemoryEmbeddingConfig, type MemoryEvent, type MemoryLayer, type MemoryV2Entry, type MemoryV2SearchResult } from '../api/memory'
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers')
@@ -51,6 +55,7 @@ export function Settings() {
             <TabButton icon="smart_toy" label={t('settings.tab.agents')} active={activeTab === 'agents'} onClick={() => setActiveTab('agents')} />
             <TabButton icon="auto_awesome" label={t('settings.tab.skills')} active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
             <TabButton icon="language" label={t('settings.tab.browser')} active={activeTab === 'browser'} onClick={() => setActiveTab('browser')} />
+            <TabButton icon="travel_explore" label={t('settings.tab.webSearch')} active={activeTab === 'webSearch'} onClick={() => setActiveTab('webSearch')} />
             <TabButton icon="psychology" label={t('settings.tab.memory')} active={activeTab === 'memory'} onClick={() => setActiveTab('memory')} />
             <TabButton icon="mouse" label={t('settings.tab.computerUse')} active={activeTab === 'computerUse'} onClick={() => setActiveTab('computerUse')} />
             <TabButton icon="bar_chart" label="使用统计" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
@@ -69,7 +74,8 @@ export function Settings() {
           {activeTab === 'agents' && <AgentsSettings />}
           {activeTab === 'skills' && <SkillSettings />}
           {activeTab === 'browser' && <BrowserSettings />}
-          {activeTab === 'memory' && <MemorySettings />}
+          {activeTab === 'webSearch' && <WebSearchSettings />}
+          {activeTab === 'memory' && <MemorySettings active={activeTab === 'memory'} />}
           {activeTab === 'computerUse' && <ComputerUseSettings />}
           {activeTab === 'usage' && <UsageSettings />}
           {activeTab === 'about' && <AboutSettings />}
@@ -99,10 +105,7 @@ function BrowserSettings() {
   const [policy, setPolicy] = useState<BrowserControlPolicy | null>(null)
   const [tabsResult, setTabsResult] = useState<BrowserControlExecutionResult | null>(null)
   const [diagnostics, setDiagnostics] = useState<Awaited<ReturnType<typeof browserControlApi.status>>['diagnostics'] | null>(null)
-  const [allowedDomains, setAllowedDomains] = useState('*')
-  const [deniedDomains, setDeniedDomains] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const t = useTranslation()
@@ -114,8 +117,6 @@ function BrowserSettings() {
         if (cancelled) return
         setPolicy(result.policy)
         setDiagnostics(result.diagnostics ?? null)
-        setAllowedDomains(result.policy.allowedDomains.join('\n') || '*')
-        setDeniedDomains((result.policy.deniedDomains ?? []).join('\n'))
       })
       .catch(err => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))
@@ -127,18 +128,13 @@ function BrowserSettings() {
   }, [])
 
   const savePolicy = async (patch: Partial<BrowserControlPolicy>) => {
-    setIsSaving(true)
     setError(null)
     try {
       const result = await browserControlApi.updatePolicy(patch)
       setPolicy(result.policy)
       setDiagnostics(result.diagnostics ?? null)
-      setAllowedDomains(result.policy.allowedDomains.join('\n') || '*')
-      setDeniedDomains((result.policy.deniedDomains ?? []).join('\n'))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setIsSaving(false)
     }
   }
 
@@ -220,25 +216,6 @@ function BrowserSettings() {
           </section>
 
           <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
-            <h3 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">{t('settings.browser.domains')}</h3>
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">{t('settings.browser.allowedDomains')}</span>
-                <textarea value={allowedDomains} onChange={event => setAllowedDomains(event.target.value)} rows={5} className="w-full resize-y rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]" />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">{t('settings.browser.deniedDomains')}</span>
-                <textarea value={deniedDomains} onChange={event => setDeniedDomains(event.target.value)} rows={5} className="w-full resize-y rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]" />
-              </label>
-            </div>
-            <div className="mt-3 flex justify-end">
-              <Button size="sm" onClick={() => void savePolicy({ allowedDomains: parseDomainList(allowedDomains, ['*']), deniedDomains: parseDomainList(deniedDomains) })} loading={isSaving}>
-                {t('common.save')}
-              </Button>
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">{t('settings.browser.currentTabs')}</h3>
               <span className="text-xs text-[var(--color-text-tertiary)]">{tabsResult ? tabsResult.ok ? `${tabs.length} tabs` : tabsResult.error : t('settings.browser.notTested')}</span>
@@ -274,17 +251,319 @@ function BrowserToggle({ label, detail, checked, onChange }: { label: string; de
   )
 }
 
-function parseDomainList(value: string, fallback: string[] = []) {
-  const items = value.split(/\r?\n|,/).map(item => item.trim()).filter(Boolean)
-  return items.length > 0 ? [...new Set(items)] : fallback
-}
-
 function extractTabs(data: unknown): Array<{ id: number; title?: string; url?: string }> {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return []
   const tabs = (data as { tabs?: unknown }).tabs
   if (!Array.isArray(tabs)) return []
   return tabs.filter((tab): tab is { id: number; title?: string; url?: string } =>
     tab !== null && typeof tab === 'object' && typeof (tab as { id?: unknown }).id === 'number',
+  )
+}
+
+type NormalizedWebSearchSettings = Required<Omit<WebSearchSettingsConfig, 'custom'>> & {
+  custom: Required<NonNullable<WebSearchSettingsConfig['custom']>>
+}
+
+const DEFAULT_WEB_SEARCH_SETTINGS: NormalizedWebSearchSettings = {
+  enabled: true,
+  mode: 'auto',
+  localProvider: 'duckduckgo',
+  maxResults: 8,
+  custom: {
+    endpoint: '',
+    method: 'GET',
+    apiKey: '',
+    authHeader: 'Authorization',
+    authPrefix: 'Bearer',
+    queryParam: 'q',
+    headers: {},
+    bodyTemplate: '',
+    resultsPath: 'results',
+    titlePath: 'title',
+    urlPath: 'url',
+    snippetPath: 'snippet',
+  },
+}
+
+function WebSearchSettings() {
+  const [config, setConfig] = useState<NormalizedWebSearchSettings>(DEFAULT_WEB_SEARCH_SETTINGS)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    settingsApi.getUser()
+      .then((settings) => {
+        if (!cancelled) setConfig(normalizeWebSearchSettings(settings.webSearch))
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const save = async (patch: Partial<WebSearchSettingsConfig>) => {
+    const next = normalizeWebSearchSettings({ ...config, ...patch })
+    setConfig(next)
+    setIsSaving(true)
+    setError(null)
+    setMessage('')
+    try {
+      await settingsApi.updateUser({ webSearch: next })
+      setMessage('已保存到 ~/.claude-yh/settings.json。CLI 同步命令：/web-search status、/web-search provider custom。')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="max-w-3xl">
+      <div className="mb-5">
+        <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Web 搜索</h2>
+        <p className="mt-1 text-sm leading-6 text-[var(--color-text-tertiary)]">
+          非 Claude 官方服务商不能使用 Anthropic 服务端 web_search。这里可以配置本地 DuckDuckGo fallback，或接入你购买的第三方搜索 JSON API。
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-[var(--color-error)]/25 bg-[var(--color-error)]/6 px-4 py-3 text-sm text-[var(--color-error)]">
+          {error}
+        </div>
+      )}
+      {message && (
+        <div className="mb-4 rounded-xl border border-[var(--color-success)]/25 bg-[var(--color-success)]/8 px-4 py-3 text-sm text-[var(--color-success)]">
+          {message}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="py-8 text-sm text-[var(--color-text-tertiary)]">加载中...</div>
+      ) : (
+        <div className="grid gap-4">
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <BrowserToggle
+                label="启用 WebSearch"
+                detail="模型可以调用 WebSearch 工具；关闭后所有服务商都不会搜索。"
+                checked={config.enabled}
+                onChange={enabled => void save({ enabled, mode: enabled ? config.mode === 'off' ? 'auto' : config.mode : 'off' })}
+              />
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <label className="text-sm font-medium text-[var(--color-text-primary)]">搜索模式</label>
+                <select
+                  value={config.mode}
+                  disabled={isSaving}
+                  onChange={event => void save({ mode: event.target.value as NormalizedWebSearchSettings['mode'], enabled: event.target.value !== 'off' })}
+                  className="mt-2 h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                >
+                  <option value="auto">自动：Claude 服务端优先，本地 provider fallback</option>
+                  <option value="anthropic">只用 Anthropic 服务端搜索</option>
+                  <option value="local">只用本地 provider</option>
+                  <option value="off">关闭</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <label className="text-sm font-medium text-[var(--color-text-primary)]">本地 Provider</label>
+                <select
+                  value={config.localProvider}
+                  disabled={isSaving}
+                  onChange={event => void save({ localProvider: event.target.value as NormalizedWebSearchSettings['localProvider'] })}
+                  className="mt-2 h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                >
+                  <option value="duckduckgo">DuckDuckGo HTML fallback</option>
+                  <option value="custom">第三方搜索 JSON API</option>
+                </select>
+                <p className="mt-1 text-xs leading-5 text-[var(--color-text-tertiary)]">
+                  选 custom 后，模型调用 WebSearch 时会请求你配置的第三方搜索服务，不走 Claude 服务端搜索。
+                </p>
+              </div>
+              <label className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <span className="text-sm font-medium text-[var(--color-text-primary)]">最大结果数</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={config.maxResults}
+                  disabled={isSaving}
+                  onChange={event => void save({ maxResults: Number.parseInt(event.target.value, 10) || 8 })}
+                  className="mt-2 h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                />
+              </label>
+            </div>
+          </section>
+
+          {config.localProvider === 'custom' && (
+            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">第三方搜索 API</h3>
+                <p className="mt-1 text-xs leading-5 text-[var(--color-text-tertiary)]">
+                  支持 GET 或 POST JSON。结果会按下面的 JSON path 解析成 title/url/snippet。
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextSetting
+                  label="Endpoint"
+                  value={config.custom.endpoint}
+                  placeholder="https://api.example.com/search"
+                  disabled={isSaving}
+                  onBlur={endpoint => void save({ custom: { ...config.custom, endpoint } })}
+                />
+                <label className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">Method</span>
+                  <select
+                    value={config.custom.method}
+                    disabled={isSaving}
+                    onChange={event => void save({ custom: { ...config.custom, method: event.target.value as 'GET' | 'POST' } })}
+                    className="mt-2 h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                  >
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                  </select>
+                </label>
+                <TextSetting
+                  label="API Key"
+                  type="password"
+                  value={config.custom.apiKey}
+                  placeholder="sk-..."
+                  disabled={isSaving}
+                  onBlur={apiKey => void save({ custom: { ...config.custom, apiKey } })}
+                />
+                <TextSetting
+                  label="认证 Header"
+                  value={config.custom.authHeader}
+                  placeholder="Authorization 或 X-API-Key"
+                  disabled={isSaving}
+                  onBlur={authHeader => void save({ custom: { ...config.custom, authHeader } })}
+                />
+                <TextSetting
+                  label="认证前缀"
+                  value={config.custom.authPrefix}
+                  placeholder="Bearer；如果服务商不需要前缀就留空"
+                  disabled={isSaving}
+                  onBlur={authPrefix => void save({ custom: { ...config.custom, authPrefix } })}
+                />
+                <TextSetting
+                  label="GET 查询参数"
+                  value={config.custom.queryParam}
+                  placeholder="q"
+                  disabled={isSaving}
+                  onBlur={queryParam => void save({ custom: { ...config.custom, queryParam } })}
+                />
+                <TextSetting
+                  label="结果数组 path"
+                  value={config.custom.resultsPath}
+                  placeholder="results 或 data.items"
+                  disabled={isSaving}
+                  onBlur={resultsPath => void save({ custom: { ...config.custom, resultsPath } })}
+                />
+                <TextSetting
+                  label="标题 path"
+                  value={config.custom.titlePath}
+                  placeholder="title"
+                  disabled={isSaving}
+                  onBlur={titlePath => void save({ custom: { ...config.custom, titlePath } })}
+                />
+                <TextSetting
+                  label="URL path"
+                  value={config.custom.urlPath}
+                  placeholder="url 或 link"
+                  disabled={isSaving}
+                  onBlur={urlPath => void save({ custom: { ...config.custom, urlPath } })}
+                />
+                <TextSetting
+                  label="摘要 path"
+                  value={config.custom.snippetPath}
+                  placeholder="snippet 或 content"
+                  disabled={isSaving}
+                  onBlur={snippetPath => void save({ custom: { ...config.custom, snippetPath } })}
+                />
+              </div>
+              <label className="mt-3 block rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <span className="text-sm font-medium text-[var(--color-text-primary)]">POST Body 模板</span>
+                <textarea
+                  value={config.custom.bodyTemplate}
+                  disabled={isSaving}
+                  placeholder={'{"query":"{{query}}","limit":{{maxResults}}}'}
+                  onChange={event => setConfig({ ...config, custom: { ...config.custom, bodyTemplate: event.target.value } })}
+                  onBlur={event => void save({ custom: { ...config.custom, bodyTemplate: event.target.value } })}
+                  rows={3}
+                  className="mt-2 w-full resize-none rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3 py-2 font-mono text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                />
+                <p className="mt-1 text-xs leading-5 text-[var(--color-text-tertiary)]">
+                  可用变量：{'{{query}}'}、{'{{maxResults}}'}。GET 模式会忽略这个模板。
+                </p>
+              </label>
+            </section>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function normalizeWebSearchSettings(value: unknown): NormalizedWebSearchSettings {
+  const input = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as WebSearchSettingsConfig
+    : {}
+  const mode = input.mode === 'anthropic' || input.mode === 'local' || input.mode === 'off'
+    ? input.mode
+    : 'auto'
+  const maxResults = typeof input.maxResults === 'number'
+    ? Math.max(1, Math.min(20, Math.floor(input.maxResults)))
+    : DEFAULT_WEB_SEARCH_SETTINGS.maxResults
+  return {
+    enabled: input.enabled !== false && mode !== 'off',
+    mode,
+    localProvider: input.localProvider === 'custom' ? 'custom' : 'duckduckgo',
+    maxResults,
+    custom: {
+      ...DEFAULT_WEB_SEARCH_SETTINGS.custom,
+      ...(input.custom ?? {}),
+      method: input.custom?.method === 'POST' ? 'POST' : 'GET',
+      headers: input.custom?.headers ?? {},
+    },
+  }
+}
+
+function TextSetting(props: {
+  label: string
+  value: string
+  placeholder?: string
+  disabled?: boolean
+  type?: string
+  onBlur: (value: string) => void
+}) {
+  const [value, setValue] = useState(props.value)
+
+  useEffect(() => {
+    setValue(props.value)
+  }, [props.value])
+
+  return (
+    <label className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+      <span className="text-sm font-medium text-[var(--color-text-primary)]">{props.label}</span>
+      <input
+        type={props.type ?? 'text'}
+        value={value}
+        disabled={props.disabled}
+        placeholder={props.placeholder}
+        onChange={event => setValue(event.target.value)}
+        onBlur={() => props.onBlur(value)}
+        className="mt-2 h-9 w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-3 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+      />
+    </label>
   )
 }
 
@@ -316,7 +595,7 @@ function memoryFreshnessLabel(entry: MemoryV2Entry): string {
   }
 }
 
-function MemorySettings() {
+function MemorySettings({ active }: { active: boolean }) {
   const [status, setStatus] = useState<Awaited<ReturnType<typeof memoryApi.status>> | null>(null)
   const [selected, setSelected] = useState<{ layer: MemoryLayer; id: string } | null>(null)
   const [entry, setEntry] = useState<MemoryV2Entry | null>(null)
@@ -325,16 +604,23 @@ function MemorySettings() {
   const [results, setResults] = useState<MemoryV2SearchResult[]>([])
   const [embeddingConfig, setEmbeddingConfig] = useState<MemoryEmbeddingConfig | null>(null)
   const [embeddingApiKey, setEmbeddingApiKey] = useState('')
+  const [memoryEvents, setMemoryEvents] = useState<MemoryEvent[]>([])
+  const [memoryEventsPath, setMemoryEventsPath] = useState('')
   const [message, setMessage] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isWorking, setIsWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const reload = async () => {
-    const next = await memoryApi.status()
+    const [next, embedding, events] = await Promise.all([
+      memoryApi.status(),
+      memoryApi.embedding(),
+      memoryApi.events(50),
+    ])
     setStatus(next)
-    const embedding = await memoryApi.embedding()
     setEmbeddingConfig(embedding.config)
+    setMemoryEvents(events.events)
+    setMemoryEventsPath(events.path)
     if (!selected) {
       const first = next.layers[0]?.entries[0]
       if (first) setSelected({ layer: first.layer, id: first.id })
@@ -343,11 +629,13 @@ function MemorySettings() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([memoryApi.status(), memoryApi.embedding()])
+    Promise.all([memoryApi.status(), memoryApi.embedding(), memoryApi.events(50)])
       .then(next => {
         if (cancelled) return
         setStatus(next[0])
         setEmbeddingConfig(next[1].config)
+        setMemoryEvents(next[2].events)
+        setMemoryEventsPath(next[2].path)
         const first = next[0].layers[0]?.entries[0]
         if (first) setSelected({ layer: first.layer, id: first.id })
       })
@@ -359,6 +647,34 @@ function MemorySettings() {
       })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    if (!active) return
+    let cancelled = false
+    setError(null)
+    Promise.all([memoryApi.status(), memoryApi.embedding(), memoryApi.events(50)])
+      .then(next => {
+        if (cancelled) return
+        setStatus(next[0])
+        setEmbeddingConfig(next[1].config)
+        setMemoryEvents(next[2].events)
+        setMemoryEventsPath(next[2].path)
+        if (!selected) {
+          const first = next[0].layers[0]?.entries[0]
+          if (first) setSelected({ layer: first.layer, id: first.id })
+        }
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => { cancelled = true }
+  // Deliberately refresh when the tab becomes active. Do not depend on selected,
+  // otherwise selecting an entry triggers a full status reload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active])
 
   useEffect(() => {
     if (!selected) return
@@ -441,17 +757,14 @@ function MemorySettings() {
 
   return (
     <div className="max-w-6xl">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">记忆</h2>
-          <p className="mt-1 text-sm leading-6 text-[var(--color-text-tertiary)]">L1 索引、L2 事实、L3 SOP 和 Skill、L4 会话归档；支持摘要、向量搜索、陈旧检测和沉淀候选。</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => void runAction(async () => `已生成 ${(await memoryApi.summarize(20)).entries.length} 条 L4 会话摘要。`)} loading={isWorking}>生成摘要</Button>
-          <Button size="sm" onClick={() => void runAction(async () => `发现 ${(await memoryApi.stale()).entries.length} 条陈旧记忆。`)} loading={isWorking}>陈旧检测</Button>
-          <Button size="sm" onClick={() => void runAction(async () => `生成 ${(await memoryApi.distill(false)).candidates.length} 条沉淀候选。`)} loading={isWorking}>生成候选</Button>
-          <Button size="sm" onClick={() => void runAction(async () => `已应用 ${(await memoryApi.distill(true)).applied?.length ?? 0} 条候选。`)} loading={isWorking}>应用候选</Button>
-        </div>
+      <div className="mb-5">
+        <h2 className="text-base font-semibold text-[var(--color-text-primary)]">记忆</h2>
+        <p className="mt-1 text-sm leading-6 text-[var(--color-text-tertiary)]">L1 索引、L2 事实、L3 SOP 和 Skill、L4 会话归档；摘要、陈旧检测和沉淀会在会话流程中自动完成。</p>
+        {status && (
+          <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
+            当前目录：{status.root} · L1：{status.indexPath}
+          </p>
+        )}
       </div>
 
       {error && <div className="mb-4 rounded-xl border border-[var(--color-error)]/25 bg-[var(--color-error)]/6 px-4 py-3 text-sm text-[var(--color-error)]">{error}</div>}
@@ -512,6 +825,12 @@ function MemorySettings() {
               </div>
             </section>
           )}
+          <MemoryEventsPanel
+            events={memoryEvents}
+            path={memoryEventsPath}
+            onRefresh={() => void reload()}
+            isLoading={isWorking}
+          />
           <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-3">
             <div className="mb-3 flex gap-2">
@@ -598,6 +917,82 @@ function MemoryMeta({ label, value }: { label: string; value: string }) {
       <div className="mt-1 truncate text-sm font-medium text-[var(--color-text-primary)]">{value}</div>
     </div>
   )
+}
+
+function MemoryEventsPanel({
+  events,
+  path,
+  onRefresh,
+  isLoading,
+}: {
+  events: MemoryEvent[]
+  path: string
+  onRefresh: () => void
+  isLoading: boolean
+}) {
+  return (
+    <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">记忆更新记录</h3>
+          <p className="mt-1 text-xs leading-5 text-[var(--color-text-tertiary)]">
+            记录会话结束抽取、L4 摘要、向量刷新、陈旧检测和自动沉淀结果。
+          </p>
+          {path && <p className="mt-1 truncate text-xs text-[var(--color-text-tertiary)]">{path}</p>}
+        </div>
+        <Button size="sm" onClick={onRefresh} loading={isLoading}>刷新记录</Button>
+      </div>
+      {events.length === 0 ? (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-tertiary)]">
+          暂无记忆抽取记录。关闭会话、切换会话、退出应用，或长会话到达 checkpoint 后会写入记录。
+        </div>
+      ) : (
+        <div className="grid gap-2 md:grid-cols-2">
+          {events.slice(0, 12).map((event, index) => (
+            <div key={`${event.timestamp ?? index}-${event.event ?? 'event'}`} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 truncate text-sm font-medium text-[var(--color-text-primary)]">
+                  {memoryEventLabel(event)}
+                </div>
+                <span className={`rounded-full px-2 py-0.5 text-xs ${event.ok === false || event.severity === 'error' ? 'bg-red-500/10 text-red-700' : event.severity === 'warn' ? 'bg-amber-500/10 text-amber-700' : 'bg-emerald-500/10 text-emerald-700'}`}>
+                  {event.ok === false || event.severity === 'error' ? '失败' : event.severity === 'warn' ? '提醒' : '正常'}
+                </span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-text-tertiary)]">
+                {event.timestamp && <span>{new Date(event.timestamp).toLocaleString()}</span>}
+                {typeof event.durationMs === 'number' && <span>{event.durationMs} ms</span>}
+              </div>
+              {event.error && <div className="mt-1 truncate text-xs text-[var(--color-error)]">{event.error}</div>}
+              {event.data && <div className="mt-1 truncate font-mono text-xs text-[var(--color-text-tertiary)]">{formatMemoryEventData(event.data)}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function memoryEventLabel(event: MemoryEvent): string {
+  const name = event.event ?? 'event'
+  switch (name) {
+    case 'scheduled':
+      return '已安排记忆抽取'
+    case 'started':
+      return '开始记忆抽取'
+    case 'completed':
+      return '记忆抽取完成'
+    case 'failed':
+      return '记忆抽取失败'
+    case 'cleanup/remove_failed':
+      return '清理旧记忆失败'
+    default:
+      return `${event.scope ?? 'memory'} / ${name}`
+  }
+}
+
+function formatMemoryEventData(data: Record<string, unknown>): string {
+  const text = JSON.stringify(data)
+  return text.length > 180 ? `${text.slice(0, 177)}...` : text
 }
 
 function ProviderSettings() {
@@ -830,8 +1225,7 @@ function ProviderFormModal({ open, onClose, mode, provider }: ProviderFormProps)
       jsonPastedRef.current = false
       return
     }
-    import('../api/settings').then(({ settingsApi }) => {
-      settingsApi.getUser().then((settings) => {
+    settingsApi.getUser().then((settings) => {
         const isOpenAIChat = apiFormat === 'openai_chat'
         const isOpenAIResponses = apiFormat === 'openai_responses'
         const existingEnv = { ...((settings.env as Record<string, string>) || {}) }
@@ -858,9 +1252,8 @@ function ProviderFormModal({ open, onClose, mode, provider }: ProviderFormProps)
           },
         }
         setSettingsJson(JSON.stringify(merged, null, 2))
-      }).catch(() => {
-        setSettingsJson(JSON.stringify({}, null, 2))
-      })
+    }).catch(() => {
+      setSettingsJson(JSON.stringify({}, null, 2))
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPreset.id])

@@ -16,5 +16,29 @@ export type UserSettings = {
   modelContext?: string
   effort?: EffortLevel
   permissionMode?: PermissionMode
+  webSearch?: WebSearchSettings
   [key: string]: unknown
+}
+
+export type WebSearchSettings = {
+  enabled?: boolean
+  mode?: 'auto' | 'anthropic' | 'local' | 'off'
+  localProvider?: 'duckduckgo' | 'custom'
+  maxResults?: number
+  custom?: CustomWebSearchSettings
+}
+
+export type CustomWebSearchSettings = {
+  endpoint?: string
+  method?: 'GET' | 'POST'
+  apiKey?: string
+  authHeader?: string
+  authPrefix?: string
+  queryParam?: string
+  headers?: Record<string, string>
+  bodyTemplate?: string
+  resultsPath?: string
+  titlePath?: string
+  urlPath?: string
+  snippetPath?: string
 }

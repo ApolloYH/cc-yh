@@ -20,8 +20,7 @@ export const zh: Record<TranslationKey, string> = {
   // ─── Sidebar ──────────────────────────────────────
   'sidebar.newSession': '新建会话',
   'sidebar.scheduled': '定时任务',
-  'sidebar.jarvis': 'Away Session',
-  'sidebar.workbench': '总方案工作台',
+  'sidebar.jarvis': 'Jarvis',
   'sidebar.settings': '设置',
   'sidebar.collapse': '收起侧边栏',
   'sidebar.expand': '展开侧边栏',
@@ -56,6 +55,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.tab.general': '通用',
   'settings.tab.skills': '技能',
   'settings.tab.browser': 'Browser',
+  'settings.tab.webSearch': 'Web 搜索',
   'settings.tab.memory': '记忆',
 
   // Settings > Claude Official Login
@@ -214,7 +214,7 @@ export const zh: Record<TranslationKey, string> = {
 
   // Settings > Skills
   'settings.skills.title': '已安装技能',
-  'settings.skills.description': '技能扩展 Claude YH 的能力。你可以在这里安装、本地导入、创建和删除用户技能，底层目录仍然是 ~/.claude-yh/skills/。',
+  'settings.skills.description': '技能扩展 Claude YH 的能力。安装、导入和新建的技能统一保存到全局 L3：~/.claude-yh/memory/sops/skills/。',
   'settings.skills.browserTitle': '浏览已安装技能',
   'settings.skills.browserEyebrow': '技能浏览器',
   'settings.skills.browserDescription': '查看内置、项目和用户技能，比较它们的来源与规模，并打开技能目录阅读文档和源码文件。',
@@ -232,7 +232,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.skills.ready': '可查看',
   'settings.skills.unavailable': '不可用',
   'settings.skills.empty': '暂无已安装技能',
-  'settings.skills.emptyHint': '在 ~/.claude-yh/skills/ 中添加技能即可开始',
+  'settings.skills.emptyHint': '在 ~/.claude-yh/memory/sops/skills/ 中添加技能即可开始',
   'settings.skills.back': '返回列表',
   'settings.skills.refresh': '刷新',
   'settings.skills.installLocal': '安装技能',
@@ -256,7 +256,7 @@ export const zh: Record<TranslationKey, string> = {
   'settings.skills.installConfirm': '安装技能',
   'settings.skills.browse': '浏览',
   'settings.skills.createModalTitle': '新建技能',
-  'settings.skills.createModalHint': '直接在 ~/.claude-yh/skills 里创建一个带模板的技能目录。',
+  'settings.skills.createModalHint': '直接在 ~/.claude-yh/memory/sops/skills 里创建一个带模板的技能目录。',
   'settings.skills.createConfirm': '创建技能',
   'settings.skills.newSkillNameLabel': '技能文件夹名',
   'settings.skills.newSkillNamePlaceholder': '例如 internal-reviewer',
