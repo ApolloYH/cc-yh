@@ -18,6 +18,8 @@ export const en = {
   // ─── Sidebar ──────────────────────────────────────
   'sidebar.newSession': 'New session',
   'sidebar.scheduled': 'Scheduled',
+  'sidebar.jarvis': 'Away Session',
+  'sidebar.workbench': 'Agent Workbench',
   'sidebar.settings': 'Settings',
   'sidebar.collapse': 'Collapse sidebar',
   'sidebar.expand': 'Expand sidebar',
@@ -51,6 +53,8 @@ export const en = {
   'settings.tab.permissions': 'Permissions',
   'settings.tab.general': 'General',
   'settings.tab.skills': 'Skills',
+  'settings.tab.browser': 'Browser',
+  'settings.tab.memory': 'Memory',
 
   // Settings > Claude Official Login
   'settings.claudeOfficialLogin.intro': 'Using official Claude models requires signing in to your Claude.ai account. Click the button below to open the official Claude login page in your browser; you\'ll be returned here after authorizing.',
@@ -287,6 +291,22 @@ export const en = {
 
   // Settings > Computer Use
   'settings.tab.computerUse': 'Computer Use',
+  'settings.browser.title': 'Browser',
+  'settings.browser.description': 'Use the current Chrome session and login state through BrowserControl. It is enabled by default; sensitive actions still keep confirmation and human-only guardrails.',
+  'settings.browser.testTabs': 'Test tabs',
+  'settings.browser.enabled': 'Enable BrowserControl',
+  'settings.browser.enabledHint': 'Enabled by default as a core claude-yh browser capability.',
+  'settings.browser.highRisk': 'High-permission capabilities',
+  'settings.browser.highRiskHint': 'Allow the tmwd bridge, cookie reads, and raw CDP calls.',
+  'settings.browser.confirm': 'Sensitive confirmation',
+  'settings.browser.confirmHint': 'Require confirmation before click, type, cookie, CDP, and other sensitive actions.',
+  'settings.browser.backend': 'Default backend',
+  'settings.browser.domains': 'Domain policy',
+  'settings.browser.allowedDomains': 'Allowed domains',
+  'settings.browser.deniedDomains': 'Denied domains',
+  'settings.browser.currentTabs': 'Current Chrome tabs',
+  'settings.browser.notTested': 'Not tested',
+  'settings.browser.noTabs': 'No tabs have been read yet. Check that the extension is connected to the local bridge.',
   'settings.computerUse.title': 'Computer Use',
   'settings.computerUse.description': 'Allow Claude YH to take screenshots, click, type, and control your computer. Requires Python 3. On macOS, accessibility permissions are also needed.',
   'settings.computerUse.notSupported': 'Computer Use is only supported on macOS and Windows.',

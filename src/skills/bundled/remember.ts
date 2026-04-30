@@ -2,10 +2,6 @@ import { isAutoMemoryEnabled } from '../../memdir/paths.js'
 import { registerBundledSkill } from '../bundledSkills.js'
 
 export function registerRememberSkill(): void {
-  if (process.env.USER_TYPE !== 'ant') {
-    return
-  }
-
   const SKILL_PROMPT = `# Memory Review
 
 ## Goal
@@ -18,19 +14,24 @@ Read CLAUDE.md and CLAUDE.local.md from the project root (if they exist). Your a
 
 **Success criteria**: You have the contents of all memory layers and can compare them.
 
-### 2. Classify each auto-memory entry
+### 2. Classify each entry by L1-L4 destination
 For each substantive entry in auto-memory, determine the best destination:
 
 | Destination | What belongs there | Examples |
 |---|---|---|
+| **L1 index (\`MEMORY.md\`)** | One-line routing pointers only | "- [Testing preferences](feedback_testing.md) - how this user wants tests run" |
+| **L2 memory files** | Stable facts, preferences, project context, or references that should be recalled later | User preferences, project decisions, external dashboards |
+| **L3 skills/SOPs** | Verified repeatable procedures or workflows | A release checklist, review process, browser task recipe |
+| **L4 archive/logs** | Raw session evidence that should remain searchable but not treated as direct instructions | Daily logs, transcripts, unresolved notes |
 | **CLAUDE.md** | Project conventions and instructions for Claude that all contributors should follow | "use bun not npm", "API routes use kebab-case", "test command is bun test", "prefer functional style" |
 | **CLAUDE.local.md** | Personal instructions for Claude specific to this user, not applicable to other contributors | "I prefer concise responses", "always explain trade-offs", "don't auto-commit", "run tests before committing" |
 | **Team memory** | Org-wide knowledge that applies across repositories (only if team memory is configured) | "deploy PRs go through #deploy-queue", "staging is at staging.internal", "platform team owns infra" |
 | **Stay in auto-memory** | Working notes, temporary context, or entries that don't clearly fit elsewhere | Session-specific observations, uncertain patterns |
 
 **Important distinctions:**
-- CLAUDE.md and CLAUDE.local.md contain instructions for Claude, not user preferences for external tools (editor theme, IDE keybindings, etc. don't belong in either)
+- CLAUDE.md and CLAUDE.local.md contain instructions for claude-yh, not user preferences for external tools (editor theme, IDE keybindings, etc. don't belong in either)
 - Workflow practices (PR conventions, merge strategies, branch naming) are ambiguous — ask the user whether they're personal or team-wide
+- No execution, no memory: only promote facts or procedures that were observed through tool results or explicitly confirmed by the user
 - When unsure, ask rather than guess
 
 **Success criteria**: Each entry has a proposed destination or is flagged as ambiguous.

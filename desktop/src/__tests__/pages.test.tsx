@@ -1,5 +1,5 @@
 import '../test/setupDom'
-import { beforeEach, describe, it, expect } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen } from '../test/testingLibrary'
 import '@testing-library/jest-dom'
 
@@ -8,6 +8,7 @@ import { EmptySession } from '../pages/EmptySession'
 import { ActiveSession } from '../pages/ActiveSession'
 import { AgentTeams } from '../pages/AgentTeams'
 import { ScheduledTasks } from '../pages/ScheduledTasks'
+import { AgentWorkbench } from '../pages/AgentWorkbench'
 import { ToolInspection } from '../pages/ToolInspection'
 
 // Layout components (chrome is now here, not in pages)
@@ -17,6 +18,19 @@ import { useChatStore } from '../stores/chatStore'
 import { useTabStore } from '../stores/tabStore'
 import { useTeamStore } from '../stores/teamStore'
 import { useSettingsStore } from '../stores/settingsStore'
+
+vi.mock('../api/agentWorkbench', () => ({
+  agentWorkbenchApi: {
+    diagnostics: vi.fn().mockResolvedValue({
+      nodeVersion: 'v22.0.0',
+      bunVersion: '1.3.12',
+      platform: 'win32',
+      arch: 'x64',
+      cwd: 'C:/repo',
+      configDir: 'C:/Users/test/.claude-yh',
+    }),
+  },
+}))
 
 beforeEach(() => {
   useSettingsStore.setState({ locale: 'zh' })
@@ -120,6 +134,12 @@ describe('Content-only pages render without errors', () => {
     const { container } = render(<ScheduledTasks />)
     await screen.findByText('定时任务')
     expect(container.innerHTML).toContain('定时任务')
+  })
+
+  it('AgentWorkbench renders integrated task controls', async () => {
+    render(<AgentWorkbench />)
+    expect(await screen.findByText('Agent Workbench')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /run task/i })).toBeInTheDocument()
   })
 
   it('ToolInspection renders diff viewer', () => {

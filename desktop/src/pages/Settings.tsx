@@ -23,6 +23,9 @@ import { UsageSettings } from './UsageSettings'
 import { useUIStore, type SettingsTab } from '../stores/uiStore'
 import { useUpdateStore } from '../stores/updateStore'
 import { providersApi, type AuthStatusResponse } from '../api/providers'
+import { browserControlApi } from '../api/browserControl'
+import type { BrowserControlPolicy, BrowserControlExecutionResult } from '../api/agentWorkbench'
+import { memoryApi, type MemoryLayer, type MemoryV2Entry, type MemoryV2SearchResult } from '../api/memory'
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers')
@@ -47,6 +50,8 @@ export function Settings() {
             <TabButton icon="chat" label={t('settings.tab.adapters')} active={activeTab === 'adapters'} onClick={() => setActiveTab('adapters')} />
             <TabButton icon="smart_toy" label={t('settings.tab.agents')} active={activeTab === 'agents'} onClick={() => setActiveTab('agents')} />
             <TabButton icon="auto_awesome" label={t('settings.tab.skills')} active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
+            <TabButton icon="language" label={t('settings.tab.browser')} active={activeTab === 'browser'} onClick={() => setActiveTab('browser')} />
+            <TabButton icon="psychology" label={t('settings.tab.memory')} active={activeTab === 'memory'} onClick={() => setActiveTab('memory')} />
             <TabButton icon="mouse" label={t('settings.tab.computerUse')} active={activeTab === 'computerUse'} onClick={() => setActiveTab('computerUse')} />
             <TabButton icon="bar_chart" label="使用统计" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
           </div>
@@ -63,6 +68,8 @@ export function Settings() {
           {activeTab === 'adapters' && <AdapterSettings />}
           {activeTab === 'agents' && <AgentsSettings />}
           {activeTab === 'skills' && <SkillSettings />}
+          {activeTab === 'browser' && <BrowserSettings />}
+          {activeTab === 'memory' && <MemorySettings />}
           {activeTab === 'computerUse' && <ComputerUseSettings />}
           {activeTab === 'usage' && <UsageSettings />}
           {activeTab === 'about' && <AboutSettings />}
@@ -88,7 +95,386 @@ function TabButton({ icon, label, active, onClick }: { icon: string; label: stri
   )
 }
 
+function BrowserSettings() {
+  const [policy, setPolicy] = useState<BrowserControlPolicy | null>(null)
+  const [tabsResult, setTabsResult] = useState<BrowserControlExecutionResult | null>(null)
+  const [allowedDomains, setAllowedDomains] = useState('*')
+  const [deniedDomains, setDeniedDomains] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isTesting, setIsTesting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const t = useTranslation()
+
+  useEffect(() => {
+    let cancelled = false
+    browserControlApi.status()
+      .then(result => {
+        if (cancelled) return
+        setPolicy(result.policy)
+        setAllowedDomains(result.policy.allowedDomains.join('\n') || '*')
+        setDeniedDomains((result.policy.deniedDomains ?? []).join('\n'))
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const savePolicy = async (patch: Partial<BrowserControlPolicy>) => {
+    setIsSaving(true)
+    setError(null)
+    try {
+      const result = await browserControlApi.updatePolicy(patch)
+      setPolicy(result.policy)
+      setAllowedDomains(result.policy.allowedDomains.join('\n') || '*')
+      setDeniedDomains((result.policy.deniedDomains ?? []).join('\n'))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const tabs = extractTabs(tabsResult?.data)
+
+  return (
+    <div className="max-w-3xl">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">{t('settings.browser.title')}</h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-text-tertiary)]">{t('settings.browser.description')}</p>
+        </div>
+        <Button
+          size="sm"
+          onClick={() => {
+            setIsTesting(true)
+            setError(null)
+            browserControlApi.readTabs()
+              .then(setTabsResult)
+              .catch(err => setError(err instanceof Error ? err.message : String(err)))
+              .finally(() => setIsTesting(false))
+          }}
+          loading={isTesting}
+        >
+          <span className="material-symbols-outlined text-[16px]">tab</span>
+          {t('settings.browser.testTabs')}
+        </Button>
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-[var(--color-error)]/25 bg-[var(--color-error)]/6 px-4 py-3 text-sm text-[var(--color-error)]">
+          {error}
+        </div>
+      )}
+
+      {isLoading || !policy ? (
+        <div className="py-8 text-sm text-[var(--color-text-tertiary)]">{t('common.loading')}</div>
+      ) : (
+        <div className="grid gap-4">
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <BrowserToggle label={t('settings.browser.enabled')} detail={t('settings.browser.enabledHint')} checked={policy.enabled} onChange={enabled => void savePolicy({ enabled })} />
+              <BrowserToggle
+                label={t('settings.browser.highRisk')}
+                detail={t('settings.browser.highRiskHint')}
+                checked={Boolean(policy.allowHighRiskBackends && policy.allowHighRiskCapabilities)}
+                onChange={enabled => void savePolicy({ allowHighRiskBackends: enabled, allowHighRiskCapabilities: enabled })}
+              />
+              <BrowserToggle
+                label={t('settings.browser.confirm')}
+                detail={t('settings.browser.confirmHint')}
+                checked={policy.requireConfirmationForSensitiveActions !== false}
+                onChange={enabled => void savePolicy({ requireConfirmationForSensitiveActions: enabled })}
+              />
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+                <div className="text-xs uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">{t('settings.browser.backend')}</div>
+                <div className="mt-2 text-sm font-semibold text-[var(--color-text-primary)]">tmwd-cdp-bridge</div>
+                <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">ws://127.0.0.1:18765</div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+            <h3 className="mb-3 text-sm font-semibold text-[var(--color-text-primary)]">{t('settings.browser.domains')}</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">{t('settings.browser.allowedDomains')}</span>
+                <textarea value={allowedDomains} onChange={event => setAllowedDomains(event.target.value)} rows={5} className="w-full resize-y rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">{t('settings.browser.deniedDomains')}</span>
+                <textarea value={deniedDomains} onChange={event => setDeniedDomains(event.target.value)} rows={5} className="w-full resize-y rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]" />
+              </label>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Button size="sm" onClick={() => void savePolicy({ allowedDomains: parseDomainList(allowedDomains, ['*']), deniedDomains: parseDomainList(deniedDomains) })} loading={isSaving}>
+                {t('common.save')}
+              </Button>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">{t('settings.browser.currentTabs')}</h3>
+              <span className="text-xs text-[var(--color-text-tertiary)]">{tabsResult ? tabsResult.ok ? `${tabs.length} tabs` : tabsResult.error : t('settings.browser.notTested')}</span>
+            </div>
+            {tabs.length > 0 ? (
+              <div className="grid gap-2">
+                {tabs.slice(0, 8).map(tab => (
+                  <div key={tab.id} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+                    <div className="truncate text-sm font-medium text-[var(--color-text-primary)]">{tab.title || '(untitled)'}</div>
+                    <div className="mt-0.5 truncate text-xs text-[var(--color-text-tertiary)]">{tab.url}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--color-text-tertiary)]">{t('settings.browser.noTabs')}</p>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BrowserToggle({ label, detail, checked, onChange }: { label: string; detail: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+      <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="mt-1 h-4 w-4 accent-[var(--color-brand)]" />
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-[var(--color-text-primary)]">{label}</span>
+        <span className="mt-1 block text-xs leading-5 text-[var(--color-text-tertiary)]">{detail}</span>
+      </span>
+    </label>
+  )
+}
+
+function parseDomainList(value: string, fallback: string[] = []) {
+  const items = value.split(/\r?\n|,/).map(item => item.trim()).filter(Boolean)
+  return items.length > 0 ? [...new Set(items)] : fallback
+}
+
+function extractTabs(data: unknown): Array<{ id: number; title?: string; url?: string }> {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return []
+  const tabs = (data as { tabs?: unknown }).tabs
+  if (!Array.isArray(tabs)) return []
+  return tabs.filter((tab): tab is { id: number; title?: string; url?: string } =>
+    tab !== null && typeof tab === 'object' && typeof (tab as { id?: unknown }).id === 'number',
+  )
+}
+
 // ─── Provider Settings ──────────────────────────────────────
+
+function MemorySettings() {
+  const [status, setStatus] = useState<Awaited<ReturnType<typeof memoryApi.status>> | null>(null)
+  const [selected, setSelected] = useState<{ layer: MemoryLayer; id: string } | null>(null)
+  const [entry, setEntry] = useState<MemoryV2Entry | null>(null)
+  const [content, setContent] = useState('')
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<MemoryV2SearchResult[]>([])
+  const [message, setMessage] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isWorking, setIsWorking] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const reload = async () => {
+    const next = await memoryApi.status()
+    setStatus(next)
+    if (!selected) {
+      const first = next.layers[0]?.entries[0]
+      if (first) setSelected({ layer: first.layer, id: first.id })
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    memoryApi.status()
+      .then(next => {
+        if (cancelled) return
+        setStatus(next)
+        const first = next.layers[0]?.entries[0]
+        if (first) setSelected({ layer: first.layer, id: first.id })
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!selected) return
+    let cancelled = false
+    setError(null)
+    memoryApi.entry(selected.layer, selected.id)
+      .then(result => {
+        if (cancelled) return
+        setEntry(result.entry)
+        setContent(result.entry.content || '')
+      })
+      .catch(err => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err))
+      })
+    return () => { cancelled = true }
+  }, [selected])
+
+  const runAction = async (action: () => Promise<string>) => {
+    setIsWorking(true)
+    setError(null)
+    try {
+      setMessage(await action())
+      await reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsWorking(false)
+    }
+  }
+
+  const saveEntry = async () => {
+    if (!selected || !entry) return
+    await runAction(async () => {
+      const result = await memoryApi.updateEntry({
+        layer: selected.layer,
+        id: selected.id,
+        title: entry.title,
+        source: entry.source,
+        content,
+      })
+      setEntry(result.entry)
+      setContent(result.entry.content || '')
+      return `Saved ${result.entry.layer}/${result.entry.id}`
+    })
+  }
+
+  const doSearch = async () => {
+    if (!query.trim()) return
+    setIsWorking(true)
+    setError(null)
+    try {
+      const result = await memoryApi.search(query)
+      setResults(result.results)
+      setMessage(`Search returned ${result.results.length} result(s).`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIsWorking(false)
+    }
+  }
+
+  return (
+    <div className="max-w-6xl">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Memory</h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-text-tertiary)]">L1 index, L2 facts, L3 SOPs and Skills, L4 session archive with summary, vector search, stale checks, and distillation.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => void runAction(async () => `Summarized ${(await memoryApi.summarize(20)).entries.length} L4 session(s).`)} loading={isWorking}>Summarize</Button>
+          <Button size="sm" onClick={() => void runAction(async () => `Stale entries: ${(await memoryApi.stale()).entries.length}`)} loading={isWorking}>Stale</Button>
+          <Button size="sm" onClick={() => void runAction(async () => `Candidates: ${(await memoryApi.distill(false)).candidates.length}`)} loading={isWorking}>Distill</Button>
+          <Button size="sm" onClick={() => void runAction(async () => `Applied: ${(await memoryApi.distill(true)).applied?.length ?? 0}`)} loading={isWorking}>Apply</Button>
+        </div>
+      </div>
+
+      {error && <div className="mb-4 rounded-xl border border-[var(--color-error)]/25 bg-[var(--color-error)]/6 px-4 py-3 text-sm text-[var(--color-error)]">{error}</div>}
+      {message && <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] px-4 py-3 text-sm text-[var(--color-text-secondary)]">{message}</div>}
+
+      {isLoading || !status ? (
+        <div className="py-8 text-sm text-[var(--color-text-tertiary)]">Loading...</div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-3">
+            <div className="mb-3 flex gap-2">
+              <Input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search memory..." />
+              <Button size="sm" onClick={() => void doSearch()} loading={isWorking}>
+                <span className="material-symbols-outlined text-[16px]">search</span>
+              </Button>
+            </div>
+            {results.length > 0 && (
+              <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-2">
+                <div className="mb-1 text-xs font-medium text-[var(--color-text-tertiary)]">Vector search</div>
+                {results.slice(0, 5).map(result => (
+                  <button key={`${result.entry.layer}-${result.entry.id}`} onClick={() => setSelected({ layer: result.entry.layer, id: result.entry.id })} className="block w-full truncate rounded-md px-2 py-1 text-left text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">
+                    {result.entry.layer}/{result.entry.id} · {result.score.toFixed(2)}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="space-y-3">
+              {status.layers.map(layer => (
+                <div key={layer.layer}>
+                  <div className="mb-1 flex items-center justify-between text-xs font-semibold text-[var(--color-text-tertiary)]">
+                    <span>{layer.title}</span>
+                    <span>{layer.entries.length}</span>
+                  </div>
+                  <div className="space-y-1">
+                    {layer.entries.slice(0, 40).map(item => (
+                      <button
+                        key={`${item.layer}-${item.id}`}
+                        onClick={() => setSelected({ layer: item.layer, id: item.id })}
+                        className={`block w-full rounded-lg border px-3 py-2 text-left ${selected?.layer === item.layer && selected.id === item.id ? 'border-[var(--color-brand)] bg-[var(--color-primary-fixed)]' : 'border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)]'}`}
+                      >
+                        <div className="truncate text-sm font-medium text-[var(--color-text-primary)]">{item.title}</div>
+                        <div className="mt-0.5 truncate text-xs text-[var(--color-text-tertiary)]">{item.id}{item.stale?.severity === 'stale' ? ' · stale' : ''}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-container-low)] p-4">
+            {entry ? (
+              <div className="flex h-full min-h-[620px] flex-col">
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-[var(--color-text-tertiary)]">{entry.layer}/{entry.id}</div>
+                    <h3 className="mt-1 truncate text-base font-semibold text-[var(--color-text-primary)]">{entry.title}</h3>
+                    <p className="mt-1 truncate text-xs text-[var(--color-text-tertiary)]">{entry.path}</p>
+                  </div>
+                  <Button size="sm" onClick={() => void saveEntry()} loading={isWorking}>
+                    <span className="material-symbols-outlined text-[16px]">save</span>
+                    Save
+                  </Button>
+                </div>
+                <div className="mb-3 grid gap-2 md:grid-cols-3">
+                  <MemoryMeta label="Verified" value={entry.verified ? 'yes' : 'no'} />
+                  <MemoryMeta label="Freshness" value={entry.stale ? `${entry.stale.severity} (${entry.stale.ageDays ?? 0}d)` : 'unknown'} />
+                  <MemoryMeta label="Updated" value={entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : 'unknown'} />
+                </div>
+                {entry.summary && <div className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text-secondary)]">{entry.summary}</div>}
+                <textarea
+                  value={content}
+                  onChange={event => setContent(event.target.value)}
+                  className="min-h-[420px] flex-1 resize-y rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 font-mono text-sm leading-6 text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)]"
+                />
+              </div>
+            ) : (
+              <div className="py-8 text-sm text-[var(--color-text-tertiary)]">Select a memory entry.</div>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MemoryMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+      <div className="text-xs text-[var(--color-text-tertiary)]">{label}</div>
+      <div className="mt-1 truncate text-sm font-medium text-[var(--color-text-primary)]">{value}</div>
+    </div>
+  )
+}
 
 function ProviderSettings() {
   const { providers, activeId, isLoading, fetchProviders, deleteProvider, activateProvider, testProvider } = useProviderStore()

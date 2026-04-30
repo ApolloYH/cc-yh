@@ -38,6 +38,11 @@ Here are the user's messages during this session. Pay attention to how they stee
 
 ## Your Task
 
+Only capture a process that was actually performed successfully in this
+session, or that the user explicitly asks to draft. If a step was not verified,
+mark it as a human checkpoint or as needing verification instead of presenting
+it as an automatic success path.
+
 ### Step 1: Analyze the Session
 
 Before asking any questions, analyze the session to identify:
@@ -157,10 +162,6 @@ After writing, tell the user:
 `
 
 export function registerSkillifySkill(): void {
-  if (process.env.USER_TYPE !== 'ant') {
-    return
-  }
-
   registerBundledSkill({
     name: 'skillify',
     description:

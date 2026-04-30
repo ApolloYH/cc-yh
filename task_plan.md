@@ -1,41 +1,59 @@
 # Task Plan
 
 ## Goal
-Act as a manual QA engineer for `claude-yh` by validating the current branch through real user-facing functional testing, not only unit tests and type checks.
+Improve `claude-yh` by selectively absorbing the strongest ideas from the local `claw-code` Rust rewrite and `GenericAgent`, while preserving existing CLI, desktop, web, provider, memory, skills, and adapter behavior.
 
 ## Current Focus
-Investigate the user's report that responses appear non-streaming even though the app is expected to support streaming output.
+MemoryV2 now has CLI and web/desktop settings surfaces for four-layer memory,
+summary, local vector search, stale detection, and reviewed distillation.
 
 ## Phases
-- [completed] Define the manual test matrix and isolate runtime state from the user's real config
-- [completed] Execute CLI and local-config functional tests
-- [completed] Execute server/API/WebSocket functional tests
-- [completed] Execute one real model-path end-to-end validation if credentials/environment allow
-- [completed] Summarize validated flows, failures, and residual risk
-- [completed] Trace and reproduce the desktop streaming path end-to-end
-- [completed] Fix the broken layer if the runtime path is falling back to non-streaming
-- [completed] Re-verify streaming behavior with a live/manual session
+- [completed] Phase 1: Skill distillation + layered memory foundations
+- [completed] Phase 2: Rust runtime boundary and parity harness skeleton
+- [completed] Phase 3: BrowserControl abstraction and capability policy
+- [completed] Phase 4: DingTalk / WeCom adapter expansion
+- [completed] Phase 5: Away Runner autonomous execution mode
+- [completed] Phase 6: Rust-accelerated session/memory index
+- [in_progress] Phase 7: Production integrations and broader Rust parity candidates
+- [completed] Phase 7a: 24h Jarvis Mode shared config, daemon, CLI, and UI
+- [completed] Phase 7b: Runtime, BrowserControl, SkillDistiller, MemoryV2, and notification APIs
+- [completed] Phase 8: Rust fs.glob/fs.grep acceleration boundary and API
+- [completed] Phase 9: Web/desktop integration workbench and real browser task test
+- [completed] Phase 10: GA-compatible BrowserControl execution bridge for current Chrome tabs
+- [completed] Phase 11: Default-on BrowserControl skill surface and settings integration
+- [completed] Phase 12: Four-layer MemoryV2 CLI and Settings integration
 
 ## Constraints
-- Do not touch the user's separate original Claude config unless explicitly asked.
-- Keep protocol names, model IDs, and external auth endpoints stable when renaming would break functionality.
-- Focus renames on user-visible commands, comments, docs, local config directory names, and safe branding text.
-- Prefer temporary `HOME` / `USERPROFILE` sandboxes for any runtime verification that writes settings or session data.
+- Do not full-rewrite `cc-yh` in Rust. Rust must be introduced behind a narrow, testable boundary.
+- Do not break existing CLI / desktop / web startup or the unified `~/.claude-yh/settings.json` configuration behavior.
+- Do not change protocol names or provider environment variables that are required for compatibility.
+- Browser automation must not silently bypass login, captcha, 2FA, payment, or sensitive user confirmations.
+- Skill and memory promotion must be based on verified execution, not guesses.
+- BrowserControl is default-on by product policy, but sensitive execution still needs confirmation and must keep captcha, 2FA, payment, and irreversible-action guardrails.
 
 ## Verification Targets
-- `bun --env-file=.env .\\src\\entrypoints\\cli.tsx --help`
-- `bun --env-file=.env .\\src\\entrypoints\\cli.tsx -p "..."` in an isolated temp home
-- `src/server/index.ts` boot in an isolated temp home
-- `/health`, `/api/status`, `/api/settings`, `/api/sessions`, `/api/scheduled-tasks`, `/api/providers` manual API checks
-- WebSocket chat handshake and at least one message flow
-- `bun test`
 - `bun x tsc --noEmit -p tsconfig.json`
+- `bun x tsc --noEmit -p desktop\tsconfig.json`
+- targeted tests for changed modules
+- functional API tests with real temp settings/session/skill/memory files
+- desktop/web visual smoke test through a real browser
+- smoke test CLI help / slash command availability where relevant
 
-## Streaming Investigation Notes
-- Confirm whether the upstream provider returns stream events or only a final assistant payload.
-- Confirm whether `src/server/ws/handler.ts` emits `content_delta` / `thinking` for the current runtime path.
-- Confirm whether `desktop/src/stores/chatStore.ts` receives and renders incremental `streamingText`.
-- [completed] 修复 Tauri sidecar 未加载根目录 `.env`
-- [completed] 修复旧 `settings.model` 抢占当前显示模型
-- [completed] 修复旧 `settings.model` 抢占 CLI 实际调用模型
-- [completed] 重启根目录后端与 Tauri 开发壳，确认桌面端已运行
+## Decisions
+- Rust will initially be a sidecar/JSON protocol boundary, not a replacement for the agent loop.
+- GA-style browser control will be represented as a backend under a shared BrowserControl contract.
+- Memory keeps the existing `MEMORY.md` mechanism and now also has a MemoryV2 store/API with hard L1-L4 promotion rules.
+- MemoryV2 exposes L1/L2/L3/L4 through CLI and Settings; L4 summaries are editable evidence files, while raw JSONL sessions remain source archives.
+- Skill distillation uses the existing `SKILL.md` format and now has a reviewed-save API for `~/.claude-yh/skills/` / `.claude-yh/skills/`.
+- BrowserControl defaults to enabled with wildcard domain access for the current Chrome bridge; denied domains, confirmation, and audit logging remain the safety controls.
+- The default real browser route is now the GA-style extension bridge: Chrome connects out to `ws://127.0.0.1:18765`, so existing tabs and cookies stay in the user's current browser. Chrome DevTools launch remains a fallback/debug backend, not the default current-session path.
+- `/browser` is the CLI configuration surface. Web and desktop expose the same policy under Settings > Browser.
+
+## Errors Encountered
+| Error | Attempt | Resolution |
+|-------|---------|------------|
+| `apply_patch` could not read old planning files | Replaced previous plan content | Rewrote only `task_plan.md`, `findings.md`, and `progress.md` as UTF-8 planning files |
+| Chrome DevTools MCP transport closed | Tried to open the web app through MCP after clearing duplicate profile processes | Switched to an independent Chrome instance with `--remote-debugging-port=9223` and drove the real web UI through CDP |
+| CDP smoke against a launched Chrome returned `cdp_connection_closed` | Tried to use remote-debug Chrome as the main BrowserControl path | Re-centered BrowserControl on GA's extension-to-local-WebSocket bridge so current Chrome tabs/cookies are used without opening a separate browser |
+| Browser extension page showed an error badge when the local bridge was offline | GA extension logged localhost connection failure with `console.error` | Adapted the extension behavior to warn and retry; added a project-owned extension under `extensions/tmwd_cdp_bridge` |
+| CDP wait script timed out after clicking `Run task` | Waited for `6/6 passed` with a malformed regex in the result expression | Re-read the DOM through CDP; the page had completed successfully with `6/6 passed` |

@@ -5,6 +5,7 @@
  * GET    /api/skills/detail       - Full skill data (tree + files)
  * POST   /api/skills/install      - Import a local skill folder into ~/.claude-yh/skills
  * POST   /api/skills/create       - Create a new skill scaffold
+ * POST   /api/skills/distill      - Save a reviewed SKILL.md candidate
  * DELETE /api/skills/:name        - Delete an installed user skill
  */
 
@@ -53,6 +54,14 @@ type CreateSkillBody = {
   name?: string
   displayName?: string
   description?: string
+}
+
+type DistillSkillBody = {
+  name?: string
+  scope?: 'user' | 'project'
+  projectRoot?: string
+  markdown?: string
+  overwrite?: boolean
 }
 
 const MAX_FILES = 50
@@ -562,6 +571,8 @@ export async function handleSkillsApi(
           return await installSkill(req)
         case 'create':
           return await createSkill(req)
+        case 'distill':
+          return await distillSkill(req)
         default:
           throw ApiError.notFound(`Unknown skills endpoint: ${sub}`)
       }
@@ -760,6 +771,67 @@ async function createSkill(req: Request): Promise<Response> {
   }
 
   return Response.json({ skill: meta, skillsDir }, { status: 201 })
+}
+
+async function distillSkill(req: Request): Promise<Response> {
+  const body = await readJsonBody<DistillSkillBody>(req)
+  const markdown = body.markdown?.trim()
+  if (!markdown) {
+    throw ApiError.badRequest('markdown is required')
+  }
+
+  const parsed = normalizeFrontmatter(markdown, 'SKILL.md')
+  const frontmatterName =
+    typeof parsed.frontmatter.name === 'string'
+      ? parsed.frontmatter.name
+      : undefined
+  const skillName = sanitizeSkillFolderName(body.name || frontmatterName || '')
+  const scope = body.scope ?? 'user'
+  const skillsDir =
+    scope === 'project'
+      ? getProjectSkillsDir(body.projectRoot)
+      : await ensureUserSkillsDir()
+  const targetDir = path.join(skillsDir, skillName)
+
+  if ((await pathExists(targetDir)) && !body.overwrite) {
+    throw ApiError.conflict(`Skill already exists: ${skillName}`)
+  }
+
+  if (!parsed.frontmatter.description && !parsed.frontmatter.when_to_use) {
+    throw ApiError.badRequest(
+      'Reviewed SKILL.md must include description or when_to_use frontmatter',
+    )
+  }
+
+  await fs.mkdir(targetDir, { recursive: true })
+  await fs.writeFile(path.join(targetDir, 'SKILL.md'), `${markdown}\n`, 'utf-8')
+
+  const meta = await loadSkillMeta(
+    targetDir,
+    skillName,
+    scope === 'project' ? 'project' : 'user',
+  )
+  if (!meta) {
+    throw ApiError.badRequest('Saved candidate is not a valid SKILL.md')
+  }
+
+  return Response.json(
+    {
+      skill: meta,
+      skillRoot: targetDir,
+      scope,
+      reviewed: true,
+    },
+    { status: body.overwrite ? 200 : 201 },
+  )
+}
+
+function getProjectSkillsDir(projectRoot: string | undefined): string {
+  if (!projectRoot?.trim()) {
+    throw ApiError.badRequest('projectRoot is required for project skills')
+  }
+  const resolved = path.resolve(projectRoot)
+  return path.join(resolved, '.claude-yh', 'skills')
 }
 
 async function deleteSkill(skillName: string): Promise<Response> {

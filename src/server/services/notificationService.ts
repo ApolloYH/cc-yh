@@ -8,6 +8,14 @@
 import { adapterService, type AdapterFileConfig } from './adapterService.js'
 import type { TaskRun } from './cronScheduler.js'
 import type { TaskNotificationConfig } from './cronService.js'
+import {
+  buildDingTalkRobotWebhookUrl,
+  formatDingTalkMarkdown,
+} from '../../../adapters/dingtalk/webhook.js'
+import {
+  buildWeComRobotWebhookUrl,
+  formatWeComMarkdown,
+} from '../../../adapters/wecom/webhook.js'
 
 // ─── Message formatting ──────────────────────────────────────────────────────
 
@@ -218,6 +226,85 @@ async function sendFeishu(
   }
 }
 
+async function sendDingTalkRobot(
+  webhook: string,
+  secret: string,
+  title: string,
+  markdown: string,
+): Promise<void> {
+  if (!webhook) return
+  const resp = await fetch(buildDingTalkRobotWebhookUrl(webhook, secret), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(formatDingTalkMarkdown(title, markdown)),
+  })
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '')
+    console.error(`[Notification] DingTalk send failed (${resp.status}):`, body)
+  }
+}
+
+async function sendWeComRobot(
+  webhookKey: string,
+  markdown: string,
+): Promise<void> {
+  if (!webhookKey) return
+  const resp = await fetch(buildWeComRobotWebhookUrl(webhookKey), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(formatWeComMarkdown(markdown)),
+  })
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '')
+    console.error(`[Notification] WeCom send failed (${resp.status}):`, body)
+  }
+}
+
+export async function sendMarkdownNotification(params: {
+  title: string
+  markdown: string
+  channels: TaskNotificationConfig['channels']
+}): Promise<void> {
+  if (params.channels.length === 0) return
+
+  let config: AdapterFileConfig
+  try {
+    config = await adapterService.getRawConfig()
+  } catch (err) {
+    console.error('[Notification] Failed to read adapter config:', err)
+    return
+  }
+
+  for (const channel of params.channels) {
+    try {
+      if (channel === 'dingtalk') {
+        const webhook = config.dingtalk?.robotWebhook
+        if (!webhook) {
+          console.warn('[Notification] DingTalk robotWebhook not configured, skipping')
+          continue
+        }
+        await sendDingTalkRobot(
+          webhook,
+          config.dingtalk?.robotSecret ?? '',
+          params.title,
+          params.markdown,
+        )
+      }
+
+      if (channel === 'wecom') {
+        const webhookKey = config.wecom?.webhookKey
+        if (!webhookKey) {
+          console.warn('[Notification] WeCom webhookKey not configured, skipping')
+          continue
+        }
+        await sendWeComRobot(webhookKey, params.markdown)
+      }
+    } catch (err) {
+      console.error(`[Notification] ${channel} notification error:`, err)
+    }
+  }
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function sendTaskNotification(
@@ -270,6 +357,19 @@ export async function sendTaskNotification(
         for (const user of users) {
           await sendFeishu(token, String(user.userId), run)
         }
+      }
+
+      if (channel === 'dingtalk') {
+        await sendDingTalkRobot(
+          config.dingtalk?.robotWebhook ?? '',
+          config.dingtalk?.robotSecret ?? '',
+          run.taskName,
+          markdown,
+        )
+      }
+
+      if (channel === 'wecom') {
+        await sendWeComRobot(config.wecom?.webhookKey ?? '', markdown)
       }
     } catch (err) {
       console.error(`[Notification] ${channel} notification error:`, err)

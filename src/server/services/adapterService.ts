@@ -42,6 +42,24 @@ export type AdapterFileConfig = {
     defaultWorkDir?: string
     streamingCard?: boolean
   }
+  dingtalk?: {
+    clientId?: string
+    clientSecret?: string
+    robotWebhook?: string
+    robotSecret?: string
+    allowedUsers?: string[]
+    pairedUsers?: PairedUser[]
+    defaultWorkDir?: string
+  }
+  wecom?: {
+    corpId?: string
+    agentId?: string
+    secret?: string
+    webhookKey?: string
+    allowedUsers?: string[]
+    pairedUsers?: PairedUser[]
+    defaultWorkDir?: string
+  }
 }
 
 function getConfigPath(): string {
@@ -84,6 +102,15 @@ class AdapterService {
       if (config.feishu.encryptKey) config.feishu.encryptKey = maskSecret(config.feishu.encryptKey)
       if (config.feishu.verificationToken) config.feishu.verificationToken = maskSecret(config.feishu.verificationToken)
     }
+    if (config.dingtalk) {
+      if (config.dingtalk.clientSecret) config.dingtalk.clientSecret = maskSecret(config.dingtalk.clientSecret)
+      if (config.dingtalk.robotWebhook) config.dingtalk.robotWebhook = maskSecret(config.dingtalk.robotWebhook)
+      if (config.dingtalk.robotSecret) config.dingtalk.robotSecret = maskSecret(config.dingtalk.robotSecret)
+    }
+    if (config.wecom) {
+      if (config.wecom.secret) config.wecom.secret = maskSecret(config.wecom.secret)
+      if (config.wecom.webhookKey) config.wecom.webhookKey = maskSecret(config.wecom.webhookKey)
+    }
     if (config.pairing?.code) {
       config.pairing.code = '******'
     }
@@ -103,6 +130,15 @@ class AdapterService {
       if (isMasked(patch.feishu.encryptKey)) patch.feishu.encryptKey = current.feishu?.encryptKey
       if (isMasked(patch.feishu.verificationToken)) patch.feishu.verificationToken = current.feishu?.verificationToken
     }
+    if (patch.dingtalk) {
+      if (isMasked(patch.dingtalk.clientSecret)) patch.dingtalk.clientSecret = current.dingtalk?.clientSecret
+      if (isMasked(patch.dingtalk.robotWebhook)) patch.dingtalk.robotWebhook = current.dingtalk?.robotWebhook
+      if (isMasked(patch.dingtalk.robotSecret)) patch.dingtalk.robotSecret = current.dingtalk?.robotSecret
+    }
+    if (patch.wecom) {
+      if (isMasked(patch.wecom.secret)) patch.wecom.secret = current.wecom?.secret
+      if (isMasked(patch.wecom.webhookKey)) patch.wecom.webhookKey = current.wecom?.webhookKey
+    }
     if (patch.pairing && isMasked(patch.pairing.code ?? undefined)) {
       patch.pairing.code = current.pairing?.code
     }
@@ -112,6 +148,8 @@ class AdapterService {
       ...patch,
       telegram: patch.telegram ? { ...current.telegram, ...patch.telegram } : current.telegram,
       feishu: patch.feishu ? { ...current.feishu, ...patch.feishu } : current.feishu,
+      dingtalk: patch.dingtalk ? { ...current.dingtalk, ...patch.dingtalk } : current.dingtalk,
+      wecom: patch.wecom ? { ...current.wecom, ...patch.wecom } : current.wecom,
       pairing: patch.pairing !== undefined ? { ...current.pairing, ...patch.pairing } : current.pairing,
     }
 

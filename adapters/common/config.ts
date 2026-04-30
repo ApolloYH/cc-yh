@@ -39,12 +39,34 @@ export type FeishuConfig = {
   streamingCard: boolean
 }
 
+export type DingTalkConfig = {
+  clientId: string
+  clientSecret: string
+  robotWebhook: string
+  robotSecret: string
+  allowedUsers: string[]
+  pairedUsers: PairedUser[]
+  defaultWorkDir: string
+}
+
+export type WeComConfig = {
+  corpId: string
+  agentId: string
+  secret: string
+  webhookKey: string
+  allowedUsers: string[]
+  pairedUsers: PairedUser[]
+  defaultWorkDir: string
+}
+
 export type AdapterConfig = {
   serverUrl: string
   defaultProjectDir: string
   pairing: PairingState
   telegram: TelegramConfig
   feishu: FeishuConfig
+  dingtalk: DingTalkConfig
+  wecom: WeComConfig
 }
 
 function getConfigPath(): string {
@@ -146,6 +168,8 @@ export function loadConfig(): AdapterConfig {
   const file = loadFile()
   const tg = file.telegram ?? {}
   const fs_ = file.feishu ?? {}
+  const dingtalk = file.dingtalk ?? {}
+  const wecom = file.wecom ?? {}
   const pairing = file.pairing ?? {}
 
   return {
@@ -171,6 +195,27 @@ export function loadConfig(): AdapterConfig {
       pairedUsers: fs_.pairedUsers ?? [],
       defaultWorkDir: fs_.defaultWorkDir || process.cwd(),
       streamingCard: fs_.streamingCard ?? false,
+    },
+    dingtalk: {
+      clientId: process.env.DINGTALK_CLIENT_ID || dingtalk.clientId || '',
+      clientSecret:
+        process.env.DINGTALK_CLIENT_SECRET || dingtalk.clientSecret || '',
+      robotWebhook:
+        process.env.DINGTALK_ROBOT_WEBHOOK || dingtalk.robotWebhook || '',
+      robotSecret:
+        process.env.DINGTALK_ROBOT_SECRET || dingtalk.robotSecret || '',
+      allowedUsers: dingtalk.allowedUsers ?? [],
+      pairedUsers: dingtalk.pairedUsers ?? [],
+      defaultWorkDir: dingtalk.defaultWorkDir || process.cwd(),
+    },
+    wecom: {
+      corpId: process.env.WECOM_CORP_ID || wecom.corpId || '',
+      agentId: process.env.WECOM_AGENT_ID || wecom.agentId || '',
+      secret: process.env.WECOM_SECRET || wecom.secret || '',
+      webhookKey: process.env.WECOM_WEBHOOK_KEY || wecom.webhookKey || '',
+      allowedUsers: wecom.allowedUsers ?? [],
+      pairedUsers: wecom.pairedUsers ?? [],
+      defaultWorkDir: wecom.defaultWorkDir || process.cwd(),
     },
   }
 }

@@ -1,105 +1,35 @@
 # Findings
 
-- `docs/handoff-2026-04-21-ai-transfer.md` is about a defensive `normalizeMessages` fix for malformed / tombstone / unknown messages; it does not cover the broader `claude-yh` branding/path cleanup.
-- `src/utils/messages.ts` currently guards `isNotEmptyMessage` against nullish/non-object input and drops invalid message shapes plus `tombstone` entries inside `normalizeMessages`.
-- `src/components/Messages.tsx` and `src/utils/queryHelpers.ts` are real consumers of `normalizeMessages(...).filter(isNotEmptyMessage)` / `normalizeMessage(...)`, so those paths need broader regression coverage than the existing three tests provide.
-- The repo already exposes itself as `claude-yh` in `package.json` and `bin/claude-yh`, so remaining `claude ...` command strings are stale user-facing copy, not a deliberate binary name.
-- The branding/path problem was broader than commands alone:
-  - default config home still resolved to `~/.claude`
-  - project settings and scheduled tasks still pointed at `.claude/...`
-  - repo-local config directory was still named `.claude`
-  - high-signal user-facing text still mentioned `Claude Code`, `claude.ai`, and old `claude ...` command forms
-- After the current pass:
-  - the tested paths use `.claude-yh` / `~/.claude-yh`
-  - resume/help output is aligned to `claude-yh`
-  - the remaining desktop test runner incompatibility was centralized in `desktop/src/test/setupDom.ts`
-  - the desktop React type incompatibilities in `Sidebar.tsx` and `TitleBar.tsx` are fixed
-- Verified project state:
-  - full `bun test` passes
-  - root and desktop `tsc --noEmit` pass
-- Intentionally left unchanged because they would break runtime behavior:
-  - external real URLs / OAuth / download endpoints
-  - protocol names like `claude/channel`
-  - internal constants and historical identifiers with compatibility impact
-- The current user request raises a valid QA gap: automated tests prove regression coverage, but they do not by themselves prove that the packaged `claude-yh` flows behave correctly for a human operator.
-- For trustworthy manual verification, runtime checks need to be isolated from the user's real `~/.claude-yh` and legacy `~/.claude` data.
-- The active repo `.env` no longer represents a native Anthropic Messages endpoint. It currently uses:
-  - `ANTHROPIC_BASE_URL=https://api.minimaxi.com/v1`
-  - `CLAUDE_CODE_COMPAT_PROVIDER=openai`
-  - `CLAUDE_CODE_OPENAI_COMPAT_MODE=chat_completions`
-  This matters because creating a manual provider as `anthropic` against that base URL produces a false failure that looks like a runtime bug but is actually a test setup mismatch.
-- `ConversationService.buildChildEnv()` did have a real gap before this pass: it stripped inherited provider env when desktop-managed provider settings existed, but it did not explicitly merge the managed provider env back into the child process. That is now fixed and covered by regression tests.
-- Session transcript stamping still leaked `999.0.0-local` through `src/utils/sessionStorage.ts` even after CLI/help/status surfaces were updated. That is now fixed; isolated transcript entries record `version: 521`.
-- `CronScheduler.executeTask()` had a real functionality bug: task-level `model` and `permissionMode` were stored by the API but never passed to the spawned CLI. That is now fixed and covered by regression tests.
-- After the current fixes, isolated real-provider manual validation succeeded for all of these user-facing flows:
-  - direct CLI prompt against the configured upstream provider
-  - provider create / activate
-  - auth fallback from active `claude-yh` provider after deleting inherited env vars
-  - WebSocket session on the provider's main model
-  - model switch to the provider's highspeed/haiku model
-  - WebSocket session on the switched model
-  - scheduled-task manual run with an explicit task model and permission mode
-- The same upstream account supports both protocol families, but on different base URLs:
-  - OpenAI-compatible: `https://api.minimaxi.com/v1`
-  - Anthropic-compatible: `https://api.minimaxi.com/anthropic`
-- Full app-level validation now confirms `claude-yh` itself is compatible with both:
-  - OpenAI-compatible provider flow: passed
-  - Anthropic-compatible provider flow: passed
-- Important distinction: protocol compatibility does not imply identical model availability across both endpoints.
-  - For the current token/account, `MiniMax-M2.7` works on both protocol families.
-  - For the current token/account, `MiniMax-M2.7-highspeed` works on the OpenAI-compatible endpoint but fails on the native Anthropic endpoint with upstream error `your current token plan not support model, MiniMax-M2.7-highspeed (2061)`.
-  - That is an upstream/provider-side product limitation, not evidence that `claude-yh` lacks Anthropic protocol support.
-- Residual risk is now mostly outside the local code:
-  - upstream provider outages / overloads
-  - user misconfiguring `apiFormat` relative to `baseUrl`
-  - remaining non-critical `MACRO.VERSION` references outside the manually validated surfaces
+## Source Projects
+- `C:\Users\y1513\Desktop\cc\claw-code` contains a Rust workspace with separate crates for API/provider streaming, runtime, tools, plugins, commands, telemetry, a mock Anthropic-compatible service, and a parity harness.
+- `claw-code` is most useful as a migration pattern: deterministic mock service, parity checklist, Rust file/search/bash/permission modules, and honest gap tracking.
+- `C:\Users\y1513\Desktop\cc\GenericAgent` provides useful ideas around browser control, experience-to-Skill crystallization, autonomous operation SOPs, chat frontends, and L1-L4 memory.
 
-## Streaming Path Investigation
+## Current `cc-yh` Capabilities
+- `cc-yh` already has a persistent memory system under `src/memdir`, with `MEMORY.md` index files, auto extraction, team memory, and AutoDream.
+- `cc-yh` already has a rich Skill system under `src/skills`, including a bundled `skillify` implementation, but several bundled skills are gated behind `USER_TYPE=ant`.
+- `cc-yh` already has scheduled tasks and cron support in `src/utils/cron*` and desktop/server task services.
+- `cc-yh` already has Telegram and Feishu adapters under `adapters/` with a shared `adapters/common` layer.
+- DingTalk and WeCom now have shared config, masking, webhook helpers, and outbound markdown notification delivery for scheduled tasks and Jarvis checkpoints, but not full long-running inbound adapter processes yet.
+- `cc-yh` already has Chrome/MCP-oriented browser automation surfaces, including `claude-in-chrome` bundled skill and computer-use code paths.
+- Away Runner now has a disabled-by-default policy contract for budgets, checkpoints, pause reasons, and risk levels.
+- Away Session now has a 24h Jarvis Mode surface: shared config in `settings.json`, JSONL checkpoint history, server daemon, REST API, `/jarvis` CLI command, desktop/web page, and DingTalk/WeCom checkpoint notification hooks.
+- Rust runtime sidecar now has a read-only `session.index` method with TypeScript fallback, query filtering, and a server API.
+- BrowserControl now persists policy, defaults to enabled, exposes action assessment/execution, has a `/browser` CLI surface, has web/desktop Settings > Browser controls, and can execute through a GA-compatible local TMWD bridge connected to the user's current Chrome extension session.
+- Skill distillation now has a reviewed-save server API that writes real `SKILL.md` files to user or project scope.
+- MemoryV2 now has an actual store/API for L1 pointer index, L2 facts, L3 SOPs, L4 session summaries/raw archives, verified-only promotion, stale checks, local token-vector search, and distillation candidates.
 
-- The codebase already implements an end-to-end streaming architecture.
-  - Upstream OpenAI-compatible calls force `stream: true` in:
-    - `src/services/api/openaiCompat.ts`
-    - `src/services/api/openaiResponsesCompat.ts`
-  - The desktop server launches the CLI in `stream-json` mode in:
-    - `src/server/services/conversationService.ts`
-  - The WebSocket bridge translates CLI `stream_event` payloads into:
-    - `content_start`
-    - `content_delta`
-    - `thinking`
-    - `message_complete`
-    in `src/server/ws/handler.ts`
-  - The desktop frontend stores and renders incremental text through:
-    - `streamingText`
-    - `chatState: 'streaming'`
-    in `desktop/src/stores/chatStore.ts`
-    and `desktop/src/components/chat/MessageList.tsx`
-- Because the codebase also has an explicit non-streaming fallback path, a user-visible â€œnot streamingâ€ symptom does not automatically mean the frontend lacks streaming support.
-  - `src/server/ws/handler.ts` falls back to processing the final `assistant` payload when no CLI `stream_event` arrives.
-- The most likely failure classes are:
-  - the upstream/provider path is returning a final message without incremental events
-  - the current runtime is not actually using the latest server/frontend build
-  - the CLI/bridge path is receiving only final assistant messages for the active provider/mode
-- Live reproduction against the running desktop server proved the provider was not the bottleneck:
-  - direct MiniMax OpenAI-compatible SSE calls returned many incremental `data:` chunks
-  - the desktop WebSocket path initially returned exactly one final `content_delta` and no `status: streaming`
-- Root cause:
-  - the desktop server spawned the CLI in `stream-json` mode, but did not pass `--include-partial-messages`
-  - `src/QueryEngine.ts` / `src/cli/print.ts` only emit `stream_event` payloads when `includePartialMessages` is enabled
-  - without those events, `src/server/ws/handler.ts` falls back to unpacking the final assistant payload into a single text block
-- Fix applied:
-  - `src/server/services/conversationService.ts` now adds `--include-partial-messages` to desktop session CLI startup args
-  - regression coverage added in `src/server/__tests__/conversation-service.test.ts`
-- Post-fix manual verification against the live local server passed:
-  - long-output probe received `status: streaming` and `32` separate `content_delta` events
-  - shorter-output probe received `status: streaming`, `13` separate `content_delta` events, and a final `message_complete`
-  - the observed deltas were real increments rather than duplicated full-message snapshots
-- The desktop frontend still had a user-visible streaming UX issue even after the backend fix:
-  - incoming `content_delta` text was appended in relatively large chunks, which feels abrupt
-  - the throttle state in `desktop/src/stores/chatStore.ts` used global module variables (`pendingDelta`, `flushTimer`) shared across all sessions, which created real cross-session display-bug risk
-- Frontend streaming presentation is now hardened:
-  - per-session streaming buffers and timers replaced the global throttle
-  - incremental text is rendered through a small-step smoothing loop instead of 50ms whole-chunk appends
-  - pending text is flushed safely before `message_complete`, `error`, `thinking`, `content_start`, `stopGeneration`, `disconnectSession`, and new user turns
-## 2026-04-24 ×ÀÃæ¶ËÄ£ÐÍ´íÂÒ¸ùÒò
-- Tauri »á×ÔÀ­ `claude-sidecar server`£¬Ö®Ç°ÕâÌõÁ´Â·Ã»ÓÐÏÔÊ½¼ÓÔØ²Ö¿â¸ùÄ¿Â¼ `.env`£¬Òò´Ë×ÀÃæ¿Ç¿ÉÄÜÍË»Ø¹Ù·½ Claude µÇÂ¼Ì¬/Ä¬ÈÏÄ£ÐÍ¡£
-- ½öÐÞÕý `/api/models/current` µÄÕ¹Ê¾²»¹»£»`src/server/ws/handler.ts` Ò²»á°Ñ¾ÉµÄ `settings.model` Í¸´«¸ø CLI£¬µ¼ÖÂÊµ¼ÊÔËÐÐÈÔ¿ÉÄÜ¼ÌÐøµ÷ÓÃ¾É¹Ù·½Ä£ÐÍ¡£
+## Gaps To Address
+- Skill distillation now has a web/desktop Agent Workbench path that can save a reviewed project-scope `SKILL.md`; broader dedicated review UX can still be improved later.
+- MemoryV2 now has both an Agent Workbench path and a Settings > Memory path. CLI `/memory` also supports listing, showing, searching, summarizing, stale checks, and distillation. Existing legacy memory paths still need gradual product integration.
+- Existing scheduled tasks are not the same as GA-style away-mode autonomous execution with checkpoints, budgets, and pause conditions.
+- Browser automation now has a stable policy/execution contract, a GA-compatible `tmwd-cdp-bridge` current-Chrome path, a Chrome DevTools fallback, audit logging, a bundled browser Skill prompt, a `/browser` CLI command, and a web/desktop Settings surface. It is default-on, with sensitive confirmation and denied-domain controls still available.
+- DingTalk / WeCom still require real inbound adapter processes and event verification before they can be used as full chat task channels.
+- Jarvis Mode is user-facing for observation/checkpoints, outbound notifications, and manual web checkpoint triggering; approved execution handoff remains a future safety-sensitive extension.
+- Rust session index and fs search have real sidecar smoke tests; MemoryV2 can consume the session index for L4 summaries. Broader Rust parity is still needed before replacing more TypeScript session/memory paths.
+- Personal WeChat requires careful permission/compliance boundaries.
+
+## Risk Notes
+- The GA Chrome extension requests broad permissions (`cookies`, `tabs`, `debugger`, `management`, `<all_urls>`) and earlier code included CSP modification behavior. It should never be silently installed; the adapted `extensions/tmwd_cdp_bridge` copy keeps the current-session bridge but avoids default CSP header removal, while product policy defaults BrowserControl itself to enabled after installation.
+- Personal WeChat automation has account-risk and protocol-stability concerns; DingTalk and WeCom should come first.
+- Rust rewrites can regress behavior unless every swapped module is protected by parity tests.

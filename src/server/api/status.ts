@@ -111,6 +111,7 @@ function handleDiagnostics(): Response {
     bunVersion: typeof Bun !== 'undefined' ? Bun.version : 'N/A',
     platform: process.platform,
     arch: process.arch,
+    cwd: process.cwd(),
     configDir: getConfigDir(),
     memory: {
       rss: process.memoryUsage.rss(),

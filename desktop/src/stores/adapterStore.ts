@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { adaptersApi } from '../api/adapters'
 import type { AdapterFileConfig } from '../types/adapter'
 
+type ImPlatform = 'telegram' | 'feishu' | 'dingtalk' | 'wecom'
+
 /**
  * Tauri command 触发器：让主进程 kill + respawn adapter sidecar，
  * 让 ~/.claude-yh/adapters.json 里的最新凭据被新进程读到，建立飞书 / Telegram
@@ -48,7 +50,7 @@ type AdapterStore = {
   fetchConfig: () => Promise<void>
   updateConfig: (patch: Partial<AdapterFileConfig>) => Promise<void>
   generatePairingCode: () => Promise<string>
-  removePairedUser: (platform: 'telegram' | 'feishu', userId: string | number) => Promise<void>
+  removePairedUser: (platform: ImPlatform, userId: string | number) => Promise<void>
 }
 
 export const useAdapterStore = create<AdapterStore>((set, get) => ({

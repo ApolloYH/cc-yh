@@ -20,6 +20,8 @@ export const zh: Record<TranslationKey, string> = {
   // ─── Sidebar ──────────────────────────────────────
   'sidebar.newSession': '新建会话',
   'sidebar.scheduled': '定时任务',
+  'sidebar.jarvis': 'Away Session',
+  'sidebar.workbench': '总方案工作台',
   'sidebar.settings': '设置',
   'sidebar.collapse': '收起侧边栏',
   'sidebar.expand': '展开侧边栏',
@@ -53,6 +55,8 @@ export const zh: Record<TranslationKey, string> = {
   'settings.tab.permissions': '权限',
   'settings.tab.general': '通用',
   'settings.tab.skills': '技能',
+  'settings.tab.browser': 'Browser',
+  'settings.tab.memory': 'Memory',
 
   // Settings > Claude Official Login
   'settings.claudeOfficialLogin.intro': '使用官方 Claude 模型需要登录你的 Claude.ai 账号。点击下方按钮,浏览器会打开 Claude 官方登录页面,授权后自动回到这里。',
@@ -289,6 +293,22 @@ export const zh: Record<TranslationKey, string> = {
 
   // Settings > Computer Use
   'settings.tab.computerUse': 'Computer Use',
+  'settings.browser.title': 'Browser',
+  'settings.browser.description': '使用当前 Chrome 会话和登录态的浏览器控制能力。默认全开启，敏感操作仍会走确认和红线策略。',
+  'settings.browser.testTabs': '测试标签页',
+  'settings.browser.enabled': '启用 BrowserControl',
+  'settings.browser.enabledHint': '作为 claude-yh 的底层浏览器能力默认启用。',
+  'settings.browser.highRisk': '高权限能力',
+  'settings.browser.highRiskHint': '允许 tmwd bridge、Cookie 读取和 CDP 调用等能力。',
+  'settings.browser.confirm': '敏感确认',
+  'settings.browser.confirmHint': '点击、输入、Cookie、CDP 等敏感动作执行前要求确认。',
+  'settings.browser.backend': '默认后端',
+  'settings.browser.domains': '域名策略',
+  'settings.browser.allowedDomains': '允许域名',
+  'settings.browser.deniedDomains': '拒绝域名',
+  'settings.browser.currentTabs': '当前 Chrome 标签页',
+  'settings.browser.notTested': '未测试',
+  'settings.browser.noTabs': '还没有读取到标签页。请确认扩展已连接本地桥。',
   'settings.computerUse.title': 'Computer Use',
   'settings.computerUse.description': '允许 Claude YH 截屏、点击、打字并控制你的电脑。需要 Python 3，macOS 上还需要辅助功能权限。',
   'settings.computerUse.notSupported': 'Computer Use 仅支持 macOS 和 Windows。',

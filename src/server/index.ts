@@ -12,9 +12,11 @@ import { corsHeaders } from './middleware/cors.js'
 import { requireAuth } from './middleware/auth.js'
 import { teamWatcher } from './services/teamWatcher.js'
 import { cronScheduler } from './services/cronScheduler.js'
+import { jarvisService } from './services/jarvisService.js'
 import { handleProxyRequest } from './proxy/handler.js'
 import { ProviderService } from './services/providerService.js'
 import { handleHahaOAuthCallback } from './api/haha-oauth.js'
+import { getLocalTmwdBridge } from '../browserControl/tmwdBridgeServer.js'
 
 function readArgValue(flag: string): string | undefined {
   const args = process.argv.slice(2)
@@ -219,6 +221,21 @@ export function startServer(port = PORT, host = HOST) {
   // Start the cron scheduler to execute scheduled tasks
   cronScheduler.start()
 
+  // Start the 24h companion daemon when enabled in ~/.claude-yh/settings.json
+  jarvisService.start().catch((error) => {
+    console.error('[Jarvis] Failed to start:', error)
+  })
+
+  // Start the GA-compatible browser bridge so the Chrome extension can attach
+  // to the user's existing browser session and cookies.
+  getLocalTmwdBridge().ensureStarted().then((state) => {
+    if (state.status === 'running') {
+      console.log(`[BrowserControl] TMWD bridge listening on ws://127.0.0.1:${state.port}`)
+    } else {
+      console.warn(`[BrowserControl] TMWD bridge unavailable: ${state.error}`)
+    }
+  })
+
   console.log(`[Server] Claude Code API server running at http://${host}:${port}`)
   return server
 }
@@ -227,6 +244,8 @@ export function startServer(port = PORT, host = HOST) {
 import { conversationService } from './services/conversationService.js'
 
 function cleanupAllSessions() {
+  jarvisService.stop()
+  getLocalTmwdBridge().close()
   const active = conversationService.getActiveSessions()
   if (active.length > 0) {
     console.log(`[Server] Shutting down — killing ${active.length} CLI subprocess(es)`)

@@ -31,6 +31,27 @@ export function parseMemoryType(raw: unknown): MemoryType | undefined {
 }
 
 /**
+ * Layering guidance inspired by GenericAgent's L1-L4 model.
+ * The existing storage remains unchanged; this section tells the agent how to
+ * promote information between index, fact files, reusable skills, and archives.
+ */
+export const LAYERED_MEMORY_SECTION: readonly string[] = [
+  '## Memory layers',
+  '',
+  'Use the memory directory as a layered system:',
+  '- L1 index: `MEMORY.md` is only a short routing index. It should contain one-line pointers to memory files, never full memory content.',
+  '- L2 facts: stable user, feedback, project, and reference facts belong in typed memory files.',
+  '- L3 skills/SOPs: verified repeatable procedures belong in Skills or SOP files, not as long prose inside `MEMORY.md`.',
+  '- L4 archive: raw sessions, daily logs, and transcripts are evidence for search and consolidation, not direct instructions to follow blindly.',
+  '',
+  'Promotion rules:',
+  '- No execution, no memory: promote only facts or procedures observed through tool results or explicitly confirmed by the user.',
+  '- Promote from L4 to L2 or L3 only after verification; promote to L1 only as a concise pointer.',
+  '- Never store secrets, API keys, passwords, cookies, or tokens. Do not store volatile state such as active PIDs, temporary paths, current time, or one-off session IDs.',
+  '',
+]
+
+/**
  * `## Types of memory` section for COMBINED mode (private + team directories).
  * Includes <scope> tags and team/private qualifiers in examples.
  */

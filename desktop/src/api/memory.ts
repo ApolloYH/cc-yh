@@ -1,0 +1,94 @@
+import { api } from './client'
+
+export type MemoryLayer = 'L1' | 'L2' | 'L3' | 'L4'
+
+export type MemoryV2StaleStatus = {
+  stale: boolean
+  reason: string
+  ageDays?: number
+  severity: 'fresh' | 'watch' | 'stale'
+}
+
+export type MemoryV2Entry = {
+  layer: MemoryLayer
+  id: string
+  title: string
+  path: string
+  source?: string
+  verified: boolean
+  content?: string
+  summary?: string
+  updatedAt?: string
+  stale?: MemoryV2StaleStatus
+}
+
+export type MemoryV2LayerStatus = {
+  layer: MemoryLayer
+  title: string
+  description: string
+  path: string
+  entries: MemoryV2Entry[]
+}
+
+export type MemoryV2Status = {
+  root: string
+  indexPath: string
+  factsDir: string
+  sopsDir: string
+  sessionsDir: string
+  summariesDir: string
+  vectorIndexPath: string
+  candidatePath: string
+  entries: MemoryV2Entry[]
+  facts: MemoryV2Entry[]
+  sops: MemoryV2Entry[]
+  layers: MemoryV2LayerStatus[]
+  stale: MemoryV2Entry[]
+}
+
+export type MemoryV2SearchResult = {
+  entry: MemoryV2Entry
+  score: number
+  matchedTerms: string[]
+  method: 'local-token-vector'
+}
+
+export type MemoryV2DistillCandidate = {
+  id: string
+  layer: 'L2' | 'L3'
+  title: string
+  content: string
+  source: string
+  confidence: number
+  reason: string
+  verified: true
+}
+
+export const memoryApi = {
+  status() {
+    return api.get<MemoryV2Status>('/api/memory-v2')
+  },
+  entry(layer: MemoryLayer, id: string) {
+    return api.get<{ entry: MemoryV2Entry }>(`/api/memory-v2/entry/${layer}/${encodeURIComponent(id)}`)
+  },
+  updateEntry(input: { layer: MemoryLayer; id: string; title?: string; content: string; source?: string }) {
+    return api.put<{ entry: MemoryV2Entry }>(`/api/memory-v2/entry/${input.layer}/${encodeURIComponent(input.id)}`, {
+      title: input.title,
+      content: input.content,
+      source: input.source,
+      verified: true,
+    })
+  },
+  search(query: string) {
+    return api.post<{ results: MemoryV2SearchResult[] }>('/api/memory-v2/search', { query, limit: 20 })
+  },
+  summarize(limit = 20) {
+    return api.post<{ entries: MemoryV2Entry[] }>('/api/memory-v2/summarize', { limit })
+  },
+  stale() {
+    return api.get<{ entries: MemoryV2Entry[] }>('/api/memory-v2/stale')
+  },
+  distill(apply = false) {
+    return api.post<{ candidates: MemoryV2DistillCandidate[]; applied?: MemoryV2Entry[] }>('/api/memory-v2/distill', { limit: 12, apply })
+  },
+}

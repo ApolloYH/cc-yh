@@ -10,10 +10,11 @@ import * as path from 'path'
 import * as os from 'os'
 import * as crypto from 'crypto'
 import { ApiError } from '../middleware/errorHandler.js'
+import type { AwayRunnerConfig } from '../../awayRunner/index.js'
 
 export type TaskNotificationConfig = {
   enabled: boolean
-  channels: ('telegram' | 'feishu')[]
+  channels: ('telegram' | 'feishu' | 'dingtalk' | 'wecom')[]
 }
 
 export type CronTask = {
@@ -32,6 +33,7 @@ export type CronTask = {
   folderPath?: string
   useWorktree?: boolean
   notification?: TaskNotificationConfig
+  awayRunner?: Partial<AwayRunnerConfig>
 }
 
 type TasksFile = {

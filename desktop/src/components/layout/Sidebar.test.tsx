@@ -12,6 +12,8 @@ vi.mock('../../i18n', () => ({
     const translations: Record<string, string> = {
       'sidebar.newSession': 'New Session',
       'sidebar.scheduled': 'Scheduled',
+      'sidebar.jarvis': 'Away Session',
+      'sidebar.workbench': 'Agent Workbench',
       'sidebar.settings': 'Settings',
       'sidebar.collapse': 'Collapse sidebar',
       'sidebar.expand': 'Expand sidebar',

@@ -11,6 +11,7 @@
 
 import { feature } from 'bun:bundle'
 import {
+  LAYERED_MEMORY_SECTION,
   MEMORY_FRONTMATTER_EXAMPLE,
   TYPES_SECTION_COMBINED,
   TYPES_SECTION_INDIVIDUAL,
@@ -86,6 +87,7 @@ export function buildExtractAutoOnlyPrompt(
     '',
     'If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.',
     '',
+    ...LAYERED_MEMORY_SECTION,
     ...TYPES_SECTION_INDIVIDUAL,
     ...WHAT_NOT_TO_SAVE_SECTION,
     '',
@@ -145,6 +147,7 @@ export function buildExtractCombinedPrompt(
     '',
     'If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.',
     '',
+    ...LAYERED_MEMORY_SECTION,
     ...TYPES_SECTION_COMBINED,
     ...WHAT_NOT_TO_SAVE_SECTION,
     '- You MUST avoid saving sensitive data within shared team memories. For example, never save API keys or user credentials.',

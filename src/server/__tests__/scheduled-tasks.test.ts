@@ -78,6 +78,30 @@ describe('CronService', () => {
     expect(tasks[1].prompt).toBe('Task 2')
   })
 
+  it('should persist optional Away Runner config without affecting normal tasks', async () => {
+    const task = await service.createTask({
+      cron: '0 9 * * *',
+      prompt: 'Run while away with limits',
+      awayRunner: {
+        enabled: true,
+        mode: 'autonomous',
+        allowedRisk: 'low',
+        budget: {
+          maxRuntimeMs: 15 * 60 * 1000,
+          maxTurns: 8,
+        },
+      },
+    })
+
+    const tasks = await service.listTasks()
+
+    expect(tasks).toHaveLength(1)
+    expect(tasks[0].id).toBe(task.id)
+    expect(tasks[0].awayRunner?.enabled).toBe(true)
+    expect(tasks[0].awayRunner?.mode).toBe('autonomous')
+    expect(tasks[0].awayRunner?.budget?.maxTurns).toBe(8)
+  })
+
   it('should update an existing task', async () => {
     const created = await service.createTask({
       cron: '0 9 * * *',

@@ -302,6 +302,9 @@ function TabItem({ tab, isActive, isDragOver, onClick, onClose, onContextMenu, o
       {tab.type === 'scheduled' && (
         <span className="material-symbols-outlined text-[14px] flex-shrink-0 text-[var(--color-text-tertiary)]">schedule</span>
       )}
+      {tab.type === 'jarvis' && (
+        <span className="material-symbols-outlined text-[14px] flex-shrink-0 text-[var(--color-text-tertiary)]">sensors</span>
+      )}
 
       <span className={`flex-1 truncate text-xs ${isActive ? 'text-[var(--color-text-primary)] font-medium' : 'text-[var(--color-text-secondary)]'}`}>
         {tab.title || 'Untitled'}

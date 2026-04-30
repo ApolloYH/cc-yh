@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "source": "claude-yh-runtime-sidecar",
+  "scenarios": [
+    {
+      "id": "sidecar_hello",
+      "description": "The sidecar reports protocol metadata and advertised capabilities.",
+      "status": "implemented"
+    },
+    {
+      "id": "echo_roundtrip",
+      "description": "The sidecar preserves structured JSON params across request/response boundaries.",
+      "status": "implemented"
+    },
+    {
+      "id": "unknown_method_error",
+      "description": "The sidecar returns a structured method_not_found error for unsupported methods.",
+      "status": "implemented"
+    },
+    {
+      "id": "session_index_smoke",
+      "description": "The sidecar can scan session JSONL metadata and return a bounded index.",
+      "status": "implemented"
+    }
+  ]
+}

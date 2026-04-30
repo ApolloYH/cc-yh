@@ -12,6 +12,7 @@
   },
   "files": [
     "bin",
+    "extensions",
     "src",
     "!src/**/__tests__/**",
     "!src/**/*.test.ts",
@@ -26,6 +27,8 @@
   "scripts": {
     "claude-yh": "node ./bin/claude-yh.js",
     "start": "node ./bin/claude-yh.js",
+    "rust:check": "cargo check --manifest-path rust/Cargo.toml",
+    "rust:test": "cargo test --manifest-path rust/Cargo.toml",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

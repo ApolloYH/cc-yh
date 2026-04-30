@@ -1,108 +1,238 @@
 # Progress
 
-## 2026-04-21
-- Switched task tracking from the previous OpenAI transport work to the new QA/remediation request.
-- Confirmed the active repo is `C:\Users\y1513\Desktop\cc\cc-yh`; the path `C:\Users\y1513\Desktop\cc-haha` from the session context does not exist.
-- Reviewed `docs/handoff-2026-04-21-ai-transfer.md` and confirmed it only covers `src/utils/messages.ts` / `src/utils/__tests__/messages.test.ts`.
-- Expanded `messages` regression coverage to malformed nested content and malformed nested `agent_progress` payloads.
-- Hardened `src/utils/messages.ts` so malformed known message shapes no longer throw during normalization.
-- Replaced the default local config directory naming from `.claude` / `~/.claude` to `.claude-yh` / `~/.claude-yh` across the tested paths, and renamed the repo-local `.claude` directory to `.claude-yh`.
-- Fixed the `claude --resume` output path so resume hints now emit `claude-yh --resume`.
-- Updated high-signal CLI/help/Remote Control copy to `claude-yh` / `claude-yh.ai`.
-- Fixed Bun desktop test compatibility centrally in `desktop/src/test/setupDom.ts` by shimming `vi.hoisted` and `vi.advanceTimersByTimeAsync`.
-- Fixed the remaining desktop React namespace type mismatches in:
-  - `desktop/src/components/layout/Sidebar.tsx`
-  - `desktop/src/components/layout/TitleBar.tsx`
-- Verified targeted regressions:
-  - `bun test src/utils/__tests__/messages.test.ts`
-  - `bun test src/utils/__tests__/cronTasks.test.ts`
-  - `bun test desktop\\src\\stores\\chatStore.test.ts desktop\\src\\stores\\hahaOAuthStore.test.ts desktop\\src\\stores\\sessionStore.test.ts desktop\\src\\components\\chat\\MermaidRenderer.test.tsx`
-  - `bun --env-file=.env .\\src\\entrypoints\\cli.tsx --help`
-- Verified full project health:
-  - `bun x tsc --noEmit -p desktop\\tsconfig.json`
-  - `bun x tsc --noEmit -p tsconfig.json`
+## 2026-04-25
+- Switched planning files from the previous streaming QA task to the current Rust / GenericAgent integration effort.
+- Confirmed the working tree was clean before starting this batch.
+- Reviewed local evidence from:
+  - `claw-code/rust/README.md`
+  - `claw-code/rust/PARITY.md`
+  - `claw-code/rust/MOCK_PARITY_HARNESS.md`
+  - `GenericAgent/README.md`
+  - `GenericAgent/memory/memory_management_sop.md`
+  - `GenericAgent/memory/tmwebdriver_sop.md`
+- Identified Phase 1 implementation targets:
+  - expose `/skillify` to normal users
+  - add L1-L4 memory guidance into the active memory prompt
+  - preserve existing runtime behavior through type checks and targeted tests
+- Implemented Phase 1 foundations:
+  - removed the internal `USER_TYPE=ant` gate from `/skillify` and `/remember`
+  - added verified-process guidance to `/skillify`
+  - added L1-L4 memory/promotion guidance to interactive and background extraction prompts
+  - added regression tests for bundled skill visibility and memory prompt injection
+  - documented Rust/GenericAgent integration boundaries in `docs/reference/rust-ga-integration.md`
+- Verification passed:
   - `bun test`
-- Final result:
-  - `bun test`: `820 pass / 0 fail`
-  - both TypeScript checks pass
-
-## 2026-04-21 Manual QA Follow-up
-- Switched from code-level verification to manual functional validation at the user's request.
-- Added a new plan focused on isolated runtime testing of CLI, config storage, API/server flows, WebSocket chat, and real model-path validation where possible.
-- Fixed `ConversationService.buildChildEnv()` so desktop-managed provider env from `claude-yh/settings.json` is explicitly merged into spawned CLI env, including OpenAI compat flags.
-- Updated `src/server/__tests__/conversation-service.test.ts` to assert desktop provider env is injected instead of stripped to `undefined`.
-- Re-ran targeted validation:
-  - `bun test src/server/__tests__/conversation-service.test.ts`
+  - `bun test src/skills/__tests__/bundledSkills.test.ts src/memdir/__tests__/memoryLayers.test.ts`
   - `bun x tsc --noEmit -p tsconfig.json`
-- Verified direct CLI with the current `.env` still works for both:
-  - `MiniMax-M2.7`
-  - `MiniMax-M2.7-highspeed`
-- Manual isolated REST + WebSocket validation against a real upstream provider now passes when the provider is created with the same OpenAI-compat mode as the active `.env`:
-  - provider create/activate succeeded
-  - parent-process `ANTHROPIC_*` / compat env vars were deleted after activation
-  - `/api/providers/auth-status` still reported `source: claude-yh-provider`
-  - one main-model WebSocket turn returned `QA_MAIN_OK`
-  - switching to `MiniMax-M2.7-highspeed` via `/api/models/current` succeeded
-  - a second WebSocket turn returned `QA_HAIKU_OK`
-- Found and fixed another real runtime leak: session transcript entries still stamped `version: 999.0.0-local`.
-  - `src/utils/sessionStorage.ts` now uses `PRODUCT_DISPLAY_VERSION`
-  - verified isolated session JSONL entries now record `version: 521`
-- Found and fixed a real scheduled-task bug:
-  - `CronScheduler.executeTask()` was ignoring task-level `model` and `permissionMode`
-  - it now passes both flags to the CLI and pins `CALLER_DIR` / `PWD` while setting `CLAUDE_YH_SKIP_DOTENV=1`
-- Added regression coverage in `src/server/__tests__/cron-scheduler.test.ts` for scheduled-task spawn args and env.
-- Re-ran targeted validation:
-  - `bun test src/server/__tests__/cron-scheduler.test.ts`
+  - `cd desktop && bun run lint`
+  - `bun run docs:build`
+- Implemented Phase 2 Rust boundary:
+  - added `rust/` workspace with `claude-yh-runtime-sidecar`
+  - added newline-delimited JSON protocol methods: `runtime.hello`, `runtime.echo`, `parity.manifest`
+  - added TS protocol/client files under `src/runtime/`
+  - added reusable parity harness scenarios for hello, echo roundtrip, and structured unknown-method errors
+  - kept the sidecar disabled by default; discovery requires `CLAUDE_YH_RUST_SIDECAR_PATH`
+- Phase 2 verification passed:
+  - `bun test src/runtime/__tests__/rustSidecarProtocol.test.ts src/runtime/__tests__/rustSidecarClient.test.ts`
+  - `bun run rust:test`
+  - `cargo fmt --manifest-path rust/Cargo.toml -- --check`
   - `bun x tsc --noEmit -p tsconfig.json`
-- Manual isolated scheduled-task validation now passes against the real upstream provider:
-  - created a task with `model: MiniMax-M2.7-highspeed`
-  - created a task with `permissionMode: plan`
-  - manual `run now` completed successfully
-  - run output was `TASK_HAIKU_OK`
-  - linked session transcript shows `permissionMode: plan`, `model: MiniMax-M2.7-highspeed`, and `version: 521`
-- Added an explicit dual-protocol validation pass against the same upstream account:
-  - direct provider probing confirmed `openai_chat` works on `https://api.minimaxi.com/v1/chat/completions`
-  - direct provider probing confirmed native `anthropic` works on `https://api.minimaxi.com/anthropic/v1/messages`
-  - a full isolated app flow also passed in native `anthropic` mode when configured against `https://api.minimaxi.com/anthropic`
-    - real WebSocket turn returned `ANTHROPIC_PROTOCOL_OK`
-    - scheduled task manual run returned `ANTHROPIC_TASK_PROTOCOL_OK`
-- Also confirmed a protocol-specific upstream limitation for the current token/account:
-  - `MiniMax-M2.7-highspeed` works on the OpenAI-compatible endpoint
-  - the same model on the native Anthropic endpoint returns upstream `500 api_error: your current token plan not support model, MiniMax-M2.7-highspeed (2061)`
-  - this is an upstream model-availability difference, not a local protocol-translation failure
+- Implemented Phase 3 BrowserControl safety boundary:
+  - added `src/browserControl/` contract types, known backend descriptors, and policy evaluator
+  - modeled `claude-in-chrome`, `computer-use`, and high-risk `tmwd-cdp-bridge` as separate backend descriptors
+  - defaulted browser automation to disabled and domain allowlist based
+  - required confirmation for sensitive actions such as click/type/upload/download/cookie/CDP/header/extension operations
+  - hard-denied captcha, two-factor, payment, and sensitive confirmation flows
+  - kept the policy module unconnected to production browser execution paths
+- Phase 3 verification passed:
+  - `bun test src/browserControl/__tests__/policy.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+- Implemented Phase 4 DingTalk / WeCom adapter scaffolding:
+  - added shared `ImPlatform` type and expanded adapter config loading for `dingtalk` and `wecom`
+  - added server-side config API support, secret masking, and masked-value preservation for the new channels
+  - added desktop config types and paired-user store support for the expanded platform union
+  - added DingTalk robot webhook URL signing and markdown message helpers
+  - added WeCom robot webhook URL, text message, and markdown message helpers
+  - kept the new channels out of the existing notification send path until real adapter processes are implemented
+- Phase 4 verification passed:
+  - `bun test adapters/common/__tests__/config-channels.test.ts adapters/dingtalk/__tests__/webhook.test.ts adapters/wecom/__tests__/webhook.test.ts src/server/__tests__/adapter-service.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
 
-## 2026-04-24 Streaming Investigation
-- Started a focused investigation into the user's report that desktop responses appear non-streaming.
-- Confirmed from source inspection that the codebase already has a full streaming stack:
-  - upstream OpenAI-compatible requests use `stream: true`
-  - CLI subprocess runs in `stream-json` mode
-  - server WebSocket bridge translates CLI `stream_event` into `content_delta` / `thinking`
-  - frontend chat store accumulates `streamingText` and renders it live
-- Identified a key architectural detail before live reproduction:
-  - the server explicitly falls back to final `assistant` message processing when no `stream_event` arrives
-  - so the remaining task is to determine whether the current runtime/provider path is failing to produce stream events, rather than assuming the frontend lacks streaming support
-- Reproduced the bug against the real running desktop server:
-  - created a session through `/api/sessions`
-  - connected to `/ws/:sessionId`
-  - sent a long real-model request
-  - observed no `status: streaming` and only a single final `content_delta`
-- Confirmed the upstream provider itself streams correctly by probing MiniMax directly with `stream: true`; multiple SSE chunks were returned.
-- Isolated the real local root cause:
-  - `ConversationService.startSession()` launched the CLI in `stream-json` mode but did not enable `--include-partial-messages`
-  - as a result, the CLI emitted no `stream_event` payloads for the desktop bridge
-- Fixed `src/server/services/conversationService.ts` to include `--include-partial-messages` in spawned desktop CLI args.
-- Added regression coverage in `src/server/__tests__/conversation-service.test.ts`.
-- Re-verified after restarting the local server:
-  - long-response probe returned `status: streaming` and `32` separate `content_delta` events
-  - short-response probe returned `status: streaming`, `13` separate `content_delta` events, and `message_complete`
-- Streaming is now working end-to-end on the live desktop server path.
-- Follow-up UX hardening on the desktop frontend:
-  - replaced the old global streaming throttle (`pendingDelta` / `flushTimer`) in `desktop/src/stores/chatStore.ts`
-  - introduced per-session streaming buffers/timers to remove cross-session rendering risk
-  - changed rendering from coarse 50ms whole-chunk appends to smaller-step smoothing for a more token-like feel
-  - added regression tests covering per-session isolation and flush-on-message-complete behavior
-## 2026-04-24 桌面端模型链路修复
-- 修复 `preload.ts`：sidecar/server/cli 启动时会向上查找并加载最近的 `.env`，保证 Tauri 开发壳拿到根目录 MiniMax 配置。
-- 修复 `src/server/api/models.ts`：当 `settings.model` 是过期的官方 Claude 型号，且当前实际可用模型来自 `.env` / provider 时，`/api/models/current` 会回退到真实可用模型，不再显示旧型号。
-- 修复 `src/server/ws/handler.ts`：运行时启动 CLI 时，如果当前是 env-backed 第三方模型，只在用户明确选择了同一可用列表里的其它模型时才透传 `--model`；否则让 `ANTHROPIC_MODEL` 接管，避免旧 `settings.model` 抢占实际调用。
-- 已重启根目录后端与 Tauri 开发壳；当前根后端 `/api/models/current` 返回 `MiniMax-M2.7`，桌面壳进程 `claude-code-desktop.exe` 已运行。
+## 2026-04-26
+- Continued from the user-approved overall plan:
+  - Rust remains an acceleration kernel, not a full rewrite
+  - BrowserControl remains a gated abstraction with high-risk backends disabled by default
+  - Skill distillation remains review-first and based on verified execution
+  - Away Runner must be budgeted, checkpointed, and pause on sensitive operations
+- Implemented Phase 5 Away Runner boundary:
+  - added `src/awayRunner/` types, default config, normalization, and policy evaluator
+  - modeled observe / assisted / autonomous modes
+  - added budget exhaustion, periodic checkpoint, initial checkpoint, explicit pause reason, and risk-level decisions
+  - added optional `awayRunner` config to scheduled task persistence and desktop task types
+  - did not change scheduler execution behavior or automatically continue any existing task
+- Phase 5 verification passed:
+  - `bun test src/awayRunner/__tests__/policy.test.ts src/server/__tests__/scheduled-tasks.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+- Implemented Phase 6 read-only Rust session index boundary:
+  - added TypeScript fallback `src/runtime/sessionIndex.ts`
+  - added Rust sidecar method `session.index`
+  - updated hello capabilities and parity manifest with `session_index_smoke`
+  - kept the index read-only and skipped `agent-*.jsonl` sidechain transcripts
+  - did not route production session or memory reads through Rust
+- Phase 6 verification passed:
+  - `bun test src/runtime/__tests__/sessionIndex.test.ts src/runtime/__tests__/rustSidecarProtocol.test.ts src/runtime/__tests__/rustSidecarClient.test.ts`
+  - `bun run rust:test`
+
+## 2026-04-26 Later
+- Implemented Phase 7a 24h Jarvis Mode:
+  - added shared Jarvis config and event storage under `~/.claude-yh/settings.json` and `~/.claude-yh/jarvis_events.jsonl`
+  - added server-side `JarvisService` daemon that arms on server startup when enabled
+  - added `/api/jarvis` status/config/start/stop/tick endpoints
+  - added `/jarvis` CLI slash command with `status`, `on`, `off`, `interval`, `mode`, and `source`
+  - added desktop/web Away Session tab below Scheduled Tasks in the sidebar
+  - added a management page with status metrics, safety mode, source toggles, notification channels, and checkpoint history
+  - kept the daemon observe-first and approval-gated for external or irreversible operations
+- Phase 7a verification passed:
+  - `bun test src/jarvis/__tests__/store.test.ts src/server/__tests__/jarvis.test.ts src/commands/jarvis/__tests__/jarvis.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - `cd desktop && bun run test -- --run Sidebar.test.tsx`
+  - `bun test`
+  - `cd desktop && bun run build`
+  - real browser smoke test at `http://127.0.0.1:5173` with mocked API data for desktop/web page layout and manual checkpoint interaction
+- Implemented Phase 7b production entrypoints:
+  - exposed Rust/TS session index through `GET /api/runtime/session-index`
+  - added query filtering to the session index and kept Rust sidecar fallback behavior
+  - exposed BrowserControl policy and action assessment through `/api/browser-control`
+  - added shared BrowserControl policy persistence in `~/.claude-yh/settings.json`
+  - added reviewed Skill distillation save endpoint `POST /api/skills/distill`
+  - added generic DingTalk/WeCom markdown notification delivery and wired Jarvis checkpoints to those channels
+  - added MemoryV2 actual storage and API with L1 pointer index, L2 facts, L3 SOPs, and verified-only promotion
+- Phase 7b functional verification passed:
+  - `bun test src/runtime/__tests__/sessionIndex.test.ts src/server/__tests__/runtime-api.test.ts`
+  - `bun test src/server/__tests__/browser-control-api.test.ts`
+  - `bun test src/server/__tests__/notification-service.test.ts`
+  - `bun test src/server/__tests__/skills-distill.test.ts`
+  - `bun test src/memoryV2/__tests__/store.test.ts src/server/__tests__/memory-v2-api.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+- Hardened MemoryV2 status after real HTTP smoke exposed that callers need grouped `facts` and `sops` fields in addition to the compatible combined `entries` list.
+- Final Phase 7b verification passed:
+  - real HTTP smoke against a started Bun server: `/health`, `/api/runtime/session-index`, `/api/browser-control/policy`, `/api/browser-control/assess`, `/api/skills/distill`, `/api/memory-v2/fact`, `/api/memory-v2`, `/api/jarvis`
+  - `bun test` with 906 passing tests
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - `cd desktop && bun run build`
+  - `bun run rust:test`
+  - `cargo fmt --manifest-path rust/Cargo.toml -- --check`
+- Removed the Claude mobile download QR slash command surface:
+  - deleted `/mobile` command implementation
+  - removed `/ios` and `/android` aliases with it
+  - removed the built-in spinner tip that suggested `/mobile`
+  - added a regression test proving `mobile`, `ios`, and `android` are not built-in command names
+- Continued Rust parity hardening for the production session index path:
+  - Rust `session.index` now applies `query` filtering before `limit`
+  - Rust session items now include `modifiedAt` as an RFC3339 timestamp so TS normalization keeps real Rust results
+  - added Rust tests for query filtering and production-shaped session items
+  - ran a real sidecar smoke through `getSessionIndex()` with `CLAUDE_YH_RUST_SIDECAR_PATH`, confirming `source: "rust"` and searchable output
+- Verification for this batch passed:
+  - real Rust sidecar smoke: `source=rust`, `total=1`, `hasModifiedAt=true`
+  - `bun test` with 907 passing tests
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cargo build --manifest-path rust/Cargo.toml`
+  - `bun run rust:test`
+  - `cargo fmt --manifest-path rust/Cargo.toml -- --check`
+- Implemented Phase 8 Rust fs search acceleration boundary:
+  - added Rust sidecar methods `fs.glob` and `fs.grep`
+  - added `globset`, `ignore`, and `regex` based Rust file walking/search with default exclusions for `.git`, `node_modules`, `dist`, and `target`
+  - added root `.gitignore` respecting behavior and pagination metadata
+  - added TS fallback search service with normalized Rust/TS result shapes
+  - exposed production API endpoints `POST /api/runtime/fs-glob` and `POST /api/runtime/fs-grep`
+  - extended the Rust parity harness with `fs_glob_smoke` and `fs_grep_smoke`
+  - kept existing CLI `GlobTool` and `GrepTool` paths unchanged until parity is expanded enough for replacement
+- Phase 8 functional verification passed:
+  - `bun test src/runtime/__tests__/fsSearch.test.ts src/server/__tests__/runtime-api.test.ts src/runtime/__tests__/rustSidecarClient.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `bun run rust:test`
+  - `cargo fmt --manifest-path rust/Cargo.toml -- --check`
+  - `cargo build --manifest-path rust/Cargo.toml`
+  - real Rust sidecar smoke through `runtimeGlob()` and `runtimeGrep()`: `source=rust`, glob total `1`, grep total `2`
+  - real Rust parity harness against `rust/target/debug/claude-yh-runtime-sidecar.exe`: `sidecar_hello`, `echo_roundtrip`, `unknown_method_error`, `session_index_smoke`, `fs_glob_smoke`, and `fs_grep_smoke` all passed
+  - `bun test` with 911 passing tests
+- Hardened the parity harness echo assertion to compare JSON structures with stable key ordering instead of depending on Rust/JS object field order.
+- Implemented Phase 9 web/desktop integration workbench:
+  - added `Agent Workbench` / `鎬绘柟妗堝伐浣滃彴` as a real sidebar tab and routable desktop/web page
+  - added `desktop/src/api/agentWorkbench.ts` client bindings for diagnostics, Rust runtime fs search, MemoryV2, Skill distillation, BrowserControl policy assessment, and Jarvis checkpoint
+  - added `desktop/src/pages/AgentWorkbench.tsx` with one-click integrated task execution and result panels
+  - added `cwd` to `/api/status/diagnostics` so the web task can default to the server's active project
+  - preserved the existing `Away Session` page and settings/sidebar behavior
+- Phase 9 verification passed:
+  - `cd desktop && bun run test -- --run pages.test.tsx Sidebar.test.tsx`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - `bun test` with 912 passing tests
+  - `bun run rust:test`
+  - `cargo fmt --manifest-path rust/Cargo.toml -- --check`
+  - `cd desktop && bun run build`
+  - `cargo build --manifest-path rust/Cargo.toml`
+- Real web task test passed through an independent Chrome CDP session at `http://127.0.0.1:5173`:
+  - opened the web app
+  - clicked `鎬绘柟妗堝伐浣滃彴`
+  - clicked `Run task`
+  - observed `6/6 passed`
+  - Runtime result used Rust: `rust glob 11; rust grep 21`
+  - MemoryV2 wrote a verified fact and SOP under `C:\Users\y1513\.claude-yh\memory`
+  - SkillDistiller saved `C:\Users\y1513\Desktop\cc\cc-yh\.claude-yh\skills\agent-workbench-smoke`
+  - BrowserControl assessment returned `allow: policy_allowed`
+  - Jarvis checkpoint completed with an observe-only summary
+- Implemented Phase 10 GA-compatible BrowserControl execution:
+  - added `BrowserControlExecuteRequest` / `BrowserControlExecution` types
+  - added `/api/browser-control/execute` with policy gating and JSONL audit events
+  - added `chrome-devtools`, `mcp-browser`, and `tmwd-cdp-bridge` execution routing
+  - added a GA-compatible local TMWD WebSocket bridge on `127.0.0.1:18765`
+  - wired server startup/shutdown to the local bridge so Chrome extensions can attach automatically
+  - changed Agent Workbench BrowserControl smoke to use `tmwd-cdp-bridge` `tabs.read`, preserving the current browser session without navigating user tabs
+  - added project-owned adapted extension files under `extensions/tmwd_cdp_bridge` and included `extensions` in npm package files
+  - patched the local GenericAgent extension background error handling so bridge-offline retries are warnings instead of persistent extension error badges
+- Phase 10 verification passed:
+  - `node --check extensions\tmwd_cdp_bridge\background.js`
+  - `bun test src/browserControl/__tests__/tmwdBridgeServer.test.ts src/server/__tests__/browser-control-api.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - `cd desktop && bun run build`
+  - real API smoke against `http://127.0.0.1:3456/api/browser-control/execute` returned current Chrome tabs through `tmwd-cdp-bridge`
+  - real web interaction at `http://127.0.0.1:5173`: clicked `Run task`, observed `6/6 passed`, BrowserControl returned `2 current tabs`
+- Implemented Phase 11 default-on BrowserControl skill surface:
+  - changed default BrowserControl policy to enabled with wildcard allowed domains, high-permission backend/capability access enabled, and sensitive confirmation still enabled
+  - fixed policy normalization so missing settings preserve the default wildcard allowlist
+  - added `/browser` and `/browser-control` CLI commands for `status`, `tabs`, `on`, `off`, `defaults`, `allow`, `deny`, `high-risk`, and `confirm`
+  - made `/browser tabs` respect the active policy instead of resetting user settings, while still using default-on behavior when no policy exists
+  - made `/browser status` recognize when the running server owns the local TMWD bridge port
+  - added bundled `browser-control` / `browser` Skill guidance so BrowserControl is treated as a core bottom-layer browser ability
+  - added web/desktop Settings > Browser with toggles, domain policy editing, backend status, and current-tab smoke testing
+  - kept red-line behavior for captcha, 2FA, payment, irreversible, and sensitive confirmation flows
+- Phase 11 verification passed:
+  - `bun test src/browserControl/__tests__/policy.test.ts src/browserControl/__tests__/tmwdBridgeServer.test.ts src/server/__tests__/browser-control-api.test.ts src/commands/__tests__/removedMobileCommand.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - `cd desktop && bun run build`
+  - CLI command registration smoke confirmed `/browser` and `/browser-control`
+  - direct CLI `/browser status` smoke reported BrowserControl enabled, backend `tmwd-cdp-bridge`, allowed domains `*`, high-risk on, confirmation on, and server-owned bridge detection
+  - real CLI `/browser tabs` smoke returned the current Chrome session through `tmwd-cdp-bridge` with 5 current tabs
+- Implemented Phase 12 four-layer MemoryV2 user surfaces:
+  - expanded MemoryV2 entries with content, summary, stale status, layer status, local vector search results, and reviewed distillation candidates
+  - added L4 session summary files under `~/.claude-yh/memory/sessions` while keeping raw JSONL sessions as source archives
+  - added local token-vector indexing in `~/.claude-yh/memory/vectors.json`, including CJK bigram tokens for Chinese search terms
+  - added stale detection for L1/L2/L3/L4 and reviewed L4-to-L2/L3 distillation candidate generation/application
+  - exposed MemoryV2 search, entry read/update, summarize, stale, and distill endpoints through `/api/memory-v2`
+  - added CLI `/memory` subcommands for `list`, `show`, `search`, `summarize`, `stale`, `distill`, `fact`, `sop`, and `set`
+  - added web/desktop Settings > Memory with four-layer browsing, search, editing, summarize, stale scan, and distill/apply actions
+- Phase 12 functional verification passed:
+  - `bun test src/memoryV2/__tests__/store.test.ts src/server/__tests__/memory-v2-api.test.ts`
+  - `bun test src/browserControl/__tests__/policy.test.ts src/browserControl/__tests__/tmwdBridgeServer.test.ts src/server/__tests__/browser-control-api.test.ts src/memoryV2/__tests__/store.test.ts src/server/__tests__/memory-v2-api.test.ts src/commands/__tests__/removedMobileCommand.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `cd desktop && bun run lint`
+  - `cd desktop && bun run build`
+  - CLI smoke covered `/memory list`, `/memory summarize 5`, `/memory search browser`, and `/memory distill`
+  - real web interaction at `http://127.0.0.1:5173`: opened Settings > Memory, summarized 15 L4 sessions, searched `澶╂皵` with 2 results, opened an L4 summary, and saved it through the UI
+  - real web interaction at `http://127.0.0.1:5173`: opened Settings > Browser, confirmed all default toggles were on, clicked `娴嬭瘯鏍囩椤礰, and observed 5 current Chrome tabs

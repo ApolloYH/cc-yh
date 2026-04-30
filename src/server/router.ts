@@ -17,6 +17,10 @@ import { handleAdaptersApi } from './api/adapters.js'
 import { handleSkillsApi } from './api/skills.js'
 import { handleComputerUseApi } from './api/computer-use.js'
 import { handleHahaOAuthApi } from './api/haha-oauth.js'
+import { handleJarvisApi } from './api/jarvis.js'
+import { handleRuntimeApi } from './api/runtime.js'
+import { handleBrowserControlApi } from './api/browser-control.js'
+import { handleMemoryV2Api } from './api/memory-v2.js'
 
 export async function handleApiRequest(req: Request, url: URL): Promise<Response> {
   const path = url.pathname
@@ -50,6 +54,18 @@ export async function handleApiRequest(req: Request, url: URL): Promise<Response
 
     case 'scheduled-tasks':
       return handleScheduledTasksApi(req, url, segments)
+
+    case 'jarvis':
+      return handleJarvisApi(req, url, segments)
+
+    case 'runtime':
+      return handleRuntimeApi(req, url, segments)
+
+    case 'browser-control':
+      return handleBrowserControlApi(req, url, segments)
+
+    case 'memory-v2':
+      return handleMemoryV2Api(req, url, segments)
 
     case 'search':
       return handleSearchApi(req, url, segments)

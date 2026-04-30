@@ -5,6 +5,7 @@ import {
   MAX_ENTRYPOINT_LINES,
 } from './memdir.js'
 import {
+  LAYERED_MEMORY_SECTION,
   MEMORY_DRIFT_CAVEAT,
   MEMORY_FRONTMATTER_EXAMPLE,
   TRUSTING_RECALL_SECTION,
@@ -66,6 +67,7 @@ export function buildCombinedMemoryPrompt(
     '',
     'If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.',
     '',
+    ...LAYERED_MEMORY_SECTION,
     '## Memory scope',
     '',
     'There are two scope levels:',

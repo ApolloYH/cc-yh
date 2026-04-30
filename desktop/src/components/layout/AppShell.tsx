@@ -7,7 +7,6 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useUIStore, type SettingsTab } from '../../stores/uiStore'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { initializeDesktopServerUrl } from '../../lib/desktopRuntime'
-import { TabBar } from './TabBar'
 import { useTabStore, SETTINGS_TAB_ID } from '../../stores/tabStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useTranslation } from '../../i18n'
@@ -164,7 +163,6 @@ export function AppShell() {
     <div className="cc-app-shell-enter flex h-screen min-h-0 min-w-0 overflow-hidden" style={shellStyle}>
       <Sidebar />
       <main id="content-area" className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <TabBar />
         <ContentRouter />
       </main>
       <ToastContainer />

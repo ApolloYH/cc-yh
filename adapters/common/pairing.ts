@@ -11,6 +11,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import * as crypto from 'node:crypto'
 import type { PairedUser, PairingState } from './config.js'
+import type { ImPlatform } from './platform.js'
 
 const SAFE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // 排除 0/O/1/I/L
 
@@ -74,7 +75,7 @@ export function generatePairingCode(): string {
 
 /** 检查用户是否已配对（pairedUsers + allowedUsers 并集） */
 export function isPaired(
-  platform: 'telegram' | 'feishu',
+  platform: ImPlatform,
   userId: string | number,
   config: Record<string, any>,
 ): boolean {
@@ -97,7 +98,7 @@ export function isPaired(
 export function tryPair(
   messageText: string,
   senderInfo: { userId: string | number; displayName: string },
-  platform: 'telegram' | 'feishu',
+  platform: ImPlatform,
 ): boolean {
   const file = readConfigFile()
   const pairing: PairingState = file.pairing ?? { code: null, expiresAt: null, createdAt: null }
@@ -139,7 +140,7 @@ export function tryPair(
 }
 
 /** 统一的用户授权检查（供各 adapter 调用） */
-export function isAllowedUser(platform: 'telegram' | 'feishu', userId: string | number): boolean {
+export function isAllowedUser(platform: ImPlatform, userId: string | number): boolean {
   try {
     const cfgFile = readConfigFile()
     return isPaired(platform, userId, cfgFile)

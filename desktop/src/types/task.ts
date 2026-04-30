@@ -5,6 +5,44 @@ export type TaskNotificationConfig = {
   channels: ('telegram' | 'feishu')[]
 }
 
+export type AwayRunnerMode = 'observe' | 'assisted' | 'autonomous'
+
+export type AwayRunnerRiskLevel = 'low' | 'medium' | 'high'
+
+export type AwayRunnerPauseReason =
+  | 'observe_only'
+  | 'needs_user_decision'
+  | 'sensitive_action'
+  | 'browser_human_only'
+  | 'external_api'
+  | 'secret_access'
+  | 'destructive_file_operation'
+  | 'workspace_not_clean'
+  | 'test_failure'
+  | 'unknown_error'
+  | 'budget_exhausted'
+  | 'missing_checkpoint'
+  | 'risk_exceeds_policy'
+
+export type AwayRunnerConfig = {
+  enabled: boolean
+  mode: AwayRunnerMode
+  budget: {
+    maxRuntimeMs?: number
+    maxTurns?: number
+    maxToolCalls?: number
+    maxCostUsd?: number
+    deadlineAt?: string
+  }
+  checkpoints: {
+    requireInitial: boolean
+    requireFinalReport: boolean
+    intervalMs?: number
+  }
+  pauseOn: AwayRunnerPauseReason[]
+  allowedRisk: AwayRunnerRiskLevel
+}
+
 export type CronTask = {
   id: string
   name: string
@@ -23,6 +61,7 @@ export type CronTask = {
   folderPath?: string
   useWorktree?: boolean
   notification?: TaskNotificationConfig
+  awayRunner?: Partial<AwayRunnerConfig>
 }
 
 export type CreateTaskInput = {
@@ -38,6 +77,7 @@ export type CreateTaskInput = {
   folderPath?: string
   useWorktree?: boolean
   notification?: TaskNotificationConfig
+  awayRunner?: Partial<AwayRunnerConfig>
 }
 
 export type TaskRun = {

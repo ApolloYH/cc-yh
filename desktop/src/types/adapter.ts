@@ -30,4 +30,22 @@ export type AdapterFileConfig = {
     defaultWorkDir?: string
     streamingCard?: boolean
   }
+  dingtalk?: {
+    clientId?: string
+    clientSecret?: string
+    robotWebhook?: string
+    robotSecret?: string
+    allowedUsers?: string[]
+    pairedUsers?: PairedUser[]
+    defaultWorkDir?: string
+  }
+  wecom?: {
+    corpId?: string
+    agentId?: string
+    secret?: string
+    webhookKey?: string
+    allowedUsers?: string[]
+    pairedUsers?: PairedUser[]
+    defaultWorkDir?: string
+  }
 }

@@ -3,6 +3,8 @@ import { useTabStore } from '../../stores/tabStore'
 import { EmptySession } from '../../pages/EmptySession'
 import { ActiveSession } from '../../pages/ActiveSession'
 import { ScheduledTasks } from '../../pages/ScheduledTasks'
+import { JarvisMode } from '../../pages/JarvisMode'
+import { AgentWorkbench } from '../../pages/AgentWorkbench'
 import { Settings } from '../../pages/Settings'
 
 export function ContentRouter() {
@@ -26,6 +28,14 @@ export function ContentRouter() {
 
   if (activeTabType === 'scheduled') {
     return renderPage(<ScheduledTasks />, activeTabId)
+  }
+
+  if (activeTabType === 'jarvis') {
+    return renderPage(<JarvisMode />, activeTabId)
+  }
+
+  if (activeTabType === 'workbench') {
+    return renderPage(<AgentWorkbench />, activeTabId)
   }
 
   // Session tab — ActiveSession handles both regular and member sessions
