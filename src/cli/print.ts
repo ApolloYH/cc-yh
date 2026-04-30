@@ -29,6 +29,7 @@ import {
 } from 'src/services/analytics/index.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/growthbook.js'
 import { logForDebugging } from 'src/utils/debug.js'
+import { finalizeSessionMemory } from 'src/memoryV2/sessionFinalizer.js'
 import {
   logForDiagnosticsNoPII,
   withDiagnosticsTiming,
@@ -968,6 +969,10 @@ export async function runHeadless(
   if (feature('EXTRACT_MEMORIES') && isExtractModeActive()) {
     await extractMemoriesModule!.drainPendingExtraction()
   }
+  await finalizeSessionMemory({
+    sessionId: getSessionId(),
+    reason: 'cli-print-session-ended',
+  })
 
   gracefulShutdownSync(
     lastMessage?.type === 'result' && lastMessage?.is_error ? 1 : 0,

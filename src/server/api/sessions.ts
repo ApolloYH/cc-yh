@@ -15,6 +15,7 @@
 import { sessionService } from '../services/sessionService.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 import { getSlashCommands } from '../ws/handler.js'
+import { finalizeSessionMemory } from '../../memoryV2/sessionFinalizer.js'
 
 export async function handleSessionsApi(
   req: Request,
@@ -164,6 +165,16 @@ async function createSession(req: Request): Promise<Response> {
 
 async function deleteSession(sessionId: string): Promise<Response> {
   await sessionService.deleteSession(sessionId)
+  void finalizeSessionMemory({
+    sessionId,
+    reason: 'session-deleted',
+  }).catch((error) => {
+    console.error(
+      `[Sessions API] Memory finalization after deleting ${sessionId} failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+  })
   return Response.json({ ok: true })
 }
 

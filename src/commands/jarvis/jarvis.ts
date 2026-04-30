@@ -22,20 +22,20 @@ export const call: LocalCommandCall = async (args) => {
     const config = await updateJarvisConfig({ enabled: true })
     await appendJarvisEvent({
       type: 'config',
-      title: 'Jarvis Mode enabled from CLI',
+      title: 'Jarvis enabled from CLI',
       message: `interval=${Math.round(config.intervalMs / 60_000)}m, mode=${config.riskMode}`,
     })
-    return text(await formatStatus('Jarvis Mode enabled.'))
+    return text(await formatStatus('Jarvis enabled.'))
   }
 
   if (action === 'off' || action === 'disable' || action === 'stop') {
     const config = await updateJarvisConfig({ enabled: false })
     await appendJarvisEvent({
       type: 'config',
-      title: 'Jarvis Mode disabled from CLI',
+      title: 'Jarvis disabled from CLI',
       message: `mode=${config.riskMode}`,
     })
-    return text(await formatStatus('Jarvis Mode disabled.'))
+    return text(await formatStatus('Jarvis disabled.'))
   }
 
   if (action === 'interval') {
@@ -66,7 +66,7 @@ export const call: LocalCommandCall = async (args) => {
           riskMode: 'autonomous',
         }
       : { companionModeEnabled: false })
-    return text(await formatStatus(`Jarvis companion mode ${value}.`))
+    return text(await formatStatus(`Jarvis proactive mode ${value}.`))
   }
 
   if (action === 'task') {
@@ -217,9 +217,9 @@ async function formatStatus(prefix?: string): Promise<string> {
     .join(', ')
   const lines = [
     ...(prefix ? [prefix, ''] : []),
-    `Jarvis Mode: ${config.enabled ? 'on' : 'off'}`,
+    `Jarvis: ${config.enabled ? 'on' : 'off'}`,
     `Mode: ${config.riskMode}`,
-    `Companion: ${config.companionModeEnabled ? 'on' : 'off'}`,
+    `Proactive mode: ${config.companionModeEnabled ? 'on' : 'off'}`,
     `Interval: ${Math.round(config.intervalMs / 60_000)} minute(s)`,
     `Sources: ${sources || 'none'}`,
     `Notifications: ${config.notificationChannels.join(', ')}`,

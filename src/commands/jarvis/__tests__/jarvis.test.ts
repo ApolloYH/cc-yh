@@ -25,11 +25,11 @@ describe('/jarvis command', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('enables and configures Jarvis Mode from the CLI', async () => {
+  it('enables and configures Jarvis from the CLI', async () => {
     const enabled = await call('on', {} as never)
     expect(enabled.type).toBe('text')
     if (enabled.type === 'text') {
-      expect(enabled.value).toContain('Jarvis Mode: on')
+      expect(enabled.value).toContain('Jarvis: on')
     }
 
     const interval = await call('interval 10', {} as never)
@@ -70,7 +70,7 @@ describe('/jarvis command', () => {
     const result = await call('companion on', {} as never)
     expect(result.type).toBe('text')
     if (result.type === 'text') {
-      expect(result.value).toContain('Companion: on')
+      expect(result.value).toContain('Proactive mode: on')
       expect(result.value).toContain('Mode: autonomous')
     }
 

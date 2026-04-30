@@ -1,10 +1,11 @@
 // @ts-nocheck
 /**
  * Extracts durable memories from the current session transcript
- * and writes them to the auto-memory directory (~/.claude-yh/projects/<path>/memory/).
+ * and writes them to the global auto-memory directory (~/.claude-yh/memory/).
  *
- * It runs once at the end of each complete query loop (when the model produces
- * a final response with no tool calls) via handleStopHooks in stopHooks.ts.
+ * It is scheduled at the end of query loops via handleStopHooks in
+ * stopHooks.ts, then runs after an idle window or during process drain. This
+ * keeps ordinary chat cheap while still preserving session-level memories.
  *
  * Uses the forked agent pattern (runForkedAgent) — a perfect fork of the main
  * conversation that shares the parent's prompt cache.
@@ -45,6 +46,7 @@ import type {
 import { createAbortController } from '../../utils/abortController.js'
 import { count, uniq } from '../../utils/array.js'
 import { logForDebugging } from '../../utils/debug.js'
+import { logDiagnosticEvent } from '../../utils/diagnosticLog.js'
 import {
   createCacheSafeParams,
   runForkedAgent,
@@ -108,6 +110,18 @@ function countModelVisibleMessagesSince(
     return count(messages, isModelVisibleMessage)
   }
   return n
+}
+
+function getMemoryExtractionIdleDelayMs(): number {
+  const raw = Number(process.env.CLAUDE_YH_MEMORY_EXTRACT_IDLE_MS ?? process.env.CLAUDE_YH_MEMORY_IDLE_MS)
+  if (Number.isFinite(raw) && raw > 0) return Math.max(1_000, Math.round(raw))
+  return 15 * 60 * 1_000
+}
+
+function getMemoryExtractionMaxDelayMs(): number {
+  const raw = Number(process.env.CLAUDE_YH_MEMORY_EXTRACT_MAX_MS ?? process.env.CLAUDE_YH_MEMORY_CHECKPOINT_MS)
+  if (Number.isFinite(raw) && raw > 0) return Math.max(1_000, Math.round(raw))
+  return 30 * 60 * 1_000
 }
 
 /**
@@ -336,9 +350,6 @@ export function initExtractMemories(): void {
   /** True while runExtraction is executing — prevents overlapping runs. */
   let inProgress = false
 
-  /** Counts eligible turns since the last extraction run. Resets to 0 after each run. */
-  let turnsSinceLastExtraction = 0
-
   /** When a call arrives during an in-progress run, we stash the context here
    *  and run one trailing extraction after the current one finishes. */
   let pendingContext:
@@ -348,16 +359,86 @@ export function initExtractMemories(): void {
       }
     | undefined
 
+  /** Latest eligible context waiting for the idle/session-end extraction pass. */
+  let scheduledContext:
+    | {
+        context: REPLHookContext
+        appendSystemMessage?: AppendSystemMessageFn
+      }
+    | undefined
+
+  let scheduledTimer: ReturnType<typeof setTimeout> | undefined
+  let scheduledStartedAt: number | undefined
+
+  function clearScheduledExtractionTimer(): void {
+    if (!scheduledTimer) return
+    clearTimeout(scheduledTimer)
+    scheduledTimer = undefined
+  }
+
+  async function runScheduledExtractionNow(): Promise<void> {
+    clearScheduledExtractionTimer()
+    const scheduled = scheduledContext
+    scheduledContext = undefined
+    scheduledStartedAt = undefined
+    if (!scheduled) return
+    if (inProgress) {
+      pendingContext = scheduled
+      return
+    }
+    await runExtraction({
+      context: scheduled.context,
+      appendSystemMessage: scheduled.appendSystemMessage,
+    })
+  }
+
+  function scheduleExtraction(
+    context: REPLHookContext,
+    appendSystemMessage?: AppendSystemMessageFn,
+  ): void {
+    scheduledContext = { context, appendSystemMessage }
+    scheduledStartedAt ??= Date.now()
+    clearScheduledExtractionTimer()
+    const idleDelayMs = getMemoryExtractionIdleDelayMs()
+    const maxDelayMs = getMemoryExtractionMaxDelayMs()
+    const elapsedMs = Date.now() - scheduledStartedAt
+    const delayMs = Math.max(1_000, Math.min(idleDelayMs, maxDelayMs - elapsedMs))
+    scheduledTimer = setTimeout(() => {
+      const p = runScheduledExtractionNow()
+      inFlightExtractions.add(p)
+      p.finally(() => {
+        inFlightExtractions.delete(p)
+      }).catch(() => {})
+    }, delayMs)
+    scheduledTimer.unref?.()
+    logForDebugging(
+      `[extractMemories] scheduled extraction in ${delayMs}ms`,
+    )
+    logEvent('tengu_extract_memories_scheduled', {
+      delay_ms: delayMs,
+      idle_delay_ms: idleDelayMs,
+      max_delay_ms: maxDelayMs,
+    })
+    logDiagnosticEvent({
+      scope: 'extractMemories',
+      event: 'scheduled',
+      ok: true,
+      data: {
+        delayMs,
+        idleDelayMs,
+        maxDelayMs,
+      },
+    })
+  }
+
   // --- Inner extraction logic ---
 
   async function runExtraction({
     context,
     appendSystemMessage,
-    isTrailingRun,
   }: {
     context: REPLHookContext
     appendSystemMessage?: AppendSystemMessageFn
-    isTrailingRun?: boolean
   }): Promise<void> {
     const { messages } = context
     const memoryDir = getAutoMemPath()
@@ -397,26 +478,18 @@ export function initExtractMemories(): void {
     })
     const cacheSafeParams = createCacheSafeParams(context)
 
-    // Only run extraction every N eligible turns (tengu_bramble_lintel, default 1).
-    // Trailing extractions (from stashed contexts) skip this check since they
-    // process already-committed work that should not be throttled.
-    if (!isTrailingRun) {
-      turnsSinceLastExtraction++
-      if (
-        turnsSinceLastExtraction <
-        (getFeatureValue_CACHED_MAY_BE_STALE('tengu_bramble_lintel', null) ?? 1)
-      ) {
-        return
-      }
-    }
-    turnsSinceLastExtraction = 0
-
     inProgress = true
     const startTime = Date.now()
     try {
       logForDebugging(
         `[extractMemories] starting — ${newMessageCount} new messages, memoryDir=${memoryDir}`,
       )
+      logDiagnosticEvent({
+        scope: 'extractMemories',
+        event: 'started',
+        ok: true,
+        data: { newMessageCount, memoryDir },
+      })
 
       // Pre-inject the memory directory manifest so the agent doesn't spend
       // a turn on `ls`. Reuses findRelevantMemories' frontmatter scan.
@@ -509,6 +582,17 @@ export function initExtractMemories(): void {
         team_memories_saved: teamCount,
         duration_ms: Date.now() - startTime,
       })
+      logDiagnosticEvent({
+        scope: 'extractMemories',
+        event: 'completed',
+        ok: true,
+        durationMs: Date.now() - startTime,
+        data: {
+          newMessageCount,
+          filesWritten: writtenPaths.length,
+          memoriesSaved: memoryPaths.length,
+        },
+      })
 
       logForDebugging(
         `[extractMemories] writtenPaths=${writtenPaths.length} memoryPaths=${memoryPaths.length} appendSystemMessage defined=${appendSystemMessage != null}`,
@@ -523,6 +607,16 @@ export function initExtractMemories(): void {
     } catch (error) {
       // Extraction is best-effort — log but don't notify on error
       logForDebugging(`[extractMemories] error: ${error}`)
+      logDiagnosticEvent({
+        scope: 'extractMemories',
+        event: 'failed',
+        ok: false,
+        severity: 'error',
+        durationMs: Date.now() - startTime,
+        data: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
       logEvent('tengu_extract_memories_error', {
         duration_ms: Date.now() - startTime,
       })
@@ -542,7 +636,6 @@ export function initExtractMemories(): void {
         await runExtraction({
           context: trailing.context,
           appendSystemMessage: trailing.appendSystemMessage,
-          isTrailingRun: true,
         })
       }
     }
@@ -589,7 +682,7 @@ export function initExtractMemories(): void {
       return
     }
 
-    await runExtraction({ context, appendSystemMessage })
+    scheduleExtraction(context, appendSystemMessage)
   }
 
   extractor = async (context, appendSystemMessage) => {
@@ -603,6 +696,19 @@ export function initExtractMemories(): void {
   }
 
   drainer = async (timeoutMs = 60_000) => {
+    if (scheduledContext) {
+      const p = runScheduledExtractionNow()
+      inFlightExtractions.add(p)
+      try {
+        await Promise.race([
+          p,
+          // eslint-disable-next-line no-restricted-syntax -- sleep() has no .unref(); timer must not block exit
+          new Promise<void>(r => setTimeout(r, timeoutMs).unref()),
+        ])
+      } finally {
+        inFlightExtractions.delete(p)
+      }
+    }
     if (inFlightExtractions.size === 0) return
     await Promise.race([
       Promise.all(inFlightExtractions).catch(() => {}),

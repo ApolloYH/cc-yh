@@ -1,8 +1,9 @@
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { RustSidecarClient } from '../runtime/rustSidecarClient.js'
-import { getRustSidecarLaunchConfig, type RustSidecarMethod } from '../runtime/rustSidecarProtocol.js'
+import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
+import { tryRustSidecarRequest } from '../runtime/rustSidecarService.js'
+import type { RustSidecarMethod } from '../runtime/rustSidecarProtocol.js'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
 
 export type JarvisQueueItemStatus =
@@ -65,10 +66,12 @@ export async function enqueueJarvisTask(input: {
   }
   const runtimeResult = await runtimeQueueRequest('jarvis.queue.enqueue', { item })
   if (isRecord(runtimeResult) && isQueueItem(runtimeResult.item)) {
+    logQueueDiagnostic('enqueue', true, { itemId: item.id, source: 'rust' })
     return normalizeQueueItem(runtimeResult.item)
   }
   const store = await readJarvisQueue()
   await writeJarvisQueue({ version: 1, items: [item, ...store.items] })
+  logQueueDiagnostic('enqueue', true, { itemId: item.id, source: 'typescript' })
   return item
 }
 
@@ -79,9 +82,11 @@ export async function listJarvisQueue(): Promise<JarvisQueueItem[]> {
 export async function claimNextJarvisTask(): Promise<JarvisQueueItem | null> {
   const runtimeResult = await runtimeQueueRequest('jarvis.queue.claim', {})
   if (isRecord(runtimeResult)) {
-    return isQueueItem(runtimeResult.item)
+    const item = isQueueItem(runtimeResult.item)
       ? normalizeQueueItem(runtimeResult.item)
       : null
+    logQueueDiagnostic('claim', true, { itemId: item?.id ?? null, source: 'rust' })
+    return item
   }
   const store = await readJarvisQueue()
   const candidate = store.items
@@ -97,6 +102,7 @@ export async function claimNextJarvisTask(): Promise<JarvisQueueItem | null> {
     updatedAt: now,
   }
   await replaceQueueItem(next)
+  logQueueDiagnostic('claim', true, { itemId: next.id, source: 'typescript' })
   return next
 }
 
@@ -106,9 +112,15 @@ export async function updateJarvisQueueItem(
 ): Promise<JarvisQueueItem | null> {
   const runtimeResult = await runtimeQueueRequest('jarvis.queue.update', { id, patch })
   if (isRecord(runtimeResult)) {
-    return isQueueItem(runtimeResult.item)
+    const item = isQueueItem(runtimeResult.item)
       ? normalizeQueueItem(runtimeResult.item)
       : null
+    logQueueDiagnostic('update', Boolean(item), {
+      itemId: id,
+      source: 'rust',
+      patchKeys: Object.keys(patch),
+    })
+    return item
   }
   const store = await readJarvisQueue()
   const current = store.items.find(item => item.id === id)
@@ -119,12 +131,21 @@ export async function updateJarvisQueueItem(
     updatedAt: new Date().toISOString(),
   }
   await replaceQueueItem(next)
+  logQueueDiagnostic('update', true, {
+    itemId: id,
+    source: 'typescript',
+    patchKeys: Object.keys(patch),
+  })
   return next
 }
 
 export async function recoverInterruptedJarvisQueue(): Promise<number> {
   const runtimeResult = await runtimeQueueRequest('jarvis.queue.recover', {})
   if (isRecord(runtimeResult) && typeof runtimeResult.recovered === 'number') {
+    logQueueDiagnostic('recover', true, {
+      recovered: runtimeResult.recovered,
+      source: 'rust',
+    })
     return runtimeResult.recovered
   }
   const store = await readJarvisQueue()
@@ -140,6 +161,7 @@ export async function recoverInterruptedJarvisQueue(): Promise<number> {
     }
   })
   if (recovered > 0) await writeJarvisQueue({ version: 1, items })
+  logQueueDiagnostic('recover', true, { recovered, source: 'typescript' })
   return recovered
 }
 
@@ -187,23 +209,27 @@ async function runtimeQueueRequest(
   method: RustSidecarMethod,
   params: Record<string, unknown>,
 ): Promise<unknown | null> {
-  const launch = getRustSidecarLaunchConfig()
-  if (!launch) return null
-  const client = new RustSidecarClient({
-    command: launch.command,
-    args: launch.args,
-    timeoutMs: 10_000,
+  const result = await tryRustSidecarRequest(method, {
+    queuePath: getJarvisQueuePath(),
+    ...params,
+  }, {
+    component: 'jarvis.queue',
+    logSuccess: true,
   })
-  try {
-    return await client.request(method, {
-      queuePath: getJarvisQueuePath(),
-      ...params,
-    }, 10_000)
-  } catch {
-    return null
-  } finally {
-    client.close()
-  }
+  return result.ok ? result.result : null
+}
+
+function logQueueDiagnostic(
+  operation: string,
+  ok: boolean,
+  data: Record<string, unknown>,
+): void {
+  logDiagnosticEvent({
+    scope: 'jarvis.queue',
+    event: operation,
+    ok,
+    data,
+  })
 }
 
 function clampPriority(value: unknown): number {

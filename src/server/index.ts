@@ -17,6 +17,7 @@ import { handleProxyRequest } from './proxy/handler.js'
 import { ProviderService } from './services/providerService.js'
 import { handleHahaOAuthCallback } from './api/haha-oauth.js'
 import { getLocalTmwdBridge } from '../browserControl/tmwdBridgeServer.js'
+import { publishBrowserControlOwner } from '../browserControl/ownerRegistry.js'
 
 function readArgValue(flag: string): string | undefined {
   const args = process.argv.slice(2)
@@ -230,6 +231,7 @@ export function startServer(port = PORT, host = HOST) {
   // to the user's existing browser session and cookies.
   getLocalTmwdBridge().ensureStarted().then((state) => {
     if (state.status === 'running') {
+      publishBrowserControlOwner(`http://${localConnectHost}:${port}`).catch(() => {})
       console.log(`[BrowserControl] TMWD bridge listening on ws://127.0.0.1:${state.port}`)
     } else {
       console.warn(`[BrowserControl] TMWD bridge unavailable: ${state.error}`)
@@ -242,8 +244,9 @@ export function startServer(port = PORT, host = HOST) {
 
 // ─── Graceful shutdown: kill all CLI subprocesses on exit ────────────────────
 import { conversationService } from './services/conversationService.js'
+import { finalizeSessionMemory } from '../memoryV2/sessionFinalizer.js'
 
-function cleanupAllSessions() {
+async function cleanupAllSessions(finalizeMemory = false) {
   jarvisService.stop()
   getLocalTmwdBridge().close()
   const active = conversationService.getActiveSessions()
@@ -251,24 +254,35 @@ function cleanupAllSessions() {
     console.log(`[Server] Shutting down — killing ${active.length} CLI subprocess(es)`)
     for (const sessionId of active) {
       conversationService.stopSession(sessionId)
+      if (finalizeMemory) {
+        await finalizeSessionMemory({
+          sessionId,
+          reason: 'server-shutdown',
+          timeoutMs: 60_000,
+        }).catch((error) => {
+          console.error(
+            `[Server] Memory finalization failed for ${sessionId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          )
+        })
+      }
     }
   }
 }
 
 process.on('SIGTERM', () => {
   console.log('[Server] Received SIGTERM')
-  cleanupAllSessions()
-  process.exit(0)
+  cleanupAllSessions(true).finally(() => process.exit(0))
 })
 
 process.on('SIGINT', () => {
   console.log('[Server] Received SIGINT')
-  cleanupAllSessions()
-  process.exit(0)
+  cleanupAllSessions(true).finally(() => process.exit(0))
 })
 
 process.on('exit', () => {
-  cleanupAllSessions()
+  void cleanupAllSessions(false)
 })
 
 // Direct execution

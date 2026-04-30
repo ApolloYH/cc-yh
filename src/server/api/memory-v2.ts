@@ -1,3 +1,4 @@
+import * as fs from 'node:fs/promises'
 import {
   applyMemoryV2DistillCandidate,
   detectMemoryV2Stale,
@@ -14,6 +15,7 @@ import {
   type MemoryV2WriteInput,
 } from '../../memoryV2/index.js'
 import { getMemoryEmbeddingConfig } from '../../memoryV2/embeddingProvider.js'
+import { getDiagnosticLogPath } from '../../utils/diagnosticLog.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 import { SettingsService } from '../services/settingsService.js'
 
@@ -102,6 +104,11 @@ export async function handleMemoryV2Api(
 
     if (method === 'GET' && action === 'embedding') {
       return Response.json({ config: publicEmbeddingConfig(await getMemoryEmbeddingConfig()) })
+    }
+
+    if (method === 'GET' && action === 'events') {
+      const limit = Math.max(1, Math.min(200, readOptionalNumber(_url.searchParams.get('limit')) ?? 50))
+      return Response.json(await readMemoryEvents(limit))
     }
 
     if (method === 'PUT' && action === 'embedding') {
@@ -207,4 +214,36 @@ function publicEmbeddingConfig(config: Awaited<ReturnType<typeof getMemoryEmbedd
     method: config.method,
     source: config.source,
   }
+}
+
+async function readMemoryEvents(limit: number): Promise<{
+  path: string
+  events: Array<Record<string, unknown>>
+}> {
+  const filePath = getDiagnosticLogPath()
+  let lines: string[] = []
+  try {
+    const raw = await fs.readFile(filePath, 'utf-8')
+    lines = raw.trim().split('\n').filter(Boolean)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+
+  const events = lines
+    .map(line => {
+      try {
+        return JSON.parse(line) as Record<string, unknown>
+      } catch {
+        return null
+      }
+    })
+    .filter((event): event is Record<string, unknown> => {
+      if (!event) return false
+      const scope = typeof event.scope === 'string' ? event.scope : ''
+      return scope === 'extractMemories' || scope.startsWith('memoryV2')
+    })
+    .slice(-limit)
+    .reverse()
+
+  return { path: filePath, events }
 }

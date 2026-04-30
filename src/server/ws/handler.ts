@@ -18,6 +18,7 @@ import { SettingsService } from '../services/settingsService.js'
 import { ProviderService } from '../services/providerService.js'
 import { deriveTitle, generateTitle, saveAiTitle } from '../services/titleService.js'
 import { addUsage } from '../api/status.js'
+import { finalizeSessionMemory } from '../../memoryV2/sessionFinalizer.js'
 
 const settingsService = new SettingsService()
 const providerService = new ProviderService()
@@ -161,6 +162,16 @@ export const handleWebSocket = {
       if (!activeSessions.has(sessionId)) {
         console.log(`[WS] Session ${sessionId} not reconnected after 30s, stopping CLI subprocess`)
         conversationService.stopSession(sessionId)
+        void finalizeSessionMemory({
+          sessionId,
+          reason: 'websocket-session-closed',
+        }).catch((error) => {
+          console.error(
+            `[WS] Memory finalization after session close failed for ${sessionId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          )
+        })
       }
     }, 30_000)
     sessionCleanupTimers.set(sessionId, cleanupTimer)

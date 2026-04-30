@@ -652,6 +652,33 @@ export const SettingsSchema = lazySchema(() =>
         .describe(
           'Skip the WebFetch blocklist check for enterprise environments with restrictive security policies',
         ),
+      webSearch: z
+        .object({
+          enabled: z.boolean().optional(),
+          mode: z.enum(['auto', 'anthropic', 'local', 'off']).optional(),
+          localProvider: z.enum(['duckduckgo', 'custom']).optional(),
+          maxResults: z.number().int().min(1).max(20).optional(),
+          custom: z
+            .object({
+              endpoint: z.string().optional(),
+              method: z.enum(['GET', 'POST']).optional(),
+              apiKey: z.string().optional(),
+              authHeader: z.string().optional(),
+              authPrefix: z.string().optional(),
+              queryParam: z.string().optional(),
+              headers: z.record(z.string(), z.string()).optional(),
+              bodyTemplate: z.string().optional(),
+              resultsPath: z.string().optional(),
+              titlePath: z.string().optional(),
+              urlPath: z.string().optional(),
+              snippetPath: z.string().optional(),
+            })
+            .optional(),
+        })
+        .optional()
+        .describe(
+          'Web search configuration. auto uses Anthropic server search when available and local DuckDuckGo fallback for compatible providers.',
+        ),
       sandbox: SandboxSettingsSchema().optional(),
       feedbackSurveyRate: z
         .number()
@@ -945,7 +972,7 @@ export const SettingsSchema = lazySchema(() =>
         .string()
         .optional()
         .describe(
-          'Custom directory path for auto-memory storage. Supports ~/ prefix for home directory expansion. Ignored if set in projectSettings (checked-in .claude-yh/settings.json) for security. When unset, defaults to ~/.claude-yh/projects/<sanitized-cwd>/memory/.',
+          'Custom directory path for auto-memory storage. Supports ~/ prefix for home directory expansion. Ignored if set in projectSettings (checked-in .claude-yh/settings.json) for security. When unset, defaults to ~/.claude-yh/memory/.',
         ),
       autoDreamEnabled: z
         .boolean()

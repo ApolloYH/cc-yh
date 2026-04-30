@@ -10,6 +10,7 @@ import { SettingsService } from '../services/settingsService.js'
 import { handleSettingsApi } from '../api/settings.js'
 import { handleModelsApi } from '../api/models.js'
 import { handleStatusApi, resetUsage, addUsage } from '../api/status.js'
+import { getDiagnosticLogPath } from '../../utils/diagnosticLog.js'
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -449,6 +450,26 @@ describe('Status API', () => {
     expect(body.platform).toBeDefined()
     expect(body.arch).toBeDefined()
     expect(body.configDir).toBeDefined()
+  })
+
+  it('GET /api/status/diagnostics-log should return recent diagnostic events', async () => {
+    const logPath = getDiagnosticLogPath()
+    await fs.mkdir(path.dirname(logPath), { recursive: true })
+    await fs.writeFile(
+      logPath,
+      JSON.stringify({ scope: 'test', event: 'first' }) + '\n' +
+        JSON.stringify({ scope: 'test', event: 'second' }) + '\n',
+      'utf-8',
+    )
+
+    const { req, url, segments } = makeRequest('GET', '/api/status/diagnostics-log?limit=1')
+    const res = await handleStatusApi(req, url, segments)
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.path).toBe(logPath)
+    expect(body.events).toHaveLength(1)
+    expect(body.events[0].event).toBe('second')
   })
 
   it('GET /api/status/usage should return token usage', async () => {

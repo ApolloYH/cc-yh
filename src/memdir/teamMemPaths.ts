@@ -78,16 +78,16 @@ export function isTeamMemoryEnabled(): boolean {
 }
 
 /**
- * Returns the team memory path: <memoryBase>/projects/<sanitized-project-root>/memory/team/
- * Lives as a subdirectory of the auto-memory directory, scoped per-project.
+ * Returns the team memory path: <memoryBase>/memory/team/
+ * Lives as a subdirectory of the global auto-memory directory.
  */
 export function getTeamMemPath(): string {
   return (join(getAutoMemPath(), 'team') + sep).normalize('NFC')
 }
 
 /**
- * Returns the team memory entrypoint: <memoryBase>/projects/<sanitized-project-root>/memory/team/MEMORY.md
- * Lives as a subdirectory of the auto-memory directory, scoped per-project.
+ * Returns the team memory entrypoint: <memoryBase>/memory/team/MEMORY.md
+ * Lives as a subdirectory of the global auto-memory directory.
  */
 export function getTeamMemEntrypoint(): string {
   return join(getAutoMemPath(), 'team', 'MEMORY.md')

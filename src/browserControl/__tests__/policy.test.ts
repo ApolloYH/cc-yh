@@ -62,7 +62,7 @@ describe('browser control policy', () => {
     })
   })
 
-  it('denies domains outside the allowlist and explicit denied domains', () => {
+  it('does not block browser actions with domain allow/deny lists', () => {
     const outside = assessBrowserControlAction({
       backend: CLAUDE_IN_CHROME_BACKEND,
       policy: enabledPolicy,
@@ -85,12 +85,12 @@ describe('browser control policy', () => {
     })
 
     expect(outside).toEqual({
-      decision: 'deny',
-      reason: 'domain_not_allowed',
+      decision: 'allow',
+      reason: 'policy_allowed',
     })
     expect(denied).toEqual({
-      decision: 'deny',
-      reason: 'domain_denied',
+      decision: 'allow',
+      reason: 'policy_allowed',
     })
   })
 

@@ -34,6 +34,7 @@ import {
   isBareMode,
   isEnvTruthy,
 } from '../utils/envUtils.js'
+import { getGlobalMemorySkillsDir } from '../memoryV2/paths.js'
 import { isENOENT, isFsInaccessible } from '../utils/errors.js'
 import {
   coerceDescriptionToString,
@@ -49,7 +50,6 @@ import { isPathGitignored } from '../utils/git/gitignore.js'
 import { logError } from '../utils/log.js'
 import {
   extractDescriptionFromMarkdown,
-  getProjectDirsUpToHome,
   loadMarkdownFilesForSubdir,
   type MarkdownFile,
   parseSlashCommandToolsFromFrontmatter,
@@ -83,6 +83,7 @@ export function getSkillsPath(
     case 'policySettings':
       return join(getManagedFilePath(), '.claude-yh', dir)
     case 'userSettings':
+      if (dir === 'skills') return getGlobalMemorySkillsDir()
       return join(getClaudeConfigHomeDir(), dir)
     case 'projectSettings':
       return `.claude-yh/${dir}`
@@ -637,12 +638,10 @@ async function loadSkillsFromCommandsDir(
  */
 export const getSkillDirCommands = memoize(
   async (cwd: string): Promise<Command[]> => {
-    const userSkillsDir = join(getClaudeConfigHomeDir(), 'skills')
+    const userSkillsDir = getGlobalMemorySkillsDir()
     const managedSkillsDir = join(getManagedFilePath(), '.claude-yh', 'skills')
-    const projectSkillsDirs = getProjectDirsUpToHome('skills', cwd)
-
     logForDebugging(
-      `Loading skills from: managed=${managedSkillsDir}, user=${userSkillsDir}, project=[${projectSkillsDirs.join(', ')}]`,
+      `Loading skills from: managed=${managedSkillsDir}, user=${userSkillsDir}, project=[disabled: global L3 skills only]`,
     )
 
     // Load from additional directories (--add-dir)
@@ -689,23 +688,8 @@ export const getSkillDirCommands = memoize(
       isSettingSourceEnabled('userSettings') && !skillsLocked
         ? loadSkillsFromSkillsDir(userSkillsDir, 'userSettings')
         : Promise.resolve([]),
-      projectSettingsEnabled
-        ? Promise.all(
-            projectSkillsDirs.map(dir =>
-              loadSkillsFromSkillsDir(dir, 'projectSettings'),
-            ),
-          )
-        : Promise.resolve([]),
-      projectSettingsEnabled
-        ? Promise.all(
-            additionalDirs.map(dir =>
-              loadSkillsFromSkillsDir(
-                join(dir, '.claude-yh', 'skills'),
-                'projectSettings',
-              ),
-            ),
-          )
-        : Promise.resolve([]),
+      Promise.resolve([]),
+      Promise.resolve([]),
       // Legacy commands-as-skills goes through markdownConfigLoader with
       // subdir='commands', which our agents-only guard there skips. Block
       // here when skills are locked — these ARE skills, regardless of the
@@ -796,7 +780,7 @@ export const getSkillDirCommands = memoize(
     }
 
     logForDebugging(
-      `Loaded ${deduplicatedSkills.length} unique skills (${unconditionalSkills.length} unconditional, ${newConditionalSkills.length} conditional, managed: ${managedSkills.length}, user: ${userSkills.length}, project: ${projectSkillsNested.flat().length}, additional: ${additionalSkillsNested.flat().length}, legacy commands: ${legacyCommands.length})`,
+      `Loaded ${deduplicatedSkills.length} unique skills (${unconditionalSkills.length} unconditional, ${newConditionalSkills.length} conditional, managed: ${managedSkills.length}, user: ${userSkills.length}, project: 0, additional: 0, legacy commands: ${legacyCommands.length})`,
     )
 
     return unconditionalSkills

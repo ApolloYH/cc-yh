@@ -2,6 +2,7 @@ import {
   callConfiguredMainModel,
   parseJsonFromModelText,
 } from '../services/model/mainModelClient.js'
+import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
 import { enqueueJarvisTask, type JarvisQueueItem } from './queue.js'
 import type { JarvisModeConfig } from './types.js'
 
@@ -18,6 +19,7 @@ export async function submitJarvisGoal(params: {
   config: JarvisModeConfig
   priority?: number
 }): Promise<JarvisPlanResult> {
+  const startedAt = Date.now()
   const goal = params.goal.trim()
   if (!goal) throw new Error('goal is required')
   const planned = await planWithMainModel(goal, params.config).catch(() => null)
@@ -50,13 +52,29 @@ export async function submitJarvisGoal(params: {
     }))
   }
 
-  return {
+  const result = {
     goal,
     title,
     steps,
     items,
     modelUsed: planned?.modelUsed === true,
   }
+  logDiagnosticEvent({
+    scope: 'jarvis.planner',
+    event: 'submit_goal',
+    ok: true,
+    durationMs: Date.now() - startedAt,
+    data: {
+      goalHash: hashGoal(goal),
+      title,
+      steps: steps.length,
+      queuedItems: items.length,
+      modelUsed: result.modelUsed,
+      riskMode: params.config.riskMode,
+      priority: params.priority,
+    },
+  })
+  return result
 }
 
 async function planWithMainModel(
@@ -125,4 +143,12 @@ function summarizeBoundaries(config: JarvisModeConfig): string {
     `- Pause on payment: ${boundaries.pauseOnPayment ? 'yes' : 'no'}`,
     `- Pause on external send: ${boundaries.pauseOnExternalSend ? 'yes' : 'no'}`,
   ].join('\n')
+}
+
+function hashGoal(value: string): string {
+  let hash = 0
+  for (let i = 0; i < value.length; i++) {
+    hash = Math.imul(31, hash) + value.charCodeAt(i) | 0
+  }
+  return Math.abs(hash).toString(16)
 }

@@ -90,7 +90,7 @@ export class JarvisService {
     const config = await updateJarvisConfig(patch)
     await appendJarvisEvent({
       type: 'config',
-      title: config.enabled ? 'Jarvis Mode enabled' : 'Jarvis Mode disabled',
+      title: config.enabled ? 'Jarvis enabled' : 'Jarvis disabled',
       message: this.describeConfig(config),
     })
 
@@ -113,8 +113,8 @@ export class JarvisService {
       return appendJarvisEvent({
         type: 'paused',
         severity: 'warn',
-        title: 'Jarvis Mode is paused',
-        message: 'The daemon skipped a heartbeat because Jarvis Mode is disabled.',
+        title: 'Jarvis is paused',
+        message: 'The daemon skipped a heartbeat because Jarvis is disabled.',
       })
     }
 
@@ -228,7 +228,7 @@ export class JarvisService {
       const enabled = tasks.filter((task) => task.enabled !== false).length
       const awayEnabled = tasks.filter((task) => task.awayRunner?.enabled).length
       parts.push(
-        `Scheduled tasks: ${enabled}/${tasks.length} enabled, ${awayEnabled} linked to Away Runner.`,
+        `Scheduled tasks: ${enabled}/${tasks.length} enabled, ${awayEnabled} linked to Jarvis execution.`,
       )
     }
 
@@ -247,7 +247,7 @@ export class JarvisService {
     }
 
     if (parts.length === 0) {
-      parts.push('No sources are enabled. Jarvis Mode is alive but only recording heartbeats.')
+      parts.push('No sources are enabled. Jarvis is alive but only recording heartbeats.')
     }
 
     if (config.riskMode === 'observe') {
@@ -378,11 +378,11 @@ export class JarvisService {
 
   private buildSummary(config: JarvisModeConfig, events: JarvisEvent[]): string {
     if (!config.enabled) {
-      return 'Jarvis Mode is off. Enable it to keep a 24h local companion daemon watching configured sources.'
+      return 'Jarvis is off. Enable it to keep a 24h proactive companion watching configured sources.'
     }
     const latest = events[0]
     if (!latest) {
-      return 'Jarvis Mode is on and waiting for the first checkpoint.'
+      return 'Jarvis is on and waiting for the first checkpoint.'
     }
     return `${latest.title}: ${latest.message}`
   }

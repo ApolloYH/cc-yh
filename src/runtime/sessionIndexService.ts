@@ -4,8 +4,8 @@ import {
   type BuildSessionIndexOptions,
   type SessionIndexResult,
 } from './sessionIndex.js'
-import { RustSidecarClient } from './rustSidecarClient.js'
-import { getRustSidecarLaunchConfig } from './rustSidecarProtocol.js'
+import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
+import { tryRustSidecarRequest } from './rustSidecarService.js'
 
 export type SessionIndexServiceResult = SessionIndexResult & {
   fallbackReason?: string
@@ -14,19 +14,11 @@ export type SessionIndexServiceResult = SessionIndexResult & {
 export async function getSessionIndex(
   options: BuildSessionIndexOptions = {},
 ): Promise<SessionIndexServiceResult> {
-  const launch = getRustSidecarLaunchConfig()
-  if (!launch) {
-    return buildSessionIndex(options)
-  }
-
-  const client = new RustSidecarClient({
-    command: launch.command,
-    args: launch.args,
-    timeoutMs: 10_000,
+  const rust = await tryRustSidecarRequest('session.index.incremental', options, {
+    component: 'runtime.session.index',
   })
-  try {
-    const result = await client.request('session.index.incremental', options, 10_000)
-    const normalized = normalizeSessionIndexResult(result, 'rust')
+  if (rust.ok) {
+    const normalized = normalizeSessionIndexResult(rust.result, 'rust')
     return options.query
       ? {
           ...normalized,
@@ -42,14 +34,21 @@ export async function getSessionIndex(
           ),
         }
       : normalized
-  } catch (error) {
-    const fallback = await buildSessionIndex(options)
-    return {
-      ...fallback,
-      fallbackReason:
-        error instanceof Error ? error.message : 'rust sidecar unavailable',
-    }
-  } finally {
-    client.close()
+  }
+  const fallback = await buildSessionIndex(options)
+  logDiagnosticEvent({
+    scope: 'runtime.session',
+    event: 'fallback',
+    ok: true,
+    data: {
+      reason: rust.reason,
+      total: fallback.total,
+      query: options.query,
+      project: options.project,
+    },
+  })
+  return {
+    ...fallback,
+    fallbackReason: rust.reason,
   }
 }

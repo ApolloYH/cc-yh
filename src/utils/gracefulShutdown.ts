@@ -387,6 +387,12 @@ export function getPendingShutdownForTesting(): Promise<void> | undefined {
   return pendingShutdown
 }
 
+function getMemorySessionFinalizeTimeoutMs(): number {
+  const raw = Number(process.env.CLAUDE_YH_SESSION_FINALIZE_TIMEOUT_MS)
+  if (Number.isFinite(raw) && raw > 0) return Math.max(1_000, Math.round(raw))
+  return 60_000
+}
+
 // Graceful shutdown function that drains the event loop
 export async function gracefulShutdown(
   exitCode = 0,
@@ -410,6 +416,7 @@ export async function gracefulShutdown(
     './hooks.js'
   )
   const sessionEndTimeoutMs = getSessionEndHookTimeoutMs()
+  const memoryFinalizeTimeoutMs = getMemorySessionFinalizeTimeoutMs()
 
   // Failsafe: guarantee process exits even if cleanup hangs (e.g., MCP connections).
   // Runs cleanupTerminalModes first so a hung cleanup doesn't leave the terminal dirty.
@@ -420,7 +427,7 @@ export async function gracefulShutdown(
       printResumeHint()
       forceExit(code)
     },
-    Math.max(5000, sessionEndTimeoutMs + 3500),
+    Math.max(5000, sessionEndTimeoutMs + memoryFinalizeTimeoutMs + 3500),
     exitCode,
   )
   failsafeTimer.unref()
@@ -464,6 +471,32 @@ export async function gracefulShutdown(
   } catch {
     // Silently handle timeout and other errors
     clearTimeout(cleanupTimeoutId)
+  }
+
+  // Session-level memory finalization. This is intentionally tied to session
+  // shutdown, not to each chat turn: pending extraction is flushed first, then
+  // L4 summaries/vector/stale/distillation run for the ended session id.
+  try {
+    const [{ drainPendingExtraction }, { finalizeSessionMemory }] =
+      await Promise.all([
+        import('../services/extractMemories/extractMemories.js'),
+        import('../memoryV2/sessionFinalizer.js'),
+      ])
+    await Promise.race([
+      (async () => {
+        await drainPendingExtraction(memoryFinalizeTimeoutMs)
+        await finalizeSessionMemory({
+          sessionId: getSessionId(),
+          reason: `cli-session-ended:${reason}`,
+          timeoutMs: memoryFinalizeTimeoutMs,
+        })
+      })(),
+      sleep(memoryFinalizeTimeoutMs),
+    ])
+  } catch (error) {
+    logForDebugging(`Session memory finalization failed: ${error}`, {
+      level: 'error',
+    })
   }
 
   // Execute SessionEnd hooks. Bound both the per-hook default timeout and the

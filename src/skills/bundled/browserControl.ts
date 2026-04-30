@@ -22,10 +22,11 @@ Important operating rules:
 - Use the current Chrome session instead of launching a separate browser when the user wants existing login state or cookies.
 - Do not attempt to bypass captcha, 2FA, login security, payment confirmation, or other human-only checks.
 - Treat cookie reads, raw CDP calls, external sends, form submission, payment, account changes, and destructive actions as sensitive. Ask for confirmation unless the user has explicitly approved the exact action.
-- Keep domain allow/deny policy in sync with /browser and the Browser settings page.
+- There is no domain allow/deny policy. Do not ask the user to run /browser allow or edit allowed domains.
+- If an action fails, inspect the BrowserControl error and current tabs before asking the user to do it manually.
 
 User-facing configuration:
-- CLI: /browser status, /browser tabs, /browser allow <domain>, /browser deny <domain>, /browser high-risk on|off, /browser confirm on|off
+- CLI: /browser status, /browser tabs, /browser smoke, /browser high-risk on|off, /browser confirm on|off
 - Web/Desktop: Settings -> Browser
 `
 

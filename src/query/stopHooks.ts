@@ -51,7 +51,7 @@ const jobClassifierModule = feature('TEMPLATES')
 
 import type { QuerySource } from '../constants/querySource.js'
 import { executeAutoDream } from '../services/autoDream/autoDream.js'
-import { runMemoryV2Automation } from '../memoryV2/automation.js'
+import { scheduleMemoryV2Automation } from '../memoryV2/automation.js'
 import { executePromptSuggestion } from '../services/PromptSuggestion/promptSuggestion.js'
 import { isBareMode, isEnvDefinedFalsy } from '../utils/envUtils.js'
 import {
@@ -156,7 +156,7 @@ export async function* handleStopHooks(
     if (!toolUseContext.agentId) {
       void executeAutoDream(stopHookContext, toolUseContext.appendSystemMessage)
       if (isAutoMemoryEnabled()) {
-        void runMemoryV2Automation()
+        scheduleMemoryV2Automation('turn-end')
       }
     }
   }

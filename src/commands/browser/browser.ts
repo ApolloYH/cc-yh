@@ -67,24 +67,12 @@ export const call: LocalCommandCall = async (args) => {
     ].join('\n'))
   }
 
-  if (action === 'allow') {
-    const domains = rest.filter(Boolean)
-    if (domains.length === 0) return text('Usage: /browser allow <domain...>')
-    const current = await readBrowserControlPolicy()
-    const policy = await updateBrowserControlPolicy({
-      allowedDomains: unique([...current.allowedDomains, ...domains]),
-    })
-    return text(await formatStatus(`Allowed domains updated: ${domains.join(', ')}`, policy))
-  }
-
-  if (action === 'deny') {
-    const domains = rest.filter(Boolean)
-    if (domains.length === 0) return text('Usage: /browser deny <domain...>')
-    const current = await readBrowserControlPolicy()
-    const policy = await updateBrowserControlPolicy({
-      deniedDomains: unique([...(current.deniedDomains ?? []), ...domains]),
-    })
-    return text(await formatStatus(`Denied domains updated: ${domains.join(', ')}`, policy))
+  if (action === 'allow' || action === 'deny') {
+    return text([
+      'Domain allow/deny policy has been removed.',
+      'BrowserControl is controlled by the global enable switch, high-risk capability switch, sensitive-action confirmation, and human-only guardrails.',
+      'Use /browser status or /browser confirm on|off instead.',
+    ].join('\n'))
   }
 
   if (action === 'high-risk') {
@@ -115,12 +103,10 @@ export const call: LocalCommandCall = async (args) => {
     '/browser defaults',
     '/browser tabs',
     '/browser smoke',
-    '/browser allow <domain...>',
-    '/browser deny <domain...>',
     '/browser high-risk on|off',
     '/browser confirm on|off',
     '',
-    'Default policy is enabled, allowedDomains=["*"], high-risk backend/capabilities on, with confirmation still required for sensitive actions.',
+    'Default policy is enabled, high-risk backend/capabilities on, with confirmation still required for sensitive actions.',
   ].join('\n'))
 }
 
@@ -180,8 +166,7 @@ async function formatStatus(prefix?: string, policy?: BrowserControlPolicy): Pro
     ...(prefix ? [prefix, ''] : []),
     `BrowserControl: ${current.enabled ? 'on' : 'off'}`,
     `Backend: tmwd-cdp-bridge`,
-    `Allowed domains: ${current.allowedDomains.join(', ') || '(none)'}`,
-    `Denied domains: ${(current.deniedDomains ?? []).join(', ') || '(none)'}`,
+    `Domain policy: removed`,
     `High-risk backends: ${current.allowHighRiskBackends ? 'on' : 'off'}`,
     `High-risk capabilities: ${current.allowHighRiskCapabilities ? 'on' : 'off'}`,
     `Sensitive confirmation: ${current.requireConfirmationForSensitiveActions ? 'on' : 'off'}`,
@@ -210,8 +195,4 @@ async function readStatusViaServer(): Promise<{ policy: BrowserControlPolicy } |
 
 function text(value: string) {
   return { type: 'text' as const, value }
-}
-
-function unique(values: readonly string[]) {
-  return [...new Set(values.map(value => value.trim()).filter(Boolean))]
 }

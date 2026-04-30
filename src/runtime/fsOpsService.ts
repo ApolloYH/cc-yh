@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { RustSidecarClient } from './rustSidecarClient.js'
-import { getRustSidecarLaunchConfig } from './rustSidecarProtocol.js'
+import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
+import { tryRustSidecarRequest } from './rustSidecarService.js'
 
 export type RuntimeReadFileOptions = {
   cwd?: string
@@ -42,48 +42,53 @@ export type RuntimeWriteFileResult = {
 export async function runtimeReadFile(
   options: RuntimeReadFileOptions,
 ): Promise<RuntimeReadFileResult> {
-  const launch = getRustSidecarLaunchConfig()
-  if (!launch) return readFileWithTypescript(options)
-
-  const client = new RustSidecarClient({
-    command: launch.command,
-    args: launch.args,
-    timeoutMs: 10_000,
+  const rust = await tryRustSidecarRequest('fs.read', options, {
+    component: 'runtime.fs.read',
   })
-  try {
-    return normalizeReadResult(await client.request('fs.read', options, 10_000))
-  } catch (error) {
-    return {
-      ...(await readFileWithTypescript(options)),
-      fallbackReason:
-        error instanceof Error ? error.message : 'rust sidecar unavailable',
-    }
-  } finally {
-    client.close()
+  if (rust.ok) return normalizeReadResult(rust.result)
+  const fallback = await readFileWithTypescript(options)
+  logDiagnosticEvent({
+    scope: 'runtime.fs',
+    event: 'fallback',
+    ok: true,
+    data: {
+      operation: 'read',
+      reason: rust.reason,
+      path: options.path,
+      source: fallback.source,
+    },
+  })
+  return {
+    ...fallback,
+    fallbackReason: rust.reason,
   }
 }
 
 export async function runtimeWriteFile(
   options: RuntimeWriteFileOptions,
 ): Promise<RuntimeWriteFileResult> {
-  const launch = getRustSidecarLaunchConfig()
-  if (!launch) return writeFileWithTypescript(options)
-
-  const client = new RustSidecarClient({
-    command: launch.command,
-    args: launch.args,
-    timeoutMs: 10_000,
+  const rust = await tryRustSidecarRequest('fs.write', options, {
+    component: 'runtime.fs.write',
+    logSuccess: true,
   })
-  try {
-    return normalizeWriteResult(await client.request('fs.write', options, 10_000))
-  } catch (error) {
-    return {
-      ...(await writeFileWithTypescript(options)),
-      fallbackReason:
-        error instanceof Error ? error.message : 'rust sidecar unavailable',
-    }
-  } finally {
-    client.close()
+  if (rust.ok) return normalizeWriteResult(rust.result)
+  const fallback = await writeFileWithTypescript(options)
+  logDiagnosticEvent({
+    scope: 'runtime.fs',
+    event: 'fallback',
+    ok: true,
+    data: {
+      operation: 'write',
+      reason: rust.reason,
+      path: options.path,
+      root: options.root,
+      source: fallback.source,
+      atomic: fallback.atomic,
+    },
+  })
+  return {
+    ...fallback,
+    fallbackReason: rust.reason,
   }
 }
 

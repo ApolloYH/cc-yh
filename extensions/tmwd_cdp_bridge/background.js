@@ -155,27 +155,53 @@ async function handleCommand(msg) {
 
   if (msg.cmd === 'cdp') {
     if (!msg.tabId) return { ok: false, error: 'tabId_required' }
-    try {
-      await chrome.debugger.attach({ tabId: msg.tabId }, '1.3')
-      const data = await chrome.debugger.sendCommand(
-        { tabId: msg.tabId },
-        msg.method,
-        msg.params || {},
-      )
-      await chrome.debugger.detach({ tabId: msg.tabId })
-      return { ok: true, data }
-    } catch (error) {
-      try {
-        await chrome.debugger.detach({ tabId: msg.tabId })
-      } catch {}
-      return { ok: false, error: error?.message || String(error) }
-    }
+    return sendCdpCommand(msg.tabId, msg.method, msg.params || {})
   }
 
   if (msg.cmd === 'batch') {
     const results = []
-    for (const command of msg.commands || []) {
-      results.push(await handleCommand({ ...command, tabId: command.tabId ?? msg.tabId }))
+    let attachedTabId = null
+    try {
+      for (const command of msg.commands || []) {
+        const tabId = command.tabId ?? msg.tabId
+        const resolved = {
+          ...command,
+          tabId,
+          params: resolveBatchRefs(command.params || {}, results),
+        }
+
+        if (resolved.cmd === 'cdp') {
+          if (!tabId) return { ok: false, error: 'tabId_required' }
+          if (attachedTabId !== tabId) {
+            if (attachedTabId !== null) {
+              try {
+                await chrome.debugger.detach({ tabId: attachedTabId })
+              } catch {}
+            }
+            await chrome.debugger.attach({ tabId }, '1.3')
+            attachedTabId = tabId
+          }
+          const data = await chrome.debugger.sendCommand(
+            { tabId },
+            resolved.method,
+            resolved.params || {},
+          )
+          results.push(data ?? {})
+          continue
+        }
+
+        const result = await handleCommand(resolved)
+        if (!result.ok) return result
+        results.push(result.data ?? result.results ?? result)
+      }
+    } catch (error) {
+      return { ok: false, error: error?.message || String(error) }
+    } finally {
+      if (attachedTabId !== null) {
+        try {
+          await chrome.debugger.detach({ tabId: attachedTabId })
+        } catch {}
+      }
     }
     return { ok: true, results }
   }
@@ -195,6 +221,50 @@ async function handleCommand(msg) {
   }
 
   return { ok: false, error: `unknown_cmd:${msg.cmd}` }
+}
+
+async function sendCdpCommand(tabId, method, params) {
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3')
+    const data = await chrome.debugger.sendCommand(
+      { tabId },
+      method,
+      params || {},
+    )
+    await chrome.debugger.detach({ tabId })
+    return { ok: true, data }
+  } catch (error) {
+    try {
+      await chrome.debugger.detach({ tabId })
+    } catch {}
+    return { ok: false, error: error?.message || String(error) }
+  }
+}
+
+function resolveBatchRefs(value, results) {
+  if (typeof value === 'string') {
+    const match = value.match(/^\$(\d+)\.(.+)$/)
+    if (!match) return value
+    return readPath(results[Number(match[1])], match[2])
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => resolveBatchRefs(item, results))
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, resolveBatchRefs(item, results)]),
+    )
+  }
+  return value
+}
+
+function readPath(value, path) {
+  let current = value
+  for (const part of path.split('.')) {
+    if (current === null || current === undefined) return undefined
+    current = current[part]
+  }
+  return current
 }
 
 async function executePageScript(tabId, code) {

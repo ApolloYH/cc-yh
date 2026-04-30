@@ -34,3 +34,11 @@
 - The GA Chrome extension requests broad permissions (`cookies`, `tabs`, `debugger`, `management`, `<all_urls>`) and earlier code included CSP modification behavior. It should never be silently installed; the adapted `extensions/tmwd_cdp_bridge` copy keeps the current-session bridge but avoids default CSP header removal, while product policy defaults BrowserControl itself to enabled after installation.
 - Personal WeChat automation has account-risk and protocol-stability concerns; DingTalk and WeCom should come first.
 - Rust rewrites can regress behavior unless every swapped module is protected by parity tests.
+
+## 2026-04-27 Code Review After Rust Closure
+- Agent loop full Rust migration should not be pursued now. The highest-value Rust boundaries are already in place: shell policy, file write boundary, glob/grep, session index cache, and Jarvis queue locks.
+- The largest maintainability hotspot is `src/browserControl/executor.ts` at about 38 KB. It combines policy finalization, Chrome DevTools execution, TMWD bridge execution, HTTP bridge execution, screenshot/click/type helpers, tab recovery, and data summarization. This should eventually be split by backend, but not during user testing because it is a working integration point.
+- The second hotspot is `src/memoryV2/store.ts` at about 29 KB. It mixes store paths, L1-L4 reads, writes, summaries, stale checks, vector refresh, and distillation. Safe later split: `paths.ts`, `entries.ts`, `summaries.ts`, `vectors.ts`, `distill.ts`.
+- The runtime layer had duplicated sidecar startup/fallback code across fs search, fs ops, shell policy, session index, and Jarvis queue. This was cleaned by adding a shared `tryRustSidecarRequest()` wrapper.
+- Test-time diagnosis needed a stable always-on log separate from `--debug`. Added sanitized JSONL diagnostics under `~/.claude-yh/diagnostics/YYYY-MM-DD.jsonl`, plus `GET /api/status/diagnostics-log`.
+- Diagnostic logging intentionally redacts token/secret/password/API-key/authorization/cookie/content/prompt/command fields. Shell commands and Jarvis goals are represented by hashes/lengths or caller-provided safe summaries.

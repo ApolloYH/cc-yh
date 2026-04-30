@@ -11,6 +11,7 @@ import * as os from 'os'
 import * as path from 'path'
 import * as fs from 'fs/promises'
 import { PRODUCT_DISPLAY_VERSION } from '../../utils/branding.js'
+import { getDiagnosticLogPath } from '../../utils/diagnosticLog.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 import { sessionService, type MessageEntry } from '../services/sessionService.js'
 import { ModelPricingService } from '../services/modelPricingService.js'
@@ -78,6 +79,9 @@ export async function handleStatusApi(
       case 'diagnostics':
         return handleDiagnostics()
 
+      case 'diagnostics-log':
+        return await handleDiagnosticsLog(_url)
+
       case 'usage':
         return handleUsage()
 
@@ -133,6 +137,28 @@ function handleUsage(): Response {
       usage.totalCacheReadTokens +
       usage.totalCacheCreationTokens,
     totalCost: usage.totalCost,
+  })
+}
+
+async function handleDiagnosticsLog(url: URL): Promise<Response> {
+  const limit = Math.max(1, Math.min(1000, Number(url.searchParams.get('limit')) || 200))
+  const filePath = getDiagnosticLogPath()
+  let lines: string[] = []
+  try {
+    const raw = await fs.readFile(filePath, 'utf-8')
+    lines = raw.trim().split('\n').filter(Boolean).slice(-limit)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  return Response.json({
+    path: filePath,
+    events: lines.map(line => {
+      try {
+        return JSON.parse(line) as unknown
+      } catch {
+        return { malformed: true, line }
+      }
+    }),
   })
 }
 

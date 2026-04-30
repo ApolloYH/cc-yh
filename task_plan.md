@@ -29,6 +29,7 @@ runtime API.
 - [completed] Phase 16: Jarvis/Away system autostart watchdog and crash restart path
 - [completed] Phase 17: Jarvis independent background agent, cloud runner protocol, IM-to-Jarvis routing, model-backed Skill/Memory quality
 - [completed] Phase 18: High-value Rust safety/runtime completion: shell policy, file write boundary, incremental session cache, Jarvis queue locks, default runtime tool paths
+- [completed] Phase 19: Test diagnostics and cleanup review before user acceptance testing
 
 ## Constraints
 - Do not full-rewrite `cc-yh` in Rust. Rust must be introduced behind a narrow, testable boundary.
@@ -70,6 +71,8 @@ runtime API.
 - Session indexing now defaults to `session.index.incremental`, backed by a Rust-maintained cache under `~/.claude-yh/cache/runtime-session-index.json`.
 - Jarvis queue enqueue/claim/update/recover now prefer Rust-side atomic lock-file operations, with TypeScript persistence left as fallback.
 - GlobTool, GrepTool, runtime read/write API, MemoryV2 session scans, Jarvis queue, and shell permission gates now default to the Rust runtime when the sidecar is available.
+- User acceptance testing should collect diagnostics from `~/.claude-yh/diagnostics/YYYY-MM-DD.jsonl` or `GET /api/status/diagnostics-log?limit=200`. This log is sanitized and separate from legacy `--debug` logs.
+- Agent loop full Rust migration is explicitly out of scope; the remaining cleanup should focus on module boundaries and observability, not deeper runtime replacement.
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

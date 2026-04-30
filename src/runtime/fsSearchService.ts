@@ -8,8 +8,8 @@ import {
   type RuntimeGrepOptions,
   type RuntimeGrepResult,
 } from './fsSearch.js'
-import { RustSidecarClient } from './rustSidecarClient.js'
-import { getRustSidecarLaunchConfig } from './rustSidecarProtocol.js'
+import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
+import { tryRustSidecarRequest } from './rustSidecarService.js'
 
 export type RuntimeFsResult<T> = T & {
   fallbackReason?: string
@@ -18,49 +18,55 @@ export type RuntimeFsResult<T> = T & {
 export async function runtimeGlob(
   options: RuntimeGlobOptions,
 ): Promise<RuntimeFsResult<RuntimeGlobResult>> {
-  const launch = getRustSidecarLaunchConfig()
-  if (!launch) return buildRuntimeGlob(options)
-
-  const client = new RustSidecarClient({
-    command: launch.command,
-    args: launch.args,
-    timeoutMs: 10_000,
+  const rust = await tryRustSidecarRequest('fs.glob', options, {
+    component: 'runtime.fs.glob',
   })
-  try {
-    const result = await client.request('fs.glob', options, 10_000)
-    return normalizeRuntimeGlobResult(result, 'rust')
-  } catch (error) {
-    return {
-      ...(await buildRuntimeGlob(options)),
-      fallbackReason:
-        error instanceof Error ? error.message : 'rust sidecar unavailable',
-    }
-  } finally {
-    client.close()
+  if (rust.ok) return normalizeRuntimeGlobResult(rust.result, 'rust')
+  const fallback = await buildRuntimeGlob(options)
+  logDiagnosticEvent({
+    scope: 'runtime.fs',
+    event: 'fallback',
+    ok: true,
+    data: {
+      operation: 'glob',
+      reason: rust.reason,
+      cwd: options.cwd,
+      pattern: options.pattern,
+      fileCount: fallback.files.length,
+      truncated: fallback.truncated,
+      source: fallback.source,
+    },
+  })
+  return {
+    ...fallback,
+    fallbackReason: rust.reason,
   }
 }
 
 export async function runtimeGrep(
   options: RuntimeGrepOptions,
 ): Promise<RuntimeFsResult<RuntimeGrepResult>> {
-  const launch = getRustSidecarLaunchConfig()
-  if (!launch) return buildRuntimeGrep(options)
-
-  const client = new RustSidecarClient({
-    command: launch.command,
-    args: launch.args,
-    timeoutMs: 10_000,
+  const rust = await tryRustSidecarRequest('fs.grep', options, {
+    component: 'runtime.fs.grep',
   })
-  try {
-    const result = await client.request('fs.grep', options, 10_000)
-    return normalizeRuntimeGrepResult(result, 'rust')
-  } catch (error) {
-    return {
-      ...(await buildRuntimeGrep(options)),
-      fallbackReason:
-        error instanceof Error ? error.message : 'rust sidecar unavailable',
-    }
-  } finally {
-    client.close()
+  if (rust.ok) return normalizeRuntimeGrepResult(rust.result, 'rust')
+  const fallback = await buildRuntimeGrep(options)
+  logDiagnosticEvent({
+    scope: 'runtime.fs',
+    event: 'fallback',
+    ok: true,
+    data: {
+      operation: 'grep',
+      reason: rust.reason,
+      cwd: options.cwd,
+      pattern: options.pattern,
+      matchCount: fallback.matches.length,
+      truncated: fallback.truncated,
+      source: fallback.source,
+    },
+  })
+  return {
+    ...fallback,
+    fallbackReason: rust.reason,
   }
 }

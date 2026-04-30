@@ -21,8 +21,8 @@ describe('layered memory guidance', () => {
     ).join('\n')
 
     expect(prompt).toContain('## Memory layers')
-    expect(prompt).toContain('`MEMORY.md` is only a short routing index')
-    expect(prompt).toContain('promote to L1 only as a concise pointer')
+    expect(prompt).toContain('`MEMORY.md` is loaded into every new session')
+    expect(prompt).toContain('L1 is regenerated from the complete L2/L3 set')
   })
 
   it('injects layered guidance into background extraction prompts', () => {
@@ -30,5 +30,7 @@ describe('layered memory guidance', () => {
 
     expect(prompt).toContain('## Memory layers')
     expect(prompt).toContain('No execution, no memory')
+    expect(prompt).toContain('choose exactly ONE L3 shape')
+    expect(prompt).toContain('SOP OR Skill')
   })
 })

@@ -382,8 +382,28 @@ export class ConversationService {
   stopSession(sessionId: string): void {
     const session = this.sessions.get(sessionId)
     if (session) {
-      session.proc.kill()
+      this.killProcessTree(session.proc)
       this.sessions.delete(sessionId)
+    }
+  }
+
+  private killProcessTree(proc: ReturnType<typeof Bun.spawn>): void {
+    const pid = proc.pid
+    if (process.platform === 'win32' && typeof pid === 'number' && pid > 0) {
+      try {
+        Bun.spawn(['taskkill', '/PID', String(pid), '/T', '/F'], {
+          stdout: 'ignore',
+          stderr: 'ignore',
+        })
+        return
+      } catch {
+        // Fall back to Bun's process kill below.
+      }
+    }
+    try {
+      proc.kill()
+    } catch {
+      // Already exited.
     }
   }
 

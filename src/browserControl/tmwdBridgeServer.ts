@@ -49,6 +49,8 @@ export function getLocalTmwdBridge(): LocalTmwdBridge {
 export class LocalTmwdBridge {
   private server: WebSocketServer | null = null
   private serverError: string | undefined
+  private serverErrorAt = 0
+  private startPromise: Promise<BridgeState> | null = null
   private readonly clients = new Set<BridgeClient>()
   private readonly pending = new Map<string, PendingCommand>()
 
@@ -56,12 +58,22 @@ export class LocalTmwdBridge {
 
   async ensureStarted(): Promise<BridgeState> {
     if (this.server) return { status: 'running', port: this.port }
-    if (this.serverError) {
+    if (this.startPromise) return this.startPromise
+    if (this.serverError && Date.now() - this.serverErrorAt < 1500) {
       return { status: 'unavailable', port: this.port, error: this.serverError }
     }
 
+    this.startPromise = this.startServer()
     try {
-      this.server = await new Promise<WebSocketServer>((resolve, reject) => {
+      return await this.startPromise
+    } finally {
+      this.startPromise = null
+    }
+  }
+
+  private async startServer(): Promise<BridgeState> {
+    try {
+      const server = await new Promise<WebSocketServer>((resolve, reject) => {
         const wss = new WebSocketServer({
           host: '127.0.0.1',
           port: this.port,
@@ -69,13 +81,19 @@ export class LocalTmwdBridge {
         wss.once('listening', () => resolve(wss))
         wss.once('error', reject)
       })
+      this.server = server
+      this.serverError = undefined
+      this.serverErrorAt = 0
+      this.server.on('connection', ws => this.attachClient(ws))
+      this.server.on('close', () => {
+        this.server = null
+      })
+      return { status: 'running', port: this.port }
     } catch (error) {
       this.serverError = error instanceof Error ? error.message : String(error)
+      this.serverErrorAt = Date.now()
       return { status: 'unavailable', port: this.port, error: this.serverError }
     }
-
-    this.server.on('connection', ws => this.attachClient(ws))
-    return { status: 'running', port: this.port }
   }
 
   listTabs(): BridgeTab[] {

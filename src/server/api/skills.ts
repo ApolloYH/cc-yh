@@ -25,6 +25,10 @@ import {
   rewriteSkillWithModelOrHeuristic,
 } from '../../skills/modelSkillDistiller.js'
 import type { MemoryV2DistillCandidate } from '../../memoryV2/types.js'
+import {
+  getGlobalMemorySkillsDir,
+  getLegacyUserSkillsDir,
+} from '../../memoryV2/paths.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 
 type SkillMeta = {
@@ -89,6 +93,33 @@ const MAX_FILES = 50
 const MAX_FILE_SIZE = 100 * 1024
 const SKIP_ENTRIES = new Set(['node_modules', '.git', '__pycache__', '.DS_Store'])
 const CLAUDATE_API_BASE = 'https://api.claudate.com/api/packages'
+const DEFAULT_CLAUDE_YH_SKILLS: Record<string, string> = {
+  'browser-control': `---
+name: BrowserControl
+version: "1.0.0"
+description: 使用当前 Chrome 会话和登录态进行浏览器读取、点击、输入、截图、控制台、网络和 CDP 操作。敏感动作必须遵守确认和红线策略。
+user-invocable: true
+---
+
+# BrowserControl
+
+这是 claude-yh 专属的浏览器能力技能。需要检查网页、读取当前 Chrome 标签页、使用已有登录态、操作页面元素、截图、查看控制台或网络信息时使用它。
+
+## 工作流
+
+1. 先用 \`BrowserControl\` 的 \`tabs.read\` 读取当前 Chrome 标签页，确认目标 tab。
+2. 读取页面时优先用 \`page.read_dom\`，需要视觉状态时用 \`page.screenshot\`。
+3. 点击、输入、上传、下载、Cookie、原始 CDP 等敏感动作必须说明原因，并等待确认策略放行。
+4. 遇到验证码、二次验证、支付、登录密码、不可逆确认或外部发送消息时暂停，让用户处理。
+5. 多 tab 长流程必须固定 \`tabId\`，并在每一步记录当前页面状态，便于恢复。
+
+## 边界
+
+- 可以使用用户当前 Chrome profile 中已经登录的网页状态。
+- 不能绕过验证码、2FA、登录、支付确认或网站安全策略。
+- 不能静默读取敏感 Cookie、密码、令牌或替用户确认高风险操作。
+`,
+}
 
 const LANG_MAP: Record<string, string> = {
   md: 'markdown',
@@ -129,10 +160,7 @@ function normalizeFrontmatter(content: string, sourcePath?: string): {
 }
 
 function getUserSkillsDir(): string {
-  return (
-    process.env.CLAUDE_YH_SKILLS_DIR ||
-    path.join(os.homedir(), '.claude-yh', 'skills')
-  )
+  return process.env.CLAUDE_YH_SKILLS_DIR || getGlobalMemorySkillsDir()
 }
 
 function assertValidSkillName(name: string): void {
@@ -161,7 +189,47 @@ function sanitizeSkillFolderName(name: string): string {
 async function ensureUserSkillsDir(): Promise<string> {
   const skillsDir = getUserSkillsDir()
   await fs.mkdir(skillsDir, { recursive: true })
+  if (!process.env.CLAUDE_YH_SKILLS_DIR) {
+    await migrateLegacyUserSkills(skillsDir)
+  }
   return skillsDir
+}
+
+async function migrateLegacyUserSkills(targetDir: string): Promise<void> {
+  const legacyDir = getLegacyUserSkillsDir()
+  if (path.resolve(legacyDir) === path.resolve(targetDir)) return
+
+  let entries: import('fs').Dirent[]
+  try {
+    entries = await fs.readdir(legacyDir, { withFileTypes: true })
+  } catch {
+    return
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+    const sourceDir = path.join(legacyDir, entry.name)
+    const sourceSkill = path.join(sourceDir, 'SKILL.md')
+    const targetSkill = path.join(targetDir, entry.name, 'SKILL.md')
+    if (!(await pathExists(sourceSkill)) || await pathExists(targetSkill)) continue
+    await fs.cp(sourceDir, path.join(targetDir, entry.name), {
+      recursive: true,
+      force: false,
+      errorOnExist: true,
+    }).catch(() => undefined)
+  }
+}
+
+async function ensureDefaultClaudeYhSkills(): Promise<void> {
+  if (process.env.CLAUDE_YH_SKILLS_DIR) return
+  const skillsDir = await ensureUserSkillsDir()
+  for (const [name, markdown] of Object.entries(DEFAULT_CLAUDE_YH_SKILLS)) {
+    const targetDir = path.join(skillsDir, name)
+    const targetFile = path.join(targetDir, 'SKILL.md')
+    if (await pathExists(targetFile)) continue
+    await fs.mkdir(targetDir, { recursive: true })
+    await fs.writeFile(targetFile, markdown, 'utf-8')
+  }
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -655,9 +723,24 @@ async function evaluateSkills(req: Request): Promise<Response> {
 }
 
 async function listSkills(): Promise<Response> {
+  await ensureDefaultClaudeYhSkills()
   const skillsDir = getUserSkillsDir()
   const skills: SkillMeta[] = []
+  await appendSkillsFromDir(skills, skillsDir, 'user')
 
+  skills.sort((a, b) =>
+    a.source === b.source
+      ? a.name.localeCompare(b.name)
+      : a.source.localeCompare(b.source),
+  )
+  return Response.json({ skills, skillsDir })
+}
+
+async function appendSkillsFromDir(
+  skills: SkillMeta[],
+  skillsDir: string,
+  source: 'user' | 'project',
+): Promise<void> {
   try {
     const entries = await fs.readdir(skillsDir, { withFileTypes: true })
     for (const entry of entries) {
@@ -665,16 +748,15 @@ async function listSkills(): Promise<Response> {
       const meta = await loadSkillMeta(
         path.join(skillsDir, entry.name),
         entry.name,
-        'user',
+        source,
       )
-      if (meta) skills.push(meta)
+      if (meta && !skills.some(skill => skill.source === meta.source && skill.name === meta.name)) {
+        skills.push(meta)
+      }
     }
   } catch {
-    // return empty list when skills dir does not exist yet
+    // Missing skill directories are valid before the user creates project skills.
   }
-
-  skills.sort((a, b) => a.name.localeCompare(b.name))
-  return Response.json({ skills, skillsDir })
 }
 
 async function getSkillDetail(url: URL): Promise<Response> {
@@ -687,11 +769,15 @@ async function getSkillDetail(url: URL): Promise<Response> {
 
   assertValidSkillName(name)
 
-  let skillDir: string
+  let skillDir: string | null = null
   if (source === 'user') {
     skillDir = path.join(getUserSkillsDir(), name)
   } else {
     throw ApiError.badRequest(`Unsupported source: ${source}`)
+  }
+
+  if (!skillDir) {
+    throw ApiError.notFound(`Skill not found: ${name}`)
   }
 
   try {
@@ -701,7 +787,7 @@ async function getSkillDetail(url: URL): Promise<Response> {
     throw ApiError.notFound(`Skill not found: ${name}`)
   }
 
-  const meta = await loadSkillMeta(skillDir, name, source as 'user')
+  const meta = await loadSkillMeta(skillDir, name, source as 'user' | 'project')
   if (!meta) {
     throw ApiError.notFound(`Skill missing SKILL.md: ${name}`)
   }
@@ -849,11 +935,8 @@ async function distillSkill(req: Request): Promise<Response> {
       ? parsed.frontmatter.name
       : undefined
   const skillName = sanitizeSkillFolderName(body.name || frontmatterName || '')
-  const scope = body.scope ?? 'user'
-  const skillsDir =
-    scope === 'project'
-      ? getProjectSkillsDir(body.projectRoot)
-      : await ensureUserSkillsDir()
+  const scope = 'user'
+  const skillsDir = await ensureUserSkillsDir()
   const targetDir = path.join(skillsDir, skillName)
 
   if ((await pathExists(targetDir)) && !body.overwrite) {
@@ -872,7 +955,7 @@ async function distillSkill(req: Request): Promise<Response> {
   const meta = await loadSkillMeta(
     targetDir,
     skillName,
-    scope === 'project' ? 'project' : 'user',
+    'user',
   )
   if (!meta) {
     throw ApiError.badRequest('Saved candidate is not a valid SKILL.md')
@@ -887,14 +970,6 @@ async function distillSkill(req: Request): Promise<Response> {
     },
     { status: body.overwrite ? 200 : 201 },
   )
-}
-
-function getProjectSkillsDir(projectRoot: string | undefined): string {
-  if (!projectRoot?.trim()) {
-    throw ApiError.badRequest('projectRoot is required for project skills')
-  }
-  const resolved = path.resolve(projectRoot)
-  return path.join(resolved, '.claude-yh', 'skills')
 }
 
 async function deleteSkill(skillName: string): Promise<Response> {

@@ -401,3 +401,52 @@
   - full `bun test`: 963 pass, 0 fail
   - `cd desktop && bun run lint`
   - `cd desktop && bun run build`
+
+## 2026-04-27 Test diagnostics and cleanup review
+- Kept agent-loop full Rust migration out of scope by design. The high-value Rust runtime paths remain below the TypeScript agent/product layer.
+- Added sanitized diagnostic logging for user acceptance testing:
+  - log file: `~/.claude-yh/diagnostics/YYYY-MM-DD.jsonl`
+  - status API: `GET /api/status/diagnostics-log?limit=200`
+  - can be disabled with `CLAUDE_YH_DIAGNOSTICS=0`
+  - success-path detail can be increased with `CLAUDE_YH_DIAGNOSTICS_VERBOSE=1`
+- Centralized Rust sidecar fallback handling in `src/runtime/rustSidecarService.ts`.
+  - filesystem search
+  - filesystem read/write helpers
+  - session indexing
+  - shell safety classification
+  - Jarvis queue operations
+- Added sanitized diagnostics around:
+  - Rust sidecar launch/fallback/error events
+  - Jarvis enqueue/claim/update/recover/planning
+  - BrowserControl execution/blocked execution
+  - MemoryV2 automation summary/stale/distill/apply flow
+- Review notes:
+  - `src/browserControl/executor.ts` and `src/memoryV2/store.ts` are still the largest complexity hotspots.
+  - They are intentionally not split before user acceptance testing because broad file moves would increase regression risk.
+  - The next cleanup should split BrowserControl by backend and MemoryV2 by paths/entries/summaries/vectors/distillation after this test pass.
+- Verification passed:
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `bun test src/server/__tests__/settings.test.ts src/runtime/__tests__/fsOpsAndShellSafety.test.ts src/runtime/__tests__/rustRuntimeIntegration.test.ts src/jarvis/__tests__/queue.test.ts`: 44 pass, 0 fail
+  - `cargo build --manifest-path rust/Cargo.toml`
+  - full `bun test`: 964 pass, 0 fail
+  - `cd desktop && bun run lint`
+  - `cd desktop && bun run build`
+  - `cargo fmt --manifest-path rust/Cargo.toml -- --check`
+
+## 2026-04-27 Desktop chrome cleanup
+- Removed the temporary Agent Workbench product surface:
+  - deleted the sidebar entry and translations
+  - removed the `workbench` tab type from restored tabs
+  - removed the Agent Workbench page and desktop API wrapper
+  - moved BrowserControl types into the BrowserControl API client used by Settings
+- Adjusted the Windows/Tauri title strip:
+  - title drag region now belongs to the main content area instead of spanning over the sidebar
+  - the strip uses the same surface color as the page background
+  - minimize, maximize/restore, and close buttons remain on the right
+  - sidebar drag behavior remains available through the sidebar background
+- Verification passed:
+  - `cd desktop && bun run lint`
+  - `bun test desktop/src/components/layout/Sidebar.test.tsx desktop/src/__tests__/pages.test.tsx desktop/src/components/layout/WindowControls.test.tsx`
+  - `cd desktop && bun run build`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - real browser smoke on the Vite app confirmed the Workbench entry is absent and the sidebar starts at the top edge

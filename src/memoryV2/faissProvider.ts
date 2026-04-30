@@ -138,6 +138,7 @@ export async function writeFaissVectorIndex(params: {
 
   try {
     await buildNativeFaissIndex(params)
+    await fs.unlink(params.indexPath + '.unavailable.txt').catch(() => {})
     return { ...result, native: true }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

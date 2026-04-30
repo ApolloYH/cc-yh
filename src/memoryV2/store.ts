@@ -30,6 +30,7 @@ import type {
   MemoryV2Status,
   MemoryV2WriteInput,
 } from './types.js'
+import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
 
 export function getMemoryV2Paths(memoryRoot = getAutoMemPath()) {
   const root = path.normalize(memoryRoot).replace(/[\\/]+$/, '')
@@ -38,7 +39,8 @@ export function getMemoryV2Paths(memoryRoot = getAutoMemPath()) {
     indexPath: path.join(root, 'MEMORY.md'),
     factsDir: path.join(root, 'facts'),
     sopsDir: path.join(root, 'sops'),
-    sessionsDir: path.join(getMemoryBaseDir(), 'projects'),
+    skillsDir: path.join(root, 'sops', 'skills'),
+    sessionsDir: path.join(root, 'sessions'),
     summariesDir: path.join(root, 'sessions'),
     vectorIndexPath: path.join(root, 'vectors.json'),
     embeddingCachePath: path.join(root, 'embedding-cache.json'),
@@ -48,14 +50,20 @@ export function getMemoryV2Paths(memoryRoot = getAutoMemPath()) {
   }
 }
 
+type MemoryV2Paths = ReturnType<typeof getMemoryV2Paths>
+
 export async function getMemoryV2Status(): Promise<MemoryV2Status> {
   const paths = getMemoryV2Paths()
   await ensureMemoryV2Dirs(paths)
-  const l1 = await readIndexEntry(paths.indexPath)
-  const facts = await enrichStaleStatuses(await listMarkdownEntries('L2', paths.factsDir))
-  const sops = await enrichStaleStatuses(await listMarkdownEntries('L3', paths.sopsDir))
-  const l4 = await listL4Entries(30)
-  const layers = buildLayers(paths, l1, facts, sops, l4)
+  const l1 = localizeMemoryEntry(await readIndexEntry(paths.indexPath))
+  const facts = (await enrichStaleStatuses(
+    (await listMarkdownEntries('L2', paths.factsDir)).filter(entry => !isLowValueMemory(entry)),
+  )).map(localizeMemoryEntry)
+  const sops = (await enrichStaleStatuses(
+    (await listL3Entries(paths)).filter(entry => !isLowValueMemory(entry)),
+  )).map(localizeMemoryEntry)
+  const l4 = (await listL4Entries(30)).map(localizeMemoryEntry)
+  const layers = localizeMemoryLayers(buildLayers(paths, l1, facts, sops, l4))
   const stale = [...facts, ...sops, ...l4].filter(entry => entry.stale?.stale)
   await writeVectorIndex([l1, ...facts, ...sops, ...l4])
   const embedding = await getMemoryEmbeddingConfig()
@@ -84,7 +92,7 @@ export async function writeMemoryFact(
   const paths = getMemoryV2Paths()
   await ensureMemoryV2Dirs(paths)
   const entry = await writeEntry('L2', paths.factsDir, input)
-  await appendIndexPointer(paths.indexPath, entry)
+  await rewriteCompactIndex(paths)
   return entry
 }
 
@@ -95,7 +103,7 @@ export async function writeMemorySop(
   const paths = getMemoryV2Paths()
   await ensureMemoryV2Dirs(paths)
   const entry = await writeEntry('L3', paths.sopsDir, input)
-  await appendIndexPointer(paths.indexPath, entry)
+  await rewriteCompactIndex(paths)
   return entry
 }
 
@@ -105,10 +113,10 @@ export async function readMemoryV2Entry(
 ): Promise<MemoryV2Entry> {
   const paths = getMemoryV2Paths()
   await ensureMemoryV2Dirs(paths)
-  if (layer === 'L1') return readIndexEntry(paths.indexPath)
-  if (layer === 'L2') return readMarkdownEntry('L2', path.join(paths.factsDir, `${id}.md`))
-  if (layer === 'L3') return readMarkdownEntry('L3', path.join(paths.sopsDir, `${id}.md`))
-  return readL4Entry(id)
+  if (layer === 'L1') return localizeMemoryEntry(await readIndexEntry(paths.indexPath))
+  if (layer === 'L2') return localizeMemoryEntry(await readMarkdownEntry('L2', path.join(paths.factsDir, `${id}.md`)))
+  if (layer === 'L3') return localizeMemoryEntry(await readL3Entry(paths, id))
+  return localizeMemoryEntry(await readL4Entry(id))
 }
 
 export async function updateMemoryV2Entry(input: {
@@ -130,6 +138,28 @@ export async function updateMemoryV2Entry(input: {
   if (input.layer === 'L2' || input.layer === 'L3') {
     if (input.verified === false) {
       throw new Error(`${input.layer} update requires verified=true`)
+    }
+    if (input.layer === 'L3' && input.id.startsWith('skill-')) {
+      const skillName = input.id.slice('skill-'.length)
+      const skillDir = path.join(paths.skillsDir, skillName)
+      const skillFile = path.join(skillDir, 'SKILL.md')
+      const existing = await readSkillEntry(paths.skillsDir, skillName).catch(() => null)
+      const title = (input.title || existing?.title || skillName).replace(/^Skill:\s*/i, '')
+      await fs.mkdir(skillDir, { recursive: true })
+      await fs.writeFile(skillFile, [
+        '---',
+        `name: ${title}`,
+        'version: "1.0.0"',
+        'user-invocable: true',
+        '---',
+        '',
+        `# ${title}`,
+        '',
+        input.content.trim(),
+        '',
+      ].join('\n'), 'utf-8')
+      await rewriteCompactIndex(paths)
+      return readSkillEntry(paths.skillsDir, skillName)
     }
     const dir = input.layer === 'L2' ? paths.factsDir : paths.sopsDir
     const existing = await readMarkdownEntry(input.layer, path.join(dir, `${input.id}.md`)).catch(() => null)
@@ -183,8 +213,8 @@ export async function searchMemoryV2(query: string, limit = 20): Promise<MemoryV
   const paths = getMemoryV2Paths()
   await ensureMemoryV2Dirs(paths)
   const l1 = await readIndexEntry(paths.indexPath)
-  const facts = await listMarkdownEntries('L2', paths.factsDir)
-  const sops = await listMarkdownEntries('L3', paths.sopsDir)
+  const facts = (await listMarkdownEntries('L2', paths.factsDir)).filter(entry => !isLowValueMemory(entry))
+  const sops = (await listL3Entries(paths)).filter(entry => !isLowValueMemory(entry))
   const l4 = await listL4Entries(50)
   const queryTerms = semanticTerms(normalized)
   const entries = [l1, ...facts, ...sops, ...l4]
@@ -287,6 +317,7 @@ export async function applyMemoryV2DistillCandidate(
 async function ensureMemoryV2Dirs(paths = getMemoryV2Paths()): Promise<void> {
   await fs.mkdir(paths.factsDir, { recursive: true })
   await fs.mkdir(paths.sopsDir, { recursive: true })
+  await fs.mkdir(paths.skillsDir, { recursive: true })
   await fs.mkdir(paths.summariesDir, { recursive: true })
   try {
     await fs.access(paths.indexPath)
@@ -297,25 +328,507 @@ async function ensureMemoryV2Dirs(paths = getMemoryV2Paths()): Promise<void> {
       'L1 index: short pointers only. Do not store raw session content here.',
       '',
     ].join('\n')
-    if (current.trim() === oldDefault.trim()) {
-      await fs.writeFile(paths.indexPath, defaultL1IndexContent(), 'utf-8')
+    const normalized = normalizeL1IndexContent(current, oldDefault)
+    if (normalized !== current) {
+      await fs.writeFile(paths.indexPath, normalized, 'utf-8')
     }
   } catch {
-    await fs.writeFile(paths.indexPath, defaultL1IndexContent(), 'utf-8')
+    await fs.writeFile(paths.indexPath, currentL1IndexContent(), 'utf-8')
   }
+  if (process.env.CLAUDE_YH_IMPORT_LEGACY_MEMORY === '1') {
+    await syncLegacyMemoryRoots(paths)
+  }
+  await deleteLegacyIndexFile(paths)
+  await deleteLowValueMemories(paths)
+  await deleteDuplicateSopsCoveredBySkills(paths)
+  await rewriteCompactIndex(paths)
 }
 
 function defaultL1IndexContent(): string {
   return [
     '# 记忆索引',
     '',
-    'L1 索引：这里只保存简短指针，不保存原始会话内容。',
+    '我是 claude-yh 的全局长期记忆入口，只保留 L2/L3 的精炼摘要和检索路线，不保存原始会话内容。',
+    '',
+    '我在 L2 facts `facts/` 中保存长期事实、偏好和稳定规则。',
+    '我在 L3 SOP `sops/` 中保存可复用流程。',
+    '我在 L3 Skills `sops/skills/` 中保存 claude-yh 专属技能。',
+    '',
+  ].join('\n')
+}
+
+function currentL1IndexContent(): string {
+  return [
+    '# 记忆索引',
+    '',
+    '我是 claude-yh 的全局长期记忆入口，只保留 L2/L3 的精炼摘要和检索路线，不保存原始会话内容。',
     '',
     '- L2 稳定事实、偏好、项目规则放在 `facts/`。',
     '- L3 可复用 SOP 和 Skill 流程放在 `sops/`。',
-    '- L4 原始会话和摘要只作为证据来源，不能直接提升到 L1/L2/L3。',
+    '- L4 原始会话和摘要只作为证据来源，不能直接污染 L1/L2/L3。',
     '',
   ].join('\n')
+}
+
+function isBrokenDefaultL1Index(content: string): boolean {
+  const trimmed = content.trim()
+  if (!trimmed) return true
+  return trimmed.includes('璁板繂') || trimmed.includes('涓嶄繚瀛') || trimmed.includes('绱㈠紩')
+}
+
+function normalizeL1IndexContent(content: string, oldDefault: string): string {
+  if (content.trim() === oldDefault.trim() || isBrokenDefaultL1Index(content)) {
+    return currentL1IndexContent()
+  }
+  return content
+}
+
+async function rewriteCompactIndex(paths: MemoryV2Paths): Promise<void> {
+  const facts = (await listMarkdownEntries('L2', paths.factsDir)).filter(entry => !isLowValueMemory(entry))
+  const sops = (await listL3Entries(paths)).filter(entry => !isLowValueMemory(entry))
+  const l4 = await listSummaryEntries(paths.summariesDir)
+  await fs.writeFile(paths.indexPath, buildProseL1Index(paths, facts, sops, l4), 'utf-8')
+}
+
+function buildCompactL1Index(
+  paths: MemoryV2Paths,
+  facts: MemoryV2Entry[],
+  sops: MemoryV2Entry[],
+  l4: MemoryV2Entry[],
+): string {
+  const triggers = deriveL1Triggers([...facts, ...sops])
+  return [
+    '# 记忆索引',
+    '',
+    'L1 索引：只保存路由入口和高 ROI 触发词，不保存 L2/L3/L4 明细。',
+    '',
+    '## 层级入口',
+    `- L2 facts/: ${facts.length} 条稳定事实、偏好、项目规则；需要具体内容时搜索或读取 \`${relativeMemoryPath(paths.root, paths.factsDir)}/\`。`,
+    `- L3 sops/: ${sops.length} 条 SOP/Skill；遇到重复任务、浏览器、搜索、Jarvis、配置问题时先搜索 \`${relativeMemoryPath(paths.root, paths.sopsDir)}/\`。`,
+    `- L4 sessions/: ${l4.length} 条会话摘要；只作为证据来源，不能直接当成长期事实。`,
+    '',
+    '## 触发词',
+    `- ${triggers.length > 0 ? triggers.join(' / ') : '暂无高频触发词，优先使用语义搜索。'}`,
+    '',
+    '## 规则',
+    '- No Execution, No Memory：写入 L2/L3 必须来自用户确认或成功工具结果。',
+    '- L1 只写“哪里有知识”，不写“知识本身”；详细内容靠 embedding 检索、grep 或读取文件召回。',
+    '- L4 只能经验证后沉淀到 L2/L3，不能直接污染长期记忆。',
+    '',
+  ].join('\n')
+}
+
+function deriveL1Triggers(entries: MemoryV2Entry[]): string[] {
+  const ignored = /^(fact:\s*)?(你好|你是谁|只回答\s*ok|untitled session|年后|搜索北京的天气)$/i
+  const usefulTechnicalSignal = /browser|browsercontrol|chrome|cdp|tmwd|jarvis|rust|runtime|provider|web\s*search|web搜索|浏览器|配置|设置|记忆|memory|skill|sop/i
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const entry of entries) {
+    const title = entry.title
+      .replace(/^(Fact|SOP):\s*/i, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!title || ignored.test(title)) continue
+    if (/^(你|只|搜索北京)/.test(title)) continue
+    if (/^workbench/i.test(title)) continue
+    if (!usefulTechnicalSignal.test(title)) continue
+    const trigger = title.length > 34 ? `${title.slice(0, 31)}...` : title
+    const key = trigger.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(trigger)
+    if (result.length >= 10) break
+  }
+  return result
+}
+
+function relativeMemoryPath(root: string, target: string): string {
+  return path.relative(root, target).replace(/\\/g, '/') || '.'
+}
+
+function buildProseL1Index(
+  paths: MemoryV2Paths,
+  facts: MemoryV2Entry[],
+  sops: MemoryV2Entry[],
+  _l4: MemoryV2Entry[],
+): string {
+  const skills = sops.filter(isSkillEntry)
+  const regularSops = sops.filter(entry => !isSkillEntry(entry))
+  const l2Summary = summarizeL1MemoryEntries(facts, {
+    empty: '暂无长期事实、偏好或稳定规则。',
+    prefix: '我记住了',
+  })
+  const l3Summary = summarizeL1MemoryEntries(regularSops, {
+    empty: '暂无普通 SOP。',
+    prefix: '我沉淀了',
+  })
+  const skillSummary = summarizeL1MemoryEntries(skills, {
+    empty: '暂无 claude-yh 专属 Skill。',
+    prefix: '我可以调用',
+  })
+  const l2Path = `${relativeMemoryPath(paths.root, paths.factsDir)}/`
+  const sopPath = `${relativeMemoryPath(paths.root, paths.sopsDir)}/`
+  const skillPath = `${relativeMemoryPath(paths.root, paths.skillsDir)}/`
+
+  return [
+    '# 记忆索引',
+    '',
+    '我是 claude-yh 的全局长期记忆摘要。对话开始时我会先读这里，具体事实、SOP 和 Skill 再按相对路径检索。',
+    '',
+    `我在 L2 facts \`${l2Path}\` 中保存长期事实、偏好和稳定规则：${l2Summary}`,
+    '',
+    `我在 L3 SOP \`${sopPath}\` 中保存可复用流程：${l3Summary}`,
+    '',
+    `我在 L3 Skills \`${skillPath}\` 中保存 claude-yh 专属技能：${skillSummary}`,
+    '',
+  ].join('\n')
+}
+
+function isSkillEntry(entry: MemoryV2Entry): boolean {
+  return entry.id.startsWith('skill-') || entry.path.includes(`${path.sep}skills${path.sep}`)
+}
+
+function summarizeL1RoleAndPreferences(facts: MemoryV2Entry[]): string {
+  const roleLike = facts.filter(entry =>
+    /角色|定位|偏好|习惯|要求|规则|配置|provider|模型|web.?search|browser|浏览器|jarvis|rust|memory|记忆/i
+      .test(`${entry.title}\n${entry.content}`),
+  )
+  const source = roleLike.length > 0 ? roleLike : facts
+  const summary = summarizeEntryThemes(source, 5)
+  if (!summary) {
+    return 'claude-yh 应把这套记忆当作用户级长期记忆，而不是当前项目的私有偏好。进入任何新项目时都使用同一套全局记忆；项目本身的规则仍以仓库文件、AGENTS.md、CLAUDE.md 和用户当前指令为准。'
+  }
+  return `claude-yh 应把这套记忆当作用户级长期记忆，而不是当前项目的私有偏好。当前已知的长期画像和偏好可以概括为：${summary}。进入任何新项目时都使用同一套全局记忆；项目本身的规则仍以仓库文件、AGENTS.md、CLAUDE.md 和用户当前指令为准。`
+}
+
+function summarizeL1MemoryEntries(
+  entries: MemoryV2Entry[],
+  options: { prefix: string; empty: string },
+): string {
+  const summary = summarizeEntryThemes(entries, 8)
+  if (!summary) return options.empty
+  return `${options.prefix} ${summary}。`
+}
+
+function summarizeEntryThemes(entries: MemoryV2Entry[], limit: number): string {
+  const useful = entries
+    .filter(entry => !isLowValueMemory(entry))
+    .map(entry => compactEntryTheme(entry))
+    .filter(Boolean)
+  const seen = new Set<string>()
+  const selected: string[] = []
+  for (const item of useful) {
+    const key = item.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    selected.push(item)
+    if (selected.length >= limit) break
+  }
+  return joinChineseProse(selected)
+}
+
+function compactEntryTheme(entry: MemoryV2Entry): string {
+  const title = cleanMemoryTitle(entry.title)
+  const body = firstUsefulSentence(entry.content || entry.summary || '')
+  const titleOnly = title && !/^(fact|sop|skill)$/i.test(title) ? title : ''
+  if (titleOnly && body && !body.toLowerCase().includes(titleOnly.toLowerCase())) {
+    return truncateText(`${titleOnly}：${body}`, 90)
+  }
+  return truncateText(titleOnly || body, 90)
+}
+
+function cleanMemoryTitle(title: string): string {
+  return title
+    .replace(/^(Fact|SOP|Skill):\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function firstUsefulSentence(content: string): string {
+  const normalized = content
+    .replace(/^# .+$/gm, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!normalized) return ''
+  const [sentence] = normalized.split(/(?<=[。！？.!?])\s+/u)
+  return sentence?.trim() || ''
+}
+
+function truncateText(value: string, maxLength: number): string {
+  const trimmed = value.trim()
+  return trimmed.length <= maxLength ? trimmed : `${trimmed.slice(0, maxLength - 1)}…`
+}
+
+function joinChineseProse(items: string[]): string {
+  if (items.length === 0) return ''
+  if (items.length === 1) return items[0]
+  if (items.length === 2) return `${items[0]}，以及 ${items[1]}`
+  return `${items.slice(0, -1).join('；')}；以及 ${items.at(-1)}`
+}
+
+async function deleteLowValueMemories(paths: MemoryV2Paths): Promise<void> {
+  await deleteLowValueMarkdownEntries(paths.factsDir, 'facts')
+  await deleteLowValueMarkdownEntries(paths.sopsDir, 'sops')
+}
+
+async function deleteDuplicateSopsCoveredBySkills(paths: MemoryV2Paths): Promise<void> {
+  const [sops, skills] = await Promise.all([
+    listMarkdownEntries('L3', paths.sopsDir),
+    listSkillEntries(paths.skillsDir),
+  ])
+  if (sops.length === 0 || skills.length === 0) return
+
+  const skillKeys = new Set(skills.flatMap(skill => memoryTopicKeys(skill)))
+  for (const sop of sops) {
+    const overlapsSkill = memoryTopicKeys(sop).some(key => skillKeys.has(key)) ||
+      skills.some(skill => memoryEntriesLookDuplicated(sop, skill))
+    if (!overlapsSkill) continue
+    await removeMemoryFileBestEffort(sop.path)
+  }
+}
+
+function memoryTopicKeys(entry: MemoryV2Entry): string[] {
+  const values = [
+    cleanMemoryTitle(entry.title),
+    entry.id.replace(/^skill-/, ''),
+    path.basename(entry.path, path.extname(entry.path)),
+  ]
+  return Array.from(new Set(values.map(normalizeMemoryTopicKey).filter(Boolean)))
+}
+
+function normalizeMemoryTopicKey(value: string): string {
+  return value
+    .normalize('NFKC')
+    .replace(/^(fact|sop|skill)\s*[:：]\s*/i, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .toLowerCase()
+}
+
+function memoryEntriesLookDuplicated(a: MemoryV2Entry, b: MemoryV2Entry): boolean {
+  const aText = `${a.title}\n${a.content}`.toLowerCase()
+  const bText = `${b.title}\n${b.content}`.toLowerCase()
+  const aTokens = memorySignalTokens(aText)
+  const bTokens = memorySignalTokens(bText)
+  let common = 0
+  for (const token of aTokens) {
+    if (!bTokens.has(token)) continue
+    common++
+    if (common >= 2) return true
+  }
+  return false
+}
+
+function memorySignalTokens(text: string): Set<string> {
+  const knownSignals = [
+    'browsercontrol',
+    'browser',
+    'chrome',
+    'cdp',
+    'tmwd',
+    'dom',
+    'tab',
+    'cookie',
+    'screenshot',
+    'click',
+    'input',
+    'console',
+    'network',
+    '浏览器',
+    '标签页',
+    '截图',
+    '点击',
+    '输入',
+    '控制台',
+    '网络',
+    '登录态',
+  ]
+  return new Set(knownSignals.filter(signal => text.includes(signal)))
+}
+
+async function deleteLegacyIndexFile(paths: MemoryV2Paths): Promise<void> {
+  const legacyIndexPath = path.join(paths.root, 'index.md')
+  if (!(await pathExists(legacyIndexPath))) return
+  await removeMemoryFileBestEffort(legacyIndexPath)
+}
+
+async function deleteLowValueMarkdownEntries(
+  dir: string,
+  kind: 'facts' | 'sops',
+): Promise<void> {
+  let files: string[]
+  try {
+    files = await fs.readdir(dir)
+  } catch {
+    return
+  }
+
+  for (const file of files.filter(item => item.endsWith('.md'))) {
+    const fullPath = path.join(dir, file)
+    const entry = await readMarkdownEntry(kind === 'facts' ? 'L2' : 'L3', fullPath).catch(() => null)
+    if (!entry || !isLowValueMemory(entry)) continue
+    await removeMemoryFileBestEffort(fullPath)
+  }
+}
+
+async function removeMemoryFileBestEffort(filePath: string): Promise<void> {
+  try {
+    await fs.rm(filePath, { force: true })
+  } catch (error) {
+    logDiagnosticEvent({
+      scope: 'memoryV2.cleanup',
+      event: 'remove_failed',
+      ok: false,
+      severity: 'warn',
+      data: {
+        path: filePath,
+        error: error instanceof Error ? error.message : String(error),
+        code: error && typeof error === 'object' && 'code' in error
+          ? String((error as { code?: unknown }).code)
+          : undefined,
+      },
+    })
+  }
+}
+
+function isLowValueMemory(entry: MemoryV2Entry): boolean {
+  const title = entry.title
+    .replace(/^(Fact|SOP):\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+  const body = (entry.content ?? '').replace(/\s+/g, ' ').trim()
+  const exactLowValue = new Set([
+    '你好',
+    '你是谁',
+    '只回答 ok',
+    '只回答OK'.toLowerCase(),
+    '年后',
+    '搜索北京的天气',
+    'untitled session',
+    '你现在有什么记忆',
+    '你现在能操作浏览器吗',
+    '你现在都知道什么',
+    '你去去知网搜一篇人工智能的论文',
+    '去b站搜索可爱的小狗适配',
+  ])
+  if (exactLowValue.has(title)) return true
+  if (/^(你好|你是谁|只回答\s*ok|年后)$/i.test(title)) return true
+  if (/^(搜索|查询).{0,20}(天气|论文)$/i.test(title) && body.length < 500) return true
+  if (/^你现在.*(记忆|知道|浏览器)/.test(title) && body.length < 500) return true
+  if (/^workbench (runtime proof|smoke sop)/i.test(title)) return true
+  return false
+}
+
+async function syncLegacyMemoryRoots(paths: MemoryV2Paths): Promise<void> {
+  const roots = await findLegacyMemoryRoots(paths.root)
+  for (const sourceRoot of roots) {
+    await copyLegacyMarkdownEntries({
+      layer: 'L2',
+      sourceDir: path.join(sourceRoot, 'facts'),
+      targetDir: paths.factsDir,
+    })
+    await copyLegacyMarkdownEntries({
+      layer: 'L3',
+      sourceDir: path.join(sourceRoot, 'sops'),
+      targetDir: paths.sopsDir,
+    })
+    await copyLegacyMarkdownEntries({
+      layer: 'L4',
+      sourceDir: path.join(sourceRoot, 'sessions'),
+      targetDir: paths.summariesDir,
+    })
+  }
+}
+
+async function findLegacyMemoryRoots(activeRoot: string): Promise<string[]> {
+  const base = getMemoryBaseDir()
+  const candidates = [
+    path.join(base, 'memory'),
+    ...(await listProjectMemoryRoots(path.join(base, 'projects'))),
+  ]
+  const activeKey = normalizePathKey(activeRoot)
+  const seen = new Set<string>([activeKey])
+  const roots: string[] = []
+  for (const candidate of candidates) {
+    const root = path.normalize(candidate).replace(/[\\/]+$/, '')
+    const key = normalizePathKey(root)
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (await pathExists(root)) roots.push(root)
+  }
+  return roots
+}
+
+async function listProjectMemoryRoots(projectsDir: string): Promise<string[]> {
+  try {
+    const dirents = await fs.readdir(projectsDir, { withFileTypes: true })
+    return dirents
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => path.join(projectsDir, dirent.name, 'memory'))
+  } catch {
+    return []
+  }
+}
+
+async function copyLegacyMarkdownEntries(input: {
+  layer: 'L2' | 'L3' | 'L4'
+  sourceDir: string
+  targetDir: string
+}): Promise<void> {
+  let files: string[]
+  try {
+    files = await fs.readdir(input.sourceDir)
+  } catch {
+    return
+  }
+
+  for (const file of files.filter(item => item.endsWith('.md'))) {
+    const sourcePath = path.join(input.sourceDir, file)
+    const sourceContent = await fs.readFile(sourcePath, 'utf-8').catch(() => null)
+    if (sourceContent === null) continue
+    const targetPath = await resolveLegacyCopyTarget({
+      file,
+      sourcePath,
+      targetDir: input.targetDir,
+      sourceContent,
+    })
+    if (!targetPath) continue
+
+    await fs.mkdir(path.dirname(targetPath), { recursive: true })
+    await fs.writeFile(targetPath, sourceContent, 'utf-8')
+  }
+}
+
+async function resolveLegacyCopyTarget(input: {
+  file: string
+  sourcePath: string
+  targetDir: string
+  sourceContent: string
+}): Promise<string | null> {
+  const initialPath = path.join(input.targetDir, input.file)
+  const existingContent = await fs.readFile(initialPath, 'utf-8').catch(() => null)
+  if (existingContent === null || existingContent === input.sourceContent) return initialPath
+
+  const suffix = slugify(path.relative(getMemoryBaseDir(), path.dirname(input.sourcePath)) || 'legacy')
+  const parsed = path.parse(input.file)
+  const targetPath = path.join(input.targetDir, `${parsed.name}-${suffix}${parsed.ext}`)
+  const targetContent = await fs.readFile(targetPath, 'utf-8').catch(() => null)
+  return targetContent === input.sourceContent ? null : targetPath
+}
+
+function normalizePathKey(value: string): string {
+  const normalized = path.normalize(value).replace(/[\\/]+$/, '')
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function writeEntry(
@@ -363,16 +876,6 @@ async function writeEntryAtPath(
   }
 }
 
-async function appendIndexPointer(
-  indexPath: string,
-  entry: MemoryV2Entry,
-): Promise<void> {
-  const pointer = `- ${entry.layer}: [${entry.title}](${path.relative(path.dirname(indexPath), entry.path).replace(/\\/g, '/')})`
-  const current = await fs.readFile(indexPath, 'utf-8').catch(() => '')
-  if (current.includes(pointer)) return
-  await fs.writeFile(indexPath, `${current.trimEnd()}\n${pointer}\n`, 'utf-8')
-}
-
 async function readIndexEntry(indexPath: string): Promise<MemoryV2Entry> {
   const content = await fs.readFile(indexPath, 'utf-8')
   const stat = await fs.stat(indexPath)
@@ -403,6 +906,62 @@ async function listMarkdownEntries(
     return entries.filter((entry): entry is MemoryV2Entry => entry !== null)
   } catch {
     return []
+  }
+}
+
+async function listL3Entries(paths: MemoryV2Paths): Promise<MemoryV2Entry[]> {
+  const sops = await listMarkdownEntries('L3', paths.sopsDir)
+  const skills = await listSkillEntries(paths.skillsDir)
+  const seen = new Set<string>()
+  return [...sops, ...skills].filter(entry => {
+    const key = `${entry.layer}:${entry.id}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+async function listSkillEntries(skillsDir: string): Promise<MemoryV2Entry[]> {
+  let dirents: import('fs').Dirent[]
+  try {
+    dirents = await fs.readdir(skillsDir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+
+  const entries = await Promise.all(
+    dirents
+      .filter(dirent => dirent.isDirectory() && !dirent.name.startsWith('.'))
+      .map(dirent => readSkillEntry(skillsDir, dirent.name).catch(() => null)),
+  )
+  return entries.filter((entry): entry is MemoryV2Entry => entry !== null)
+}
+
+async function readL3Entry(paths: MemoryV2Paths, id: string): Promise<MemoryV2Entry> {
+  const regular = await readMarkdownEntry('L3', path.join(paths.sopsDir, `${id}.md`)).catch(() => null)
+  if (regular) return regular
+  const skillName = id.startsWith('skill-') ? id.slice('skill-'.length) : id
+  return readSkillEntry(paths.skillsDir, skillName)
+}
+
+async function readSkillEntry(skillsDir: string, skillName: string): Promise<MemoryV2Entry> {
+  const skillFile = path.join(skillsDir, skillName, 'SKILL.md')
+  const content = await fs.readFile(skillFile, 'utf-8')
+  const stat = await fs.stat(skillFile)
+  const frontmatter = parseFrontmatter(content)
+  const body = stripFrontmatter(content).replace(/^# .+\n\n/, '').trim()
+  const title = frontmatter.title || frontmatter.name || skillName
+  return {
+    layer: 'L3',
+    id: `skill-${skillName}`,
+    title: `Skill: ${title}`,
+    path: skillFile,
+    source: path.dirname(skillFile),
+    verified: frontmatter.verified ?? true,
+    content: body,
+    summary: summarizeText(body),
+    updatedAt: stat.mtime.toISOString(),
+    stale: staleStatus('L3', stat.mtime),
   }
 }
 
@@ -489,6 +1048,65 @@ async function readMarkdownEntry(
   }
 }
 
+function localizeMemoryEntry(entry: MemoryV2Entry): MemoryV2Entry {
+  if (entry.layer !== 'L1' && !entry.stale) return entry
+  return {
+    ...entry,
+    title: entry.layer === 'L1' ? '记忆索引' : entry.title,
+    stale: entry.stale ? localizeStaleStatus(entry.layer, entry.stale) : entry.stale,
+  }
+}
+
+function localizeMemoryLayers(layers: MemoryV2LayerStatus[]): MemoryV2LayerStatus[] {
+  const meta: Record<MemoryLayer, { title: string; description: string }> = {
+    L1: {
+      title: 'L1 索引',
+      description: '全局会话入口，只保存角色定位、检索路线和边界规则，不保存 L2/L3 明细或原始会话。',
+    },
+    L2: {
+      title: 'L2 事实',
+      description: '全局稳定事实、偏好、角色定位和规则，存放在 ~/.claude-yh/memory/facts/。',
+    },
+    L3: {
+      title: 'L3 SOP 和 Skill',
+      description: '全局可复用 SOP 和 claude-yh 专属 Skill，存放在 ~/.claude-yh/memory/sops/ 与 sops/skills/。',
+    },
+    L4: {
+      title: 'L4 会话归档',
+      description: '全局会话摘要和证据归档，只能经过抽取后提升为 L2 或 L3。',
+    },
+  }
+  return layers.map(layer => ({
+    ...layer,
+    title: meta[layer.layer].title,
+    description: meta[layer.layer].description,
+    entries: layer.entries.map(localizeMemoryEntry),
+  }))
+}
+
+function localizeStaleStatus(
+  layer: MemoryLayer,
+  stale: MemoryV2StaleStatus,
+): MemoryV2StaleStatus {
+  if (stale.ageDays === undefined) return stale
+  if (stale.severity === 'stale') {
+    return {
+      ...stale,
+      reason: `${layer} 条目已经 ${stale.ageDays} 天未刷新。`,
+    }
+  }
+  if (stale.severity === 'watch') {
+    return {
+      ...stale,
+      reason: `${layer} 条目已有 ${stale.ageDays} 天，继续依赖前建议复核。`,
+    }
+  }
+  return {
+    ...stale,
+    reason: `${layer} 条目是新鲜的。`,
+  }
+}
+
 function buildLayers(
   paths: ReturnType<typeof getMemoryV2Paths>,
   l1: MemoryV2Entry,
@@ -500,44 +1118,55 @@ function buildLayers(
     {
       layer: 'L1',
       title: 'L1 索引',
-      description: '使用旧系统 MEMORY.md 作为主索引，只保存简短路由指针，不保存原始会话内容。',
+      description: '全局会话入口，只保存角色定位、检索路线和边界规则，不保存 L2/L3 明细或原始会话。',
       path: paths.indexPath,
       entries: [l1],
     },
     {
       layer: 'L2',
       title: 'L2 事实',
-      description: '已经验证的稳定事实、偏好和项目规则，存放在旧 memory 主目录下的 facts/。',
+      description: '全局稳定事实、偏好、角色定位和规则，存放在 ~/.claude-yh/memory/facts/。',
       path: paths.factsDir,
       entries: facts,
     },
     {
       layer: 'L3',
       title: 'L3 SOP 和 Skill',
-      description: '已经验证的可复用流程、工具工作流和 Skill 沉淀，存放在旧 memory 主目录下的 sops/。',
+      description: '全局可复用 SOP 和 claude-yh 专属 Skill，存放在 ~/.claude-yh/memory/sops/ 与 sops/skills/。',
       path: paths.sopsDir,
       entries: sops,
     },
     {
       layer: 'L4',
       title: 'L4 会话归档',
-      description: '原始会话和压缩摘要只作为证据来源，经过验证后才能提升为 L2 或 L3。',
+      description: '全局会话摘要和证据归档，只能经过抽取后提升为 L2 或 L3。',
       path: paths.sessionsDir,
       entries: l4,
     },
   ]
 }
 
-function parseFrontmatter(content: string): { title?: string; source?: string; verified?: boolean } {
+function parseFrontmatter(content: string): {
+  title?: string
+  name?: string
+  source?: string
+  verified?: boolean
+} {
   const match = content.match(/^---\n([\s\S]*?)\n---/)
   if (!match) return {}
-  const result: { title?: string; source?: string; verified?: boolean } = {}
+  const result: {
+    title?: string
+    name?: string
+    source?: string
+    verified?: boolean
+  } = {}
   for (const line of match[1].split('\n')) {
     const separator = line.indexOf(':')
     if (separator === -1) continue
     const key = line.slice(0, separator).trim()
     const raw = line.slice(separator + 1).trim()
     if (key === 'title') result.title = parseJsonString(raw) ?? raw
+    if (key === 'name') result.name = parseJsonString(raw) ?? raw
     if (key === 'source') result.source = parseJsonString(raw) ?? raw
     if (key === 'verified') result.verified = raw === 'true'
   }

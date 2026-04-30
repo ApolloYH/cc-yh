@@ -19,6 +19,13 @@ import { getProxyFetchOptions } from '../../utils/proxy.js'
 import { jsonParse, jsonStringify } from '../../utils/slowOperations.js'
 import { asSystemPrompt } from '../../utils/systemPromptType.js'
 import { getWebFetchUserAgent } from '../../utils/http.js'
+import { logDiagnosticEvent } from '../../utils/diagnosticLog.js'
+import {
+  readWebSearchConfig,
+  type CustomWebSearchConfig,
+  webSearchIsEnabledForProvider,
+  webSearchShouldUseLocalFallback,
+} from '../../webSearch/settings.js'
 import { getWebSearchPrompt, WEB_SEARCH_TOOL_NAME } from './prompt.js'
 import {
   getToolUseSummary,
@@ -73,8 +80,6 @@ type OutputSchema = ReturnType<typeof outputSchema>
 
 export type Output = z.infer<OutputSchema>
 
-const LOCAL_SEARCH_MAX_RESULTS = 8
-
 // Re-export WebSearchProgress from centralized types to break import cycles
 export type { WebSearchProgress } from '../../types/tools.js'
 
@@ -91,10 +96,11 @@ function makeToolSchema(input: Input): BetaWebSearchTool20250305 {
 }
 
 function shouldUseLocalWebSearch(): boolean {
-  return (
+  const providerNeedsFallback = (
     process.env.CLAUDE_CODE_COMPAT_PROVIDER === 'openai' ||
     !isFirstPartyAnthropicBaseUrl()
   )
+  return webSearchShouldUseLocalFallback(providerNeedsFallback)
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -149,7 +155,11 @@ function isResultAllowed(url: string, input: Input): boolean {
   }
 }
 
-function parseDuckDuckGoResults(html: string, input: Input): SearchResult['content'] {
+function parseDuckDuckGoResults(
+  html: string,
+  input: Input,
+  maxResults: number,
+): SearchResult['content'] {
   const results: SearchResult['content'] = []
   const seen = new Set<string>()
   const linkPattern = /<a\b[^>]*class="[^"]*\bresult__a\b[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
@@ -160,7 +170,7 @@ function parseDuckDuckGoResults(html: string, input: Input): SearchResult['conte
     if (!url || !title || seen.has(url) || !isResultAllowed(url, input)) continue
     seen.add(url)
     results.push({ title, url })
-    if (results.length >= LOCAL_SEARCH_MAX_RESULTS) break
+    if (results.length >= maxResults) break
   }
 
   return results
@@ -171,6 +181,20 @@ async function localWebSearch(
   signal: AbortSignal,
   startTime: number,
 ): Promise<Output> {
+  const config = readWebSearchConfig()
+  if (config.localProvider === 'custom' && config.custom.endpoint.trim()) {
+    return customWebSearch(input, signal, startTime, config.custom, config.maxResults)
+  }
+  if (config.localProvider === 'custom' && !config.custom.endpoint.trim()) {
+    logDiagnosticEvent({
+      scope: 'webSearch',
+      event: 'custom_endpoint_missing_fallback_duckduckgo',
+      ok: true,
+      severity: 'warn',
+      data: { queryLength: input.query.length },
+    })
+  }
+
   const searchUrl = new URL('https://duckduckgo.com/html/')
   searchUrl.searchParams.set('q', input.query)
 
@@ -188,7 +212,80 @@ async function localWebSearch(
   }
 
   const html = await response.text()
-  const hits = parseDuckDuckGoResults(html, input)
+  const hits = parseDuckDuckGoResults(html, input, config.maxResults)
+  return makeLocalWebSearchOutput({
+    input,
+    startTime,
+    hits,
+    providerLabel: 'DuckDuckGo fallback',
+    emptyMessage: 'Local web search returned no results. Try a broader query or adjust domain filters.',
+  })
+}
+
+async function customWebSearch(
+  input: Input,
+  signal: AbortSignal,
+  startTime: number,
+  config: CustomWebSearchConfig,
+  maxResults: number,
+): Promise<Output> {
+  if (!config.endpoint) {
+    throw new Error('Custom web search endpoint is not configured. Set it in Settings > Web 搜索 or /web-search endpoint <url>.')
+  }
+
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...config.headers,
+  }
+  if (config.apiKey) {
+    headers[config.authHeader || 'Authorization'] = config.authPrefix
+      ? `${config.authPrefix} ${config.apiKey}`
+      : config.apiKey
+  }
+
+  let url = config.endpoint
+  let body: string | undefined
+  if (config.method === 'POST') {
+    headers['Content-Type'] = headers['Content-Type'] ?? 'application/json'
+    body = buildCustomSearchBody(config, input.query, maxResults)
+  } else {
+    const parsed = new URL(config.endpoint)
+    parsed.searchParams.set(config.queryParam || 'q', input.query)
+    parsed.searchParams.set('limit', String(maxResults))
+    url = parsed.toString()
+  }
+
+  const response = await fetch(url, {
+    method: config.method,
+    headers,
+    body,
+    signal,
+    ...getProxyFetchOptions(),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Custom web search failed with status ${response.status}`)
+  }
+
+  const json = await response.json()
+  const hits = parseCustomSearchResults(json, input, config, maxResults)
+  return makeLocalWebSearchOutput({
+    input,
+    startTime,
+    hits,
+    providerLabel: 'custom web search provider',
+    emptyMessage: 'Custom web search returned no results. Check endpoint, JSON paths, or domain filters.',
+  })
+}
+
+function makeLocalWebSearchOutput(inputData: {
+  input: Input
+  startTime: number
+  hits: SearchResult['content']
+  providerLabel: string
+  emptyMessage: string
+}): Output {
+  const { input, startTime, hits, providerLabel, emptyMessage } = inputData
   const durationSeconds = (performance.now() - startTime) / 1000
   const results: Output['results'] = [
     {
@@ -198,12 +295,10 @@ async function localWebSearch(
   ]
 
   if (hits.length === 0) {
-    results.unshift(
-      'Local web search returned no results. Try a broader query or adjust domain filters.',
-    )
+    results.unshift(emptyMessage)
   } else {
     results.unshift(
-      'Search completed with the local OpenAI-compatible fallback because the active provider does not support Anthropic server-side web_search.',
+      `Search completed with ${providerLabel} because the active provider does not use Anthropic server-side web_search.`,
     )
   }
 
@@ -212,6 +307,66 @@ async function localWebSearch(
     results,
     durationSeconds,
   }
+}
+
+function buildCustomSearchBody(
+  config: CustomWebSearchConfig,
+  query: string,
+  maxResults: number,
+): string {
+  if (config.bodyTemplate?.trim()) {
+    return config.bodyTemplate
+      .replaceAll('{{query}}', JSON.stringify(query).slice(1, -1))
+      .replaceAll('{{maxResults}}', String(maxResults))
+  }
+  return JSON.stringify({
+    query,
+    q: query,
+    max_results: maxResults,
+    limit: maxResults,
+  })
+}
+
+function parseCustomSearchResults(
+  json: unknown,
+  input: Input,
+  config: CustomWebSearchConfig,
+  maxResults: number,
+): SearchResult['content'] {
+  const source = readPath(json, config.resultsPath)
+  const items = Array.isArray(source)
+    ? source
+    : Array.isArray(json)
+      ? json
+      : []
+  const results: SearchResult['content'] = []
+  const seen = new Set<string>()
+  for (const item of items) {
+    const title = valueAsString(readPath(item, config.titlePath))
+    const url = valueAsString(readPath(item, config.urlPath))
+    if (!title || !url || seen.has(url) || !isResultAllowed(url, input)) continue
+    seen.add(url)
+    results.push({ title, url })
+    if (results.length >= maxResults) break
+  }
+  return results
+}
+
+function readPath(value: unknown, pathExpression: string): unknown {
+  if (!pathExpression) return value
+  return pathExpression
+    .split('.')
+    .filter(Boolean)
+    .reduce<unknown>((current, key) => {
+      if (current === null || current === undefined) return undefined
+      if (Array.isArray(current) && /^\d+$/.test(key)) return current[Number(key)]
+      if (typeof current === 'object') return (current as Record<string, unknown>)[key]
+      return undefined
+    }, value)
+}
+
+function valueAsString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 function makeOutputFromSearchResponse(
@@ -302,7 +457,7 @@ export const WebSearchTool = buildTool({
 
     // Enable for firstParty
     if (provider === 'firstParty') {
-      return true
+      return webSearchIsEnabledForProvider(true)
     }
 
     // Enable for Vertex AI with supported models (Claude 4.0+)
@@ -312,15 +467,15 @@ export const WebSearchTool = buildTool({
         model.includes('claude-sonnet-4') ||
         model.includes('claude-haiku-4')
 
-      return supportsWebSearch
+      return webSearchIsEnabledForProvider(supportsWebSearch)
     }
 
     // Foundry only ships models that already support Web Search
     if (provider === 'foundry') {
-      return true
+      return webSearchIsEnabledForProvider(true)
     }
 
-    return false
+    return webSearchIsEnabledForProvider(false)
   },
   get inputSchema(): InputSchema {
     return inputSchema()

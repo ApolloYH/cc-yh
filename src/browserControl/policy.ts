@@ -82,13 +82,6 @@ export function browserDomainMatchesRule(
   return normalizedDomain === normalizedRule
 }
 
-function matchesAnyDomainRule(
-  domain: string,
-  rules: readonly string[] | undefined,
-): boolean {
-  return (rules ?? []).some(rule => browserDomainMatchesRule(domain, rule))
-}
-
 function deny(reason: string): BrowserControlDecision {
   return { decision: 'deny', reason }
 }
@@ -136,21 +129,6 @@ export function assessBrowserControlAction(params: {
   )
   if (blockingSignal) {
     return deny(`human_only_page_signal:${blockingSignal}`)
-  }
-
-  const domain = getBrowserActionDomain(action)
-  if (domain) {
-    if (matchesAnyDomainRule(domain, policy.deniedDomains)) {
-      return deny('domain_denied')
-    }
-    if (!matchesAnyDomainRule(domain, policy.allowedDomains)) {
-      return deny('domain_not_allowed')
-    }
-  } else if (
-    policy.allowedDomains.length > 0 &&
-    action.capability !== 'tabs.read'
-  ) {
-    return deny('domain_required')
   }
 
   if (

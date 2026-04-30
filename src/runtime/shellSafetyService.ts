@@ -1,5 +1,5 @@
-import { RustSidecarClient } from './rustSidecarClient.js'
-import { getRustSidecarLaunchConfig } from './rustSidecarProtocol.js'
+import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
+import { tryRustSidecarRequest } from './rustSidecarService.js'
 
 export type RuntimeShellClassifyOptions = {
   shell: 'bash' | 'powershell' | 'pwsh' | string
@@ -19,24 +19,27 @@ export type RuntimeShellClassifyResult = {
 export async function runtimeClassifyShell(
   options: RuntimeShellClassifyOptions,
 ): Promise<RuntimeShellClassifyResult> {
-  const launch = getRustSidecarLaunchConfig()
-  if (!launch) return classifyWithTypescript(options)
-
-  const client = new RustSidecarClient({
-    command: launch.command,
-    args: launch.args,
-    timeoutMs: 10_000,
+  const rust = await tryRustSidecarRequest('shell.classify', options, {
+    component: `runtime.shell.${options.shell}`,
+    logSuccess: true,
   })
-  try {
-    return normalizeResult(await client.request('shell.classify', options, 10_000))
-  } catch (error) {
-    return {
-      ...classifyWithTypescript(options),
-      fallbackReason:
-        error instanceof Error ? error.message : 'rust sidecar unavailable',
-    }
-  } finally {
-    client.close()
+  if (rust.ok) return normalizeResult(rust.result)
+  const fallback = classifyWithTypescript(options)
+  logDiagnosticEvent({
+    scope: 'runtime.shell',
+    event: 'fallback',
+    ok: true,
+    data: {
+      shell: options.shell,
+      reason: rust.reason,
+      risk: fallback.risk,
+      action: fallback.action,
+      reasons: fallback.reasons,
+    },
+  })
+  return {
+    ...fallback,
+    fallbackReason: rust.reason,
   }
 }
 

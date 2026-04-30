@@ -76,6 +76,24 @@ export async function smokeBrowserControlCurrentChrome(): Promise<BrowserControl
       detail: version.ok ? version.data : undefined,
       error: version.ok ? undefined : ('error' in version ? version.error : 'unknown'),
     })
+
+    const dom = await executeBrowserControl({
+      backendId: 'tmwd-cdp-bridge',
+      action: {
+        capability: 'page.read_dom',
+        url,
+        domain,
+        description: 'Smoke test DOM read through the current Chrome extension.',
+        userConfirmed: true,
+      },
+      maxContentLength: 4000,
+    })
+    checks.push({
+      name: 'page.read_dom',
+      ok: dom.ok,
+      detail: dom.ok ? summarizeDomSmoke(dom.data) : undefined,
+      error: dom.ok ? undefined : ('error' in dom ? dom.error : 'unknown'),
+    })
   }
 
   return {
@@ -84,6 +102,17 @@ export async function smokeBrowserControlCurrentChrome(): Promise<BrowserControl
     connectedTabs: diagnostics.tmwd.connectedTabs,
     checks,
     guidance: diagnostics.tmwd.guidance,
+  }
+}
+
+function summarizeDomSmoke(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data
+  const record = data as Record<string, unknown>
+  return {
+    title: record.title,
+    url: record.url,
+    textLength: typeof record.text === 'string' ? record.text.length : undefined,
+    linkCount: Array.isArray(record.links) ? record.links.length : undefined,
   }
 }
 

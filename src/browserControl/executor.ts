@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { spawn } from 'node:child_process'
 import WebSocket from 'ws'
+import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
 import { appendBrowserControlAuditEvent } from './audit.js'
 import { BROWSER_CONTROL_BACKENDS } from './backends.js'
@@ -9,6 +10,10 @@ import { assessBrowserControlAction } from './policy.js'
 import { readBrowserControlPolicy } from './store.js'
 import { recordBrowserTabRecoverySnapshot } from './tabRecovery.js'
 import { getLocalTmwdBridge } from './tmwdBridgeServer.js'
+import {
+  executeViaBrowserControlOwner,
+  isBridgePortInUse,
+} from './ownerProxy.js'
 import type {
   BrowserControlBackend,
   BrowserControlDecision,
@@ -259,6 +264,24 @@ async function executeLocalTmwdBridge(
   const bridge = getLocalTmwdBridge()
   const state = await bridge.ensureStarted()
   if (state.status !== 'running') {
+    if (isBridgePortInUse(state.error)) {
+      const ownerResult = await executeViaBrowserControlOwner(input)
+      if (ownerResult?.ok) {
+        return {
+          ...(ownerResult.data && typeof ownerResult.data === 'object'
+            ? ownerResult.data as Record<string, unknown>
+            : { data: ownerResult.data }),
+          proxiedToBridgeOwner: true,
+        }
+      }
+      if (ownerResult && !ownerResult.ok) {
+        const failure = ownerResult as Extract<BrowserControlExecution, { ok: false }>
+        throw new BrowserControlExecutionError(
+          failure.statusCode ?? 503,
+          `tmwd_owner_bridge_error:${failure.error ?? 'unknown'}`,
+        )
+      }
+    }
     throw new BrowserControlExecutionError(
       503,
       `tmwd_local_bridge_unavailable:${state.error ?? 'unknown'}`,
@@ -315,21 +338,21 @@ async function executeLocalTmwdBridge(
       })
     }
     case 'page.click':
-      return bridge.execute({
-        tabId: selectedTab.id,
-        code: jsClickSelector(requiredString(input.selector, 'selector')),
+      return clickLocalTmwdCdpSelector(
+        bridge,
+        selectedTab.id,
+        requiredString(input.selector, 'selector'),
         timeoutMs,
-      })
+      )
     case 'page.type':
-      return bridge.execute({
-        tabId: selectedTab.id,
-        code: jsTypeSelector(
-          requiredString(input.selector, 'selector'),
-          input.text ?? '',
-          input.submit ?? false,
-        ),
+      return typeLocalTmwdCdpSelector(
+        bridge,
+        selectedTab.id,
+        requiredString(input.selector, 'selector'),
+        input.text ?? '',
+        input.submit ?? false,
         timeoutMs,
-      })
+      )
     case 'files.upload':
       return uploadLocalTmwdFile(
         bridge,
@@ -393,6 +416,146 @@ async function executeLocalTmwdBridge(
         `tmwd_local_operation_unsupported:${input.action.capability}`,
       )
   }
+}
+
+async function clickLocalTmwdCdpSelector(
+  bridge: ReturnType<typeof getLocalTmwdBridge>,
+  tabId: number,
+  selector: string,
+  timeoutMs: number,
+): Promise<unknown> {
+  const point = await getLocalTmwdElementCenter(bridge, tabId, selector, timeoutMs)
+  await localTmwdCdp(bridge, tabId, 'Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: point.x,
+    y: point.y,
+    button: 'left',
+  }, timeoutMs)
+  await sleep(60)
+  await localTmwdCdp(bridge, tabId, 'Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x: point.x,
+    y: point.y,
+    button: 'left',
+    clickCount: 1,
+  }, timeoutMs)
+  await sleep(60)
+  await localTmwdCdp(bridge, tabId, 'Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: point.x,
+    y: point.y,
+    button: 'left',
+    clickCount: 1,
+  }, timeoutMs)
+  return { clicked: true, selector, mode: 'cdp', x: point.x, y: point.y }
+}
+
+async function typeLocalTmwdCdpSelector(
+  bridge: ReturnType<typeof getLocalTmwdBridge>,
+  tabId: number,
+  selector: string,
+  text: string,
+  submit: boolean,
+  timeoutMs: number,
+): Promise<unknown> {
+  await clickLocalTmwdCdpSelector(bridge, tabId, selector, timeoutMs)
+  if (text) {
+    await localTmwdCdp(bridge, tabId, 'Input.insertText', { text }, timeoutMs)
+    await localTmwdCdp(bridge, tabId, 'Runtime.evaluate', {
+      expression: `(() => {
+        const el = document.activeElement
+        if (!el) return { active: false }
+        try {
+          el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(text)} }))
+        } catch {
+          el.dispatchEvent(new Event('input', { bubbles: true }))
+        }
+        el.dispatchEvent(new Event('change', { bubbles: true }))
+        return {
+          active: true,
+          tagName: el.tagName,
+          value: 'value' in el ? String(el.value) : el.textContent
+        }
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    }, timeoutMs)
+  }
+  if (submit) {
+    await localTmwdCdp(bridge, tabId, 'Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: 'Enter',
+      code: 'Enter',
+      windowsVirtualKeyCode: 13,
+      nativeVirtualKeyCode: 13,
+    }, timeoutMs)
+    await sleep(40)
+    await localTmwdCdp(bridge, tabId, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key: 'Enter',
+      code: 'Enter',
+      windowsVirtualKeyCode: 13,
+      nativeVirtualKeyCode: 13,
+    }, timeoutMs)
+  }
+  return { typed: true, selector, length: text.length, submitted: submit, mode: 'cdp' }
+}
+
+async function getLocalTmwdElementCenter(
+  bridge: ReturnType<typeof getLocalTmwdBridge>,
+  tabId: number,
+  selector: string,
+  timeoutMs: number,
+): Promise<{ x: number; y: number }> {
+  await localTmwdCdp(bridge, tabId, 'Page.bringToFront', {}, timeoutMs)
+  const response = await localTmwdCdp(bridge, tabId, 'Runtime.evaluate', {
+    expression: `(() => {
+      const el = document.querySelector(${JSON.stringify(selector)})
+      if (!el) return null
+      el.scrollIntoView({ block: 'center', inline: 'center' })
+      const r = el.getBoundingClientRect()
+      if (!r || r.width <= 0 || r.height <= 0) return { found: true, clickable: false }
+      return {
+        found: true,
+        clickable: true,
+        x: r.left + r.width / 2,
+        y: r.top + r.height / 2,
+        width: r.width,
+        height: r.height
+      }
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, timeoutMs)
+  const result = asRecord(asRecord(response).result)
+  const value = result.value
+  if (!isRecord(value)) throw new Error(`selector_not_found:${selector}`)
+  if (value.clickable === false) throw new Error(`selector_not_clickable:${selector}`)
+  const x = Number(value.x)
+  const y = Number(value.y)
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    throw new Error(`selector_not_clickable:${selector}`)
+  }
+  return { x, y }
+}
+
+async function localTmwdCdp(
+  bridge: ReturnType<typeof getLocalTmwdBridge>,
+  tabId: number,
+  method: string,
+  params: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<unknown> {
+  return bridge.execute({
+    tabId,
+    code: {
+      cmd: 'cdp',
+      tabId,
+      method,
+      params,
+    },
+    timeoutMs,
+  })
 }
 
 async function uploadLocalTmwdFile(
@@ -1060,7 +1223,22 @@ function jsClickSelector(selector: string): string {
     const el = document.querySelector(${JSON.stringify(selector)})
     if (!el) return { clicked: false, error: 'selector_not_found' }
     el.scrollIntoView({ block: 'center', inline: 'center' })
-    el.click()
+    const rect = el.getBoundingClientRect()
+    const eventInit = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+      button: 0,
+      buttons: 1,
+    }
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+      const Ctor = type.startsWith('pointer') && typeof PointerEvent !== 'undefined'
+        ? PointerEvent
+        : MouseEvent
+      el.dispatchEvent(new Ctor(type, eventInit))
+    }
     return { clicked: true, selector: ${JSON.stringify(selector)} }
   })()`
 }
@@ -1071,15 +1249,26 @@ function jsTypeSelector(selector: string, text: string, submit: boolean): string
     if (!el) return { typed: false, error: 'selector_not_found' }
     el.focus()
     if ('value' in el) {
-      el.value = (el.value || '') + ${JSON.stringify(text)}
-      el.dispatchEvent(new Event('input', { bubbles: true }))
+      const value = String(el.value || '') + ${JSON.stringify(text)}
+      const proto = Object.getPrototypeOf(el)
+      const descriptor = Object.getOwnPropertyDescriptor(proto, 'value')
+      if (descriptor && typeof descriptor.set === 'function') {
+        descriptor.set.call(el, value)
+      } else {
+        el.value = value
+      }
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(text)} }))
       el.dispatchEvent(new Event('change', { bubbles: true }))
     } else {
       el.textContent = (el.textContent || '') + ${JSON.stringify(text)}
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: ${JSON.stringify(text)} }))
     }
     if (${submit ? 'true' : 'false'}) {
-      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }))
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }))
+      el.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }))
+      el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }))
+      const form = el.form || el.closest?.('form')
+      if (form) form.requestSubmit?.()
     }
     return { typed: true, selector: ${JSON.stringify(selector)}, length: ${text.length} }
   })()`
@@ -1150,6 +1339,21 @@ async function finalizeExecution(params: {
     error: params.error,
     dataSummary: summarizeExecutionData(params.data),
   })
+  logDiagnosticEvent({
+    scope: 'browserControl.execute',
+    event: 'finalize',
+    ok: params.ok,
+    severity: params.ok ? 'info' : 'warn',
+    data: {
+      backendId: params.backend.id,
+      capability: params.input.action.capability,
+      decision: params.decision.decision,
+      reason: params.decision.reason,
+      auditId,
+      error: params.error,
+      dataSummary: summarizeExecutionData(params.data),
+    },
+  })
   if (params.ok) {
     await recordRecoverySnapshot(params.backend.id, params.input, params.data)
     return {
@@ -1205,6 +1409,20 @@ async function blockedExecution(
     decision,
     ok: false,
     error,
+  })
+  logDiagnosticEvent({
+    scope: 'browserControl.execute',
+    event: 'blocked',
+    ok: false,
+    severity: 'warn',
+    data: {
+      backendId,
+      decision: decision.decision,
+      reason: decision.reason,
+      error,
+      statusCode,
+      auditId,
+    },
   })
   return { ok: false, backendId, decision, auditId, error, statusCode }
 }

@@ -422,7 +422,7 @@ export class CronScheduler {
         ...run,
         completedAt: new Date().toISOString(),
         status: 'failed',
-        error: `Away Runner paused before execution: ${away.reasons.join(', ')}`,
+        error: `Jarvis execution paused before execution: ${away.reasons.join(', ')}`,
         durationMs: Date.now() - new Date(startedAt).getTime(),
       }
       await updateRun(pausedRun)
@@ -620,7 +620,7 @@ export class CronScheduler {
       await appendJarvisEvent({
         type: 'paused',
         severity: 'warn',
-        title: `Away Runner paused: ${task.name || task.id}`,
+        title: `Jarvis execution paused: ${task.name || task.id}`,
         message: initial.reasons.join(', '),
       }).catch(() => {})
       return { status: initial.status, reasons: initial.reasons, config }
@@ -631,11 +631,11 @@ export class CronScheduler {
         id: `checkpoint-${Date.now()}`,
         createdAt: now,
         label: 'initial',
-        summary: `Starting task ${task.name || task.id} with Away Runner mode=${config.mode}.`,
+        summary: `Starting task ${task.name || task.id} with Jarvis mode=${config.mode}.`,
       })
       await appendJarvisEvent({
         type: 'checkpoint',
-        title: `Away Runner initial checkpoint: ${task.name || task.id}`,
+        title: `Jarvis initial checkpoint: ${task.name || task.id}`,
         message: checkpoints[0]!.summary,
       }).catch(() => {})
     }
@@ -654,7 +654,7 @@ export class CronScheduler {
       await appendJarvisEvent({
         type: 'paused',
         severity: 'warn',
-        title: `Away Runner blocked: ${task.name || task.id}`,
+        title: `Jarvis execution blocked: ${task.name || task.id}`,
         message: decision.reasons.join(', '),
       }).catch(() => {})
       return {
@@ -692,7 +692,7 @@ export class CronScheduler {
     await appendJarvisEvent({
       type: run.status === 'completed' ? 'checkpoint' : 'paused',
       severity: run.status === 'completed' ? 'info' : 'warn',
-      title: `Away Runner ${run.status}: ${task.name || task.id}`,
+      title: `Jarvis execution ${run.status}: ${task.name || task.id}`,
       message: [
         `Run ${run.id} finished with status=${run.status}.`,
         run.output ? `Output: ${run.output.slice(0, 1000)}` : '',
@@ -770,7 +770,7 @@ function buildAwayRunnerPrompt(
   checkpoints: AwayRunnerCheckpoint[],
 ): string {
   return [
-    'You are running under claude-yh Away Runner.',
+    'You are running under claude-yh Jarvis execution.',
     '',
     `Mode: ${config.mode}`,
     `Allowed risk: ${config.allowedRisk}`,

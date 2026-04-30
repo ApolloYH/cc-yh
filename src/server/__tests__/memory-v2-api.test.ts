@@ -158,4 +158,18 @@ describe('MemoryV2 API', () => {
     const raw = await fs.readFile(path.join(tmpDir, 'settings.json'), 'utf-8')
     expect(raw).toContain('secret-test-key')
   })
+
+  it('serves memory extraction diagnostic events', async () => {
+    const req = new Request('http://localhost/api/memory-v2/events?limit=5')
+    const response = await handleMemoryV2Api(req, new URL(req.url), [
+      'api',
+      'memory-v2',
+      'events',
+    ])
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(typeof body.path).toBe('string')
+    expect(Array.isArray(body.events)).toBe(true)
+  })
 })
