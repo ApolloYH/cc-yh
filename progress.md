@@ -118,6 +118,23 @@
   - `bun x tsc --noEmit -p tsconfig.json`
 - Hardened MemoryV2 status after real HTTP smoke exposed that callers need grouped `facts` and `sops` fields in addition to the compatible combined `entries` list.
 - Final Phase 7b verification passed:
+
+## 2026-04-27
+- Completed the high-value Rust runtime migration requested as the final total-plan closure:
+  - added Rust sidecar capabilities for `session.index.incremental`, `fs.validateWrite`, and Jarvis queue enqueue/claim/update/recover
+  - hardened Rust `fs.write` with root-boundary validation, suspicious Windows provider/UNC/URI path rejection, and atomic writes by default
+  - mirrored the same write-boundary checks in the TypeScript fallback path
+  - expanded Rust shell classification into an action policy: `allow`, `confirm`, or `deny`
+  - routed Bash and PowerShell permission checks through the Rust policy gate before the existing detailed TS permission flow
+  - changed session index service to prefer Rust incremental cached indexing
+  - changed Jarvis queue operations to prefer Rust lock-file protected atomic queue updates, while preserving TS fallback
+  - expanded the parity harness to include incremental index, file-write boundary, and Jarvis atomic claim/recover scenarios
+  - added runtime integration tests covering Rust write boundaries, shell deny policy, session-index cache hits, and concurrent Jarvis claims
+- Verification passed for the changed runtime layer:
+  - `cargo build --manifest-path rust/Cargo.toml`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - `bun test src/runtime/__tests__/fsOpsAndShellSafety.test.ts src/runtime/__tests__/rustRuntimeIntegration.test.ts src/jarvis/__tests__/queue.test.ts`
+  - `bun test src/runtime/__tests__/rustSidecarClient.test.ts src/runtime/__tests__/rustRuntimeIntegration.test.ts`
   - real HTTP smoke against a started Bun server: `/health`, `/api/runtime/session-index`, `/api/browser-control/policy`, `/api/browser-control/assess`, `/api/skills/distill`, `/api/memory-v2/fact`, `/api/memory-v2`, `/api/jarvis`
   - `bun test` with 906 passing tests
   - `bun x tsc --noEmit -p tsconfig.json`
@@ -367,3 +384,20 @@
   - `cd desktop && bun run build`
   - `cargo build --manifest-path rust/Cargo.toml`
   - real BrowserControl smoke against the installed TMWD Chrome extension returned `ok: true`, backend `tmwd-cdp-bridge`, and 5 connected tabs
+
+## 2026-04-27 Rust runtime closure
+- Implemented the final high-value Rust migration items:
+  - Bash/PowerShell permission policy is now gated by Rust runtime classification before the existing detailed TypeScript permission flow.
+  - Runtime file writes now validate root boundaries in Rust, reject UNC/provider/URI-like write paths, and write atomically by default; TypeScript fallback mirrors those rules.
+  - Session indexing now uses `session.index.incremental` by default with a Rust-maintained cache under the shared config directory.
+  - Jarvis queue enqueue/claim/update/recover now prefer Rust lock-file guarded atomic operations, preventing duplicate claims across concurrent workers.
+  - The parity harness now covers incremental session cache, file-write boundary enforcement, and Jarvis atomic claim/recover.
+- Verification passed:
+  - `cargo fmt --manifest-path rust/Cargo.toml -- --check`
+  - `cargo build --manifest-path rust/Cargo.toml`
+  - `bun x tsc --noEmit -p tsconfig.json`
+  - targeted runtime/Jarvis tests: 10 pass
+  - sidecar parity tests: 5 pass
+  - full `bun test`: 963 pass, 0 fail
+  - `cd desktop && bun run lint`
+  - `cd desktop && bun run build`

@@ -28,7 +28,7 @@ runtime API.
 - [completed] Phase 15: Production MemoryV2 embedding/FAISS provider and final parity verification
 - [completed] Phase 16: Jarvis/Away system autostart watchdog and crash restart path
 - [completed] Phase 17: Jarvis independent background agent, cloud runner protocol, IM-to-Jarvis routing, model-backed Skill/Memory quality
-- [pending] Phase 18: Optional deeper Rust migration for remaining agent-loop internals
+- [completed] Phase 18: High-value Rust safety/runtime completion: shell policy, file write boundary, incremental session cache, Jarvis queue locks, default runtime tool paths
 
 ## Constraints
 - Do not full-rewrite `cc-yh` in Rust. Rust must be introduced behind a narrow, testable boundary.
@@ -65,6 +65,11 @@ runtime API.
 - IM inbound messages from Telegram/Feishu/DingTalk/WeCom route into Jarvis by default. Slash-style IM commands still control the Jarvis queue and checkpoints.
 - Skill distillation and Memory L4 summarization now prefer the configured main model, with deterministic fallback and a test-only disable flag.
 - Cloud Jarvis is a runner protocol: authenticated cloud workers can heartbeat, claim queued work, and report checkpoints/status. It does not make a powered-off local PC run by itself; it gives a remote runner a compatible queue/control surface.
+- Bash / PowerShell permission policy now has a Rust runtime gate before the existing TypeScript permission flow. Rust can force deny or confirmation; TypeScript remains the fallback if the sidecar is unavailable.
+- File writes through the runtime now validate root boundaries in Rust, reject UNC/provider/URI-like write paths, and use atomic replacement by default. The TypeScript fallback enforces the same boundary rules.
+- Session indexing now defaults to `session.index.incremental`, backed by a Rust-maintained cache under `~/.claude-yh/cache/runtime-session-index.json`.
+- Jarvis queue enqueue/claim/update/recover now prefer Rust-side atomic lock-file operations, with TypeScript persistence left as fallback.
+- GlobTool, GrepTool, runtime read/write API, MemoryV2 session scans, Jarvis queue, and shell permission gates now default to the Rust runtime when the sidecar is available.
 
 ## Errors Encountered
 | Error | Attempt | Resolution |

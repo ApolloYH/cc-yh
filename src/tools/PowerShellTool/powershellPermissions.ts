@@ -13,6 +13,7 @@ import { getCwd } from '../../utils/cwd.js'
 import { isCurrentDirectoryBareGitRepo } from '../../utils/git.js'
 import type { PermissionRule } from '../../utils/permissions/PermissionRule.js'
 import type { PermissionUpdate } from '../../utils/permissions/PermissionUpdateSchema.js'
+import { runtimeClassifyShell } from '../../runtime/shellSafetyService.js'
 import {
   createPermissionRequestMessage,
   getRuleByContentsForToolName,
@@ -652,6 +653,34 @@ export async function powershellToolHasPermission(
         type: 'other',
         reason: 'Empty command is safe',
       },
+    }
+  }
+
+  const runtimePolicy = await runtimeClassifyShell({
+    shell: 'powershell',
+    command,
+  })
+  if (runtimePolicy.action === 'deny') {
+    const decisionReason: PermissionDecisionReason = {
+      type: 'other',
+      reason: `Rust runtime blocked command: ${runtimePolicy.reasons.join(', ') || runtimePolicy.risk}`,
+    }
+    return {
+      behavior: 'deny',
+      message: `Permission to use ${POWERSHELL_TOOL_NAME} with command ${command} has been denied.`,
+      decisionReason,
+    }
+  }
+  if (runtimePolicy.action === 'confirm') {
+    const decisionReason: PermissionDecisionReason = {
+      type: 'other',
+      reason: `Rust runtime requires approval: ${runtimePolicy.reasons.join(', ') || runtimePolicy.risk}`,
+    }
+    return {
+      behavior: 'ask',
+      message: createPermissionRequestMessage(POWERSHELL_TOOL_NAME, decisionReason),
+      decisionReason,
+      suggestions: [],
     }
   }
 

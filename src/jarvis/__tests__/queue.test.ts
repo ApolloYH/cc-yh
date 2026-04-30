@@ -52,4 +52,19 @@ describe('Jarvis persistent queue', () => {
     expect(paused?.status).toBe('paused')
     expect(paused?.checkpoint).toContain('approval')
   })
+
+  it('claims concurrent workers without duplicating queue ownership', async () => {
+    const first = await enqueueJarvisTask({ prompt: 'first', priority: 50 })
+    const second = await enqueueJarvisTask({ prompt: 'second', priority: 50 })
+
+    const claimed = await Promise.all([
+      claimNextJarvisTask(),
+      claimNextJarvisTask(),
+    ])
+    const ids = claimed.map(item => item?.id).filter(Boolean)
+
+    expect(new Set(ids).size).toBe(2)
+    expect(ids).toContain(first.id)
+    expect(ids).toContain(second.id)
+  })
 })

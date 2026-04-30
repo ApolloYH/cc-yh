@@ -25,7 +25,7 @@ export async function getSessionIndex(
     timeoutMs: 10_000,
   })
   try {
-    const result = await client.request('session.index', options, 10_000)
+    const result = await client.request('session.index.incremental', options, 10_000)
     const normalized = normalizeSessionIndexResult(result, 'rust')
     return options.query
       ? {

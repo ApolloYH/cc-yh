@@ -43,6 +43,26 @@ describe('runtime fs ops and shell safety fallback', () => {
     expect(read.truncated).toBe(false)
   })
 
+  it('rejects writes outside the configured root even in TypeScript fallback', async () => {
+    await expect(runtimeWriteFile({
+      cwd: tmpDir,
+      root: tmpDir,
+      path: '../outside.txt',
+      content: 'nope',
+      overwrite: true,
+    })).rejects.toThrow('outside the allowed root')
+  })
+
+  it('rejects provider-style write paths even in TypeScript fallback', async () => {
+    await expect(runtimeWriteFile({
+      cwd: tmpDir,
+      root: tmpDir,
+      path: 'Registry::HKEY_CURRENT_USER\\Software\\x',
+      content: 'nope',
+      overwrite: true,
+    })).rejects.toThrow('not allowed')
+  })
+
   it('classifies high-risk shell commands', async () => {
     const result = await runtimeClassifyShell({
       shell: 'powershell',
@@ -51,5 +71,16 @@ describe('runtime fs ops and shell safety fallback', () => {
     expect(result.source).toBe('typescript')
     expect(result.risk).toBe('high')
     expect(result.readOnly).toBe(false)
+    expect(result.action).toBe('confirm')
+  })
+
+  it('denies destructive shell commands in the fallback policy', async () => {
+    const result = await runtimeClassifyShell({
+      shell: 'powershell',
+      command: 'Format C:',
+    })
+    expect(result.source).toBe('typescript')
+    expect(result.risk).toBe('high')
+    expect(result.action).toBe('deny')
   })
 })

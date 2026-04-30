@@ -90,10 +90,13 @@ export async function handleRuntimeApi(
       if (content === undefined) throw ApiError.badRequest('content is required')
       return Response.json(await runtimeWriteFile({
         cwd: typeof body.cwd === 'string' ? body.cwd : undefined,
+        root: typeof body.root === 'string' ? body.root : undefined,
         path: filePath,
         content,
         createDirs: readOptionalBoolean(body.createDirs),
         overwrite: readOptionalBoolean(body.overwrite),
+        allowOutsideRoot: readOptionalBoolean(body.allowOutsideRoot),
+        atomic: readOptionalBoolean(body.atomic),
       }))
     }
 

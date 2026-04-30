@@ -8,11 +8,17 @@ export type RustSidecarMethod =
   | 'runtime.hello'
   | 'runtime.echo'
   | 'session.index'
+  | 'session.index.incremental'
   | 'fs.glob'
   | 'fs.grep'
   | 'fs.read'
+  | 'fs.validateWrite'
   | 'fs.write'
   | 'shell.classify'
+  | 'jarvis.queue.enqueue'
+  | 'jarvis.queue.claim'
+  | 'jarvis.queue.update'
+  | 'jarvis.queue.recover'
   | 'parity.manifest'
   | (string & {})
 

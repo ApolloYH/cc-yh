@@ -4,9 +4,11 @@ use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
+use std::fs::OpenOptions;
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::thread::sleep;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const PROTOCOL_VERSION: u32 = 1;
 
@@ -100,11 +102,17 @@ fn handle_line(raw: &str) -> Response {
                     "runtime.hello",
                     "runtime.echo",
                     "session.index",
+                    "session.index.incremental",
                     "fs.glob",
                     "fs.grep",
                     "fs.read",
+                    "fs.validateWrite",
                     "fs.write",
                     "shell.classify",
+                    "jarvis.queue.enqueue",
+                    "jarvis.queue.claim",
+                    "jarvis.queue.update",
+                    "jarvis.queue.recover",
                     "parity.manifest"
                 ]
             }),
@@ -113,6 +121,10 @@ fn handle_line(raw: &str) -> Response {
         "session.index" => match build_session_index(&request.params) {
             Ok(result) => success(request.id, result),
             Err(message) => failure(request.id, "session_index_failed", &message),
+        },
+        "session.index.incremental" => match build_session_index_incremental(&request.params) {
+            Ok(result) => success(request.id, result),
+            Err(message) => failure(request.id, "session_index_incremental_failed", &message),
         },
         "fs.glob" => match fs_glob(&request.params) {
             Ok(result) => success(request.id, result),
@@ -126,6 +138,10 @@ fn handle_line(raw: &str) -> Response {
             Ok(result) => success(request.id, result),
             Err(message) => failure(request.id, "fs_read_failed", &message),
         },
+        "fs.validateWrite" => match fs_validate_write(&request.params) {
+            Ok(result) => success(request.id, result),
+            Err(message) => failure(request.id, "fs_validate_write_failed", &message),
+        },
         "fs.write" => match fs_write(&request.params) {
             Ok(result) => success(request.id, result),
             Err(message) => failure(request.id, "fs_write_failed", &message),
@@ -133,6 +149,22 @@ fn handle_line(raw: &str) -> Response {
         "shell.classify" => match shell_classify(&request.params) {
             Ok(result) => success(request.id, result),
             Err(message) => failure(request.id, "shell_classify_failed", &message),
+        },
+        "jarvis.queue.enqueue" => match jarvis_queue_enqueue(&request.params) {
+            Ok(result) => success(request.id, result),
+            Err(message) => failure(request.id, "jarvis_queue_enqueue_failed", &message),
+        },
+        "jarvis.queue.claim" => match jarvis_queue_claim(&request.params) {
+            Ok(result) => success(request.id, result),
+            Err(message) => failure(request.id, "jarvis_queue_claim_failed", &message),
+        },
+        "jarvis.queue.update" => match jarvis_queue_update(&request.params) {
+            Ok(result) => success(request.id, result),
+            Err(message) => failure(request.id, "jarvis_queue_update_failed", &message),
+        },
+        "jarvis.queue.recover" => match jarvis_queue_recover(&request.params) {
+            Ok(result) => success(request.id, result),
+            Err(message) => failure(request.id, "jarvis_queue_recover_failed", &message),
         },
         "parity.manifest" => success(
             request.id,
@@ -160,6 +192,11 @@ fn handle_line(raw: &str) -> Response {
                         "owner": "rust-session-index"
                     },
                     {
+                        "id": "session_index_incremental_cache",
+                        "status": "implemented",
+                        "owner": "rust-session-index"
+                    },
+                    {
                         "id": "fs_glob_smoke",
                         "status": "implemented",
                         "owner": "rust-fs-search"
@@ -175,9 +212,19 @@ fn handle_line(raw: &str) -> Response {
                         "owner": "rust-fs-ops"
                     },
                     {
+                        "id": "fs_write_boundary",
+                        "status": "implemented",
+                        "owner": "rust-fs-ops"
+                    },
+                    {
                         "id": "shell_classify_smoke",
                         "status": "implemented",
                         "owner": "rust-shell-safety"
+                    },
+                    {
+                        "id": "jarvis_queue_atomic_claim",
+                        "status": "implemented",
+                        "owner": "rust-jarvis-queue"
                     }
                 ]
             }),
@@ -287,6 +334,88 @@ fn build_session_index(params: &Value) -> Result<Value, String> {
         "sessions": sessions,
         "total": total
     }))
+}
+
+fn build_session_index_incremental(params: &Value) -> Result<Value, String> {
+    let config_dir = params
+        .get("configDir")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(default_config_dir)
+        .ok_or_else(|| "configDir is required when no home directory is available.".to_string())?;
+    let cache_path = params
+        .get("cachePath")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| config_dir.join("cache").join("runtime-session-index.json"));
+    let cache_meta = fs::metadata(&cache_path).ok();
+    let newest_session_ms = newest_session_mtime_ms(&config_dir);
+
+    if params.get("force").and_then(Value::as_bool) != Some(true) {
+        if let Some(meta) = cache_meta {
+            let cache_ms = meta.modified().ok().map(system_time_ms).unwrap_or_default();
+            if newest_session_ms <= cache_ms {
+                if let Ok(raw) = fs::read_to_string(&cache_path) {
+                    if let Ok(mut cached) = serde_json::from_str::<Value>(&raw) {
+                        cached["source"] = json!("rust");
+                        cached["cacheHit"] = json!(true);
+                        cached["incremental"] = json!(true);
+                        return Ok(apply_session_index_filters(cached, params));
+                    }
+                }
+            }
+        }
+    }
+
+    let mut scan_params = params.clone();
+    if let Some(object) = scan_params.as_object_mut() {
+        object.remove("query");
+        object.remove("limit");
+        object.remove("force");
+        object.remove("cachePath");
+    }
+    let mut result = build_session_index(&scan_params)?;
+    result["cacheHit"] = json!(false);
+    result["incremental"] = json!(true);
+    result["newestSessionModifiedAtMs"] = json!(newest_session_ms);
+
+    if let Some(parent) = cache_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("failed to create session index cache dir: {error}"))?;
+    }
+    let serialized = serde_json::to_vec_pretty(&result)
+        .map_err(|error| format!("failed to serialize session index cache: {error}"))?;
+    atomic_write_bytes(&cache_path, &serialized)?;
+
+    Ok(apply_session_index_filters(result, params))
+}
+
+fn apply_session_index_filters(mut result: Value, params: &Value) -> Value {
+    let query_filter = params
+        .get("query")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|query| !query.is_empty())
+        .map(str::to_lowercase);
+    let limit = params
+        .get("limit")
+        .and_then(Value::as_u64)
+        .map(|value| value as usize);
+    let Some(sessions) = result.get("sessions").and_then(Value::as_array) else {
+        return result;
+    };
+    let mut filtered = sessions
+        .iter()
+        .filter(|session| matches_query(session, query_filter.as_deref()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let total = filtered.len();
+    if let Some(limit) = limit {
+        filtered.truncate(limit);
+    }
+    result["sessions"] = json!(filtered);
+    result["total"] = json!(total);
+    result
 }
 
 fn fs_glob(params: &Value) -> Result<Value, String> {
@@ -453,13 +582,15 @@ fn fs_read(params: &Value) -> Result<Value, String> {
 }
 
 fn fs_write(params: &Value) -> Result<Value, String> {
-    let path = resolve_output_path(params)?;
+    let validation = validate_write_path(params)?;
+    let path = validation.path;
     let content = params
         .get("content")
         .and_then(Value::as_str)
         .ok_or_else(|| "content is required".to_string())?;
     let create_dirs = optional_bool(params, "createDirs").unwrap_or(true);
     let overwrite = optional_bool(params, "overwrite").unwrap_or(false);
+    let atomic = optional_bool(params, "atomic").unwrap_or(true);
 
     if !overwrite && path.exists() {
         return Err("target file already exists and overwrite=false".to_string());
@@ -470,12 +601,30 @@ fn fs_write(params: &Value) -> Result<Value, String> {
                 .map_err(|error| format!("failed to create parent directory: {error}"))?;
         }
     }
-    fs::write(&path, content).map_err(|error| format!("failed to write file: {error}"))?;
+    if atomic {
+        atomic_write_bytes(&path, content.as_bytes())?;
+    } else {
+        fs::write(&path, content).map_err(|error| format!("failed to write file: {error}"))?;
+    }
 
     Ok(json!({
         "source": "rust",
         "path": path.to_string_lossy(),
-        "bytes": content.as_bytes().len()
+        "root": validation.root.map(|root| root.to_string_lossy().to_string()),
+        "bytes": content.as_bytes().len(),
+        "validated": true,
+        "atomic": atomic
+    }))
+}
+
+fn fs_validate_write(params: &Value) -> Result<Value, String> {
+    let validation = validate_write_path(params)?;
+    Ok(json!({
+        "source": "rust",
+        "allowed": true,
+        "path": validation.path.to_string_lossy(),
+        "root": validation.root.map(|root| root.to_string_lossy().to_string()),
+        "reason": "write target is inside the allowed root"
     }))
 }
 
@@ -490,14 +639,23 @@ fn shell_classify(params: &Value) -> Result<Value, String> {
     let normalized = command.to_lowercase();
     let mut reasons = Vec::new();
     let mut risk = "low";
+    let mut action = "allow";
 
     let high_patterns = if shell.contains("power") || shell == "pwsh" {
         vec![
             ("invoke-expression", "dynamic PowerShell execution"),
+            ("iex ", "dynamic PowerShell execution"),
             (" iex", "dynamic PowerShell execution"),
             ("downloadstring", "remote script execution"),
+            ("invoke-webrequest", "network download"),
+            ("iwr ", "network download"),
+            ("curl ", "network download"),
             ("remove-item", "file removal"),
             (" -recurse", "recursive operation"),
+            ("new-itemproperty", "registry mutation"),
+            ("set-itemproperty", "registry mutation"),
+            ("reg add", "registry mutation"),
+            ("stop-process", "process termination"),
             ("set-executionpolicy", "execution policy change"),
             ("start-process powershell", "nested PowerShell process"),
             ("start-process pwsh", "nested PowerShell process"),
@@ -505,10 +663,13 @@ fn shell_classify(params: &Value) -> Result<Value, String> {
     } else {
         vec![
             ("rm -rf", "recursive deletion"),
+            ("rm -fr", "recursive deletion"),
             ("curl ", "network download"),
             ("wget ", "network download"),
             ("| sh", "piped shell execution"),
             ("| bash", "piped shell execution"),
+            ("sudo ", "privilege escalation"),
+            ("su -", "privilege escalation"),
             ("> /dev/sd", "raw device write"),
             ("mkfs", "filesystem formatting"),
             ("dd if=", "raw disk copy"),
@@ -520,6 +681,9 @@ fn shell_classify(params: &Value) -> Result<Value, String> {
             risk = "high";
             reasons.push(reason);
         }
+    }
+    if risk == "high" {
+        action = "confirm";
     }
 
     if risk == "low" {
@@ -533,8 +697,22 @@ fn shell_classify(params: &Value) -> Result<Value, String> {
         ] {
             if normalized.contains(pattern) {
                 risk = "medium";
+                action = "confirm";
                 reasons.push(reason);
             }
+        }
+    }
+    for (pattern, reason) in [
+        ("format c:", "disk formatting"),
+        ("cipher /w", "destructive free-space wipe"),
+        ("rm -rf /", "root deletion"),
+        ("remove-item c:\\", "drive deletion"),
+        ("del /s /q c:\\", "drive deletion"),
+    ] {
+        if normalized.contains(pattern) {
+            risk = "high";
+            action = "deny";
+            reasons.push(reason);
         }
     }
 
@@ -543,8 +721,264 @@ fn shell_classify(params: &Value) -> Result<Value, String> {
         "shell": shell,
         "risk": risk,
         "readOnly": risk == "low",
+        "action": action,
         "reasons": reasons
     }))
+}
+
+fn jarvis_queue_enqueue(params: &Value) -> Result<Value, String> {
+    let queue_path = jarvis_queue_path(params)?;
+    let item = params
+        .get("item")
+        .cloned()
+        .ok_or_else(|| "item is required".to_string())?;
+    let _guard = QueueLock::acquire(&queue_path)?;
+    let mut store = read_jarvis_queue_store(&queue_path)?;
+    let items = store
+        .get_mut("items")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "queue store items must be an array".to_string())?;
+    items.insert(0, item.clone());
+    write_jarvis_queue_store(&queue_path, &store)?;
+    Ok(json!({
+        "source": "rust",
+        "item": item,
+        "locked": true
+    }))
+}
+
+fn jarvis_queue_claim(params: &Value) -> Result<Value, String> {
+    let queue_path = jarvis_queue_path(params)?;
+    let _guard = QueueLock::acquire(&queue_path)?;
+    let mut store = read_jarvis_queue_store(&queue_path)?;
+    let now = current_iso_timestamp();
+    let mut selected_index: Option<usize> = None;
+    let mut selected_priority = i64::MIN;
+    let mut selected_created = String::new();
+
+    let items = store
+        .get_mut("items")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "queue store items must be an array".to_string())?;
+
+    for (index, item) in items.iter().enumerate() {
+        let status = item.get("status").and_then(Value::as_str).unwrap_or("");
+        if status != "pending" && status != "failed" {
+            continue;
+        }
+        let attempts = item.get("attempts").and_then(Value::as_i64).unwrap_or(0);
+        let max_attempts = item.get("maxAttempts").and_then(Value::as_i64).unwrap_or(3);
+        if attempts >= max_attempts {
+            continue;
+        }
+        let priority = item.get("priority").and_then(Value::as_i64).unwrap_or(50);
+        let created = item
+            .get("createdAt")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let replace = selected_index.is_none()
+            || priority > selected_priority
+            || (priority == selected_priority && created < selected_created);
+        if replace {
+            selected_index = Some(index);
+            selected_priority = priority;
+            selected_created = created;
+        }
+    }
+
+    let Some(index) = selected_index else {
+        return Ok(json!({
+            "source": "rust",
+            "item": null,
+            "locked": true
+        }));
+    };
+    let item = items
+        .get_mut(index)
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| "queue item must be an object".to_string())?;
+    let attempts = item.get("attempts").and_then(Value::as_i64).unwrap_or(0);
+    item.insert("status".to_string(), json!("running"));
+    item.insert("attempts".to_string(), json!(attempts + 1));
+    item.insert("updatedAt".to_string(), json!(now));
+    let claimed = Value::Object(item.clone());
+    write_jarvis_queue_store(&queue_path, &store)?;
+    Ok(json!({
+        "source": "rust",
+        "item": claimed,
+        "locked": true
+    }))
+}
+
+fn jarvis_queue_update(params: &Value) -> Result<Value, String> {
+    let queue_path = jarvis_queue_path(params)?;
+    let id = required_str(params, "id")?;
+    let patch = params
+        .get("patch")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "patch is required".to_string())?;
+    let _guard = QueueLock::acquire(&queue_path)?;
+    let mut store = read_jarvis_queue_store(&queue_path)?;
+    let items = store
+        .get_mut("items")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "queue store items must be an array".to_string())?;
+    for item in items.iter_mut() {
+        if item.get("id").and_then(Value::as_str) != Some(id) {
+            continue;
+        }
+        let object = item
+            .as_object_mut()
+            .ok_or_else(|| "queue item must be an object".to_string())?;
+        for (key, value) in patch {
+            if key == "id" || key == "createdAt" {
+                continue;
+            }
+            object.insert(key.clone(), value.clone());
+        }
+        object.insert("updatedAt".to_string(), json!(current_iso_timestamp()));
+        let updated = Value::Object(object.clone());
+        write_jarvis_queue_store(&queue_path, &store)?;
+        return Ok(json!({
+            "source": "rust",
+            "item": updated,
+            "locked": true
+        }));
+    }
+    Ok(json!({
+        "source": "rust",
+        "item": null,
+        "locked": true
+    }))
+}
+
+fn jarvis_queue_recover(params: &Value) -> Result<Value, String> {
+    let queue_path = jarvis_queue_path(params)?;
+    let _guard = QueueLock::acquire(&queue_path)?;
+    let mut store = read_jarvis_queue_store(&queue_path)?;
+    let now = current_iso_timestamp();
+    let items = store
+        .get_mut("items")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| "queue store items must be an array".to_string())?;
+    let mut recovered = 0;
+    for item in items.iter_mut() {
+        if item.get("status").and_then(Value::as_str) != Some("running") {
+            continue;
+        }
+        let object = item
+            .as_object_mut()
+            .ok_or_else(|| "queue item must be an object".to_string())?;
+        object.insert("status".to_string(), json!("pending"));
+        if !object.contains_key("checkpoint") || object.get("checkpoint") == Some(&Value::Null) {
+            object.insert(
+                "checkpoint".to_string(),
+                json!(format!("Recovered by Rust runtime at {now}")),
+            );
+        }
+        object.insert("updatedAt".to_string(), json!(now));
+        recovered += 1;
+    }
+    if recovered > 0 {
+        write_jarvis_queue_store(&queue_path, &store)?;
+    }
+    Ok(json!({
+        "source": "rust",
+        "recovered": recovered,
+        "locked": true
+    }))
+}
+
+fn jarvis_queue_path(params: &Value) -> Result<PathBuf, String> {
+    params
+        .get("queuePath")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| default_config_dir().map(|dir| dir.join("jarvis_queue.json")))
+        .ok_or_else(|| "queuePath is required when no home directory is available".to_string())
+}
+
+fn read_jarvis_queue_store(queue_path: &Path) -> Result<Value, String> {
+    match fs::read_to_string(queue_path) {
+        Ok(raw) => {
+            let parsed = serde_json::from_str::<Value>(&raw)
+                .map_err(|error| format!("failed to parse queue store: {error}"))?;
+            if parsed.get("items").and_then(Value::as_array).is_some() {
+                Ok(parsed)
+            } else {
+                Ok(json!({ "version": 1, "items": [] }))
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Ok(json!({ "version": 1, "items": [] }))
+        }
+        Err(error) => Err(format!("failed to read queue store: {error}")),
+    }
+}
+
+fn write_jarvis_queue_store(queue_path: &Path, store: &Value) -> Result<(), String> {
+    let mut next = store.clone();
+    next["version"] = json!(1);
+    if let Some(items) = next.get_mut("items").and_then(Value::as_array_mut) {
+        items.truncate(500);
+    }
+    let serialized = serde_json::to_vec_pretty(&next)
+        .map_err(|error| format!("failed to serialize queue store: {error}"))?;
+    atomic_write_bytes(queue_path, &serialized)
+}
+
+struct QueueLock {
+    path: PathBuf,
+}
+
+impl QueueLock {
+    fn acquire(queue_path: &Path) -> Result<Self, String> {
+        let lock_path = queue_path.with_extension("json.lock");
+        if let Some(parent) = lock_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("failed to create queue lock dir: {error}"))?;
+        }
+        for _ in 0..50 {
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&lock_path)
+            {
+                Ok(mut file) => {
+                    let _ = writeln!(file, "pid={}", std::process::id());
+                    return Ok(Self { path: lock_path });
+                }
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                    if stale_lock(&lock_path) {
+                        let _ = fs::remove_file(&lock_path);
+                    } else {
+                        sleep(Duration::from_millis(20));
+                    }
+                }
+                Err(error) => return Err(format!("failed to acquire queue lock: {error}")),
+            }
+        }
+        Err("timed out waiting for queue lock".to_string())
+    }
+}
+
+impl Drop for QueueLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+fn stale_lock(lock_path: &Path) -> bool {
+    fs::metadata(lock_path)
+        .and_then(|meta| meta.modified())
+        .ok()
+        .and_then(|modified| SystemTime::now().duration_since(modified).ok())
+        .is_some_and(|age| age > Duration::from_secs(60))
+}
+
+fn current_iso_timestamp() -> String {
+    system_time_iso(SystemTime::now())
 }
 
 fn resolve_cwd(params: &Value) -> Result<PathBuf, String> {
@@ -565,9 +999,92 @@ fn resolve_input_path(params: &Value) -> Result<PathBuf, String> {
         .map_err(|error| format!("path does not exist or cannot be read: {error}"))
 }
 
-fn resolve_output_path(params: &Value) -> Result<PathBuf, String> {
+struct WriteValidation {
+    path: PathBuf,
+    root: Option<PathBuf>,
+}
+
+fn validate_write_path(params: &Value) -> Result<WriteValidation, String> {
     let raw = required_str(params, "path")?;
-    path_from_cwd(params, raw)
+    reject_suspicious_path(raw)?;
+    let path = path_from_cwd(params, raw)?;
+    let allow_outside_root = optional_bool(params, "allowOutsideRoot").unwrap_or(false);
+    let root = params
+        .get("root")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| params.get("cwd").and_then(Value::as_str).map(PathBuf::from));
+
+    let Some(root) = root else {
+        return Ok(WriteValidation { path, root: None });
+    };
+
+    let root = if root.is_absolute() {
+        root
+    } else {
+        resolve_cwd(params)?.join(root)
+    };
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("write root does not exist or cannot be read: {error}"))?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| "write target must have a parent directory".to_string())?;
+    let parent_to_check = first_existing_ancestor(parent)
+        .ok_or_else(|| "write target parent has no existing ancestor".to_string())?;
+    let canonical_parent = parent_to_check
+        .canonicalize()
+        .map_err(|error| format!("write target parent cannot be resolved: {error}"))?;
+    if !allow_outside_root && !canonical_parent.starts_with(&canonical_root) {
+        return Err("write target is outside the allowed root".to_string());
+    }
+
+    Ok(WriteValidation {
+        path,
+        root: Some(canonical_root),
+    })
+}
+
+fn first_existing_ancestor(path: &Path) -> Option<&Path> {
+    let mut current = Some(path);
+    while let Some(candidate) = current {
+        if candidate.exists() {
+            return Some(candidate);
+        }
+        current = candidate.parent();
+    }
+    None
+}
+
+fn reject_suspicious_path(raw: &str) -> Result<(), String> {
+    let trimmed = raw.trim();
+    let normalized = trimmed.replace('\\', "/");
+    if normalized.starts_with("//") {
+        return Err("UNC/provider paths are not allowed for runtime writes".to_string());
+    }
+    if normalized.contains("::") {
+        return Err("provider-qualified paths are not allowed for runtime writes".to_string());
+    }
+    if looks_like_uri_scheme(trimmed) {
+        return Err("URI-like paths are not allowed for runtime writes".to_string());
+    }
+    Ok(())
+}
+
+fn looks_like_uri_scheme(value: &str) -> bool {
+    let Some(index) = value.find(':') else {
+        return false;
+    };
+    if index == 1 && value.as_bytes()[0].is_ascii_alphabetic() {
+        return false;
+    }
+    let scheme = &value[..index];
+    !scheme.is_empty()
+        && scheme
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'-' | b'.'))
 }
 
 fn path_from_cwd(params: &Value, raw: &str) -> Result<PathBuf, String> {
@@ -789,6 +1306,61 @@ fn default_config_dir() -> Option<PathBuf> {
         .or_else(|_| std::env::var("USERPROFILE"))
         .ok()
         .map(|home| PathBuf::from(home).join(".claude-yh"))
+}
+
+fn newest_session_mtime_ms(config_dir: &Path) -> u64 {
+    let projects_dir = config_dir.join("projects");
+    let Ok(projects) = fs::read_dir(projects_dir) else {
+        return 0;
+    };
+    let mut newest = 0;
+    for project_entry in projects.flatten() {
+        let Ok(project_meta) = project_entry.metadata() else {
+            continue;
+        };
+        if !project_meta.is_dir() {
+            continue;
+        }
+        let Ok(files) = fs::read_dir(project_entry.path()) else {
+            continue;
+        };
+        for file_entry in files.flatten() {
+            let file_name = file_entry.file_name().to_string_lossy().to_string();
+            if !file_name.ends_with(".jsonl") || file_name.starts_with("agent-") {
+                continue;
+            }
+            let Ok(file_meta) = file_entry.metadata() else {
+                continue;
+            };
+            if file_meta.is_file() {
+                newest = newest.max(file_meta.modified().ok().map(system_time_ms).unwrap_or(0));
+            }
+        }
+    }
+    newest
+}
+
+fn atomic_write_bytes(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "target path must have a parent directory".to_string())?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("failed to create parent directory: {error}"))?;
+    let pid = std::process::id();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("runtime-write");
+    let temp_path = parent.join(format!(".{file_name}.{pid}.{nanos}.tmp"));
+    fs::write(&temp_path, bytes).map_err(|error| format!("failed to write temp file: {error}"))?;
+    fs::rename(&temp_path, path).map_err(|error| {
+        let _ = fs::remove_file(&temp_path);
+        format!("failed to atomically replace target: {error}")
+    })
 }
 
 fn read_jsonl_entries(file_path: &Path) -> Vec<Value> {

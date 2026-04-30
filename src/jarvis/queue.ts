@@ -1,6 +1,8 @@
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
+import { RustSidecarClient } from '../runtime/rustSidecarClient.js'
+import { getRustSidecarLaunchConfig, type RustSidecarMethod } from '../runtime/rustSidecarProtocol.js'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
 
 export type JarvisQueueItemStatus =
@@ -61,6 +63,10 @@ export async function enqueueJarvisTask(input: {
     updatedAt: now,
     checkpoint: input.checkpoint,
   }
+  const runtimeResult = await runtimeQueueRequest('jarvis.queue.enqueue', { item })
+  if (isRecord(runtimeResult) && isQueueItem(runtimeResult.item)) {
+    return normalizeQueueItem(runtimeResult.item)
+  }
   const store = await readJarvisQueue()
   await writeJarvisQueue({ version: 1, items: [item, ...store.items] })
   return item
@@ -71,6 +77,12 @@ export async function listJarvisQueue(): Promise<JarvisQueueItem[]> {
 }
 
 export async function claimNextJarvisTask(): Promise<JarvisQueueItem | null> {
+  const runtimeResult = await runtimeQueueRequest('jarvis.queue.claim', {})
+  if (isRecord(runtimeResult)) {
+    return isQueueItem(runtimeResult.item)
+      ? normalizeQueueItem(runtimeResult.item)
+      : null
+  }
   const store = await readJarvisQueue()
   const candidate = store.items
     .filter(item => item.status === 'pending' || item.status === 'failed')
@@ -92,6 +104,12 @@ export async function updateJarvisQueueItem(
   id: string,
   patch: Partial<Omit<JarvisQueueItem, 'id' | 'createdAt'>>,
 ): Promise<JarvisQueueItem | null> {
+  const runtimeResult = await runtimeQueueRequest('jarvis.queue.update', { id, patch })
+  if (isRecord(runtimeResult)) {
+    return isQueueItem(runtimeResult.item)
+      ? normalizeQueueItem(runtimeResult.item)
+      : null
+  }
   const store = await readJarvisQueue()
   const current = store.items.find(item => item.id === id)
   if (!current) return null
@@ -105,6 +123,10 @@ export async function updateJarvisQueueItem(
 }
 
 export async function recoverInterruptedJarvisQueue(): Promise<number> {
+  const runtimeResult = await runtimeQueueRequest('jarvis.queue.recover', {})
+  if (isRecord(runtimeResult) && typeof runtimeResult.recovered === 'number') {
+    return runtimeResult.recovered
+  }
   const store = await readJarvisQueue()
   let recovered = 0
   const items = store.items.map(item => {
@@ -161,6 +183,29 @@ function getJarvisQueuePath(): string {
   return path.join(getClaudeConfigHomeDir(), 'jarvis_queue.json')
 }
 
+async function runtimeQueueRequest(
+  method: RustSidecarMethod,
+  params: Record<string, unknown>,
+): Promise<unknown | null> {
+  const launch = getRustSidecarLaunchConfig()
+  if (!launch) return null
+  const client = new RustSidecarClient({
+    command: launch.command,
+    args: launch.args,
+    timeoutMs: 10_000,
+  })
+  try {
+    return await client.request(method, {
+      queuePath: getJarvisQueuePath(),
+      ...params,
+    }, 10_000)
+  } catch {
+    return null
+  } finally {
+    client.close()
+  }
+}
+
 function clampPriority(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(0, Math.min(100, Math.round(value)))
@@ -178,6 +223,10 @@ function isQueueItem(value: unknown): value is JarvisQueueItem {
       typeof (value as JarvisQueueItem).attempts === 'number' &&
       typeof (value as JarvisQueueItem).maxAttempts === 'number',
   )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function normalizeQueueItem(item: JarvisQueueItem): JarvisQueueItem {

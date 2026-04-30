@@ -32,8 +32,14 @@ lines.on('line', line => {
               'runtime.hello',
               'runtime.echo',
               'session.index',
+              'session.index.incremental',
               'fs.glob',
-              'fs.grep'
+              'fs.grep',
+              'fs.validateWrite',
+              'fs.write',
+              'jarvis.queue.enqueue',
+              'jarvis.queue.claim',
+              'jarvis.queue.recover'
             ]
           }
         }))
@@ -57,6 +63,20 @@ lines.on('line', line => {
         source: 'mock',
         sessions: [],
         total: 0
+      }
+    }))
+    return
+  }
+  if (request.method === 'session.index.incremental') {
+    console.log(JSON.stringify({
+      protocolVersion: 1,
+      id: request.id,
+      ok: true,
+      result: {
+        source: 'mock',
+        sessions: [],
+        total: 0,
+        incremental: true
       }
     }))
     return
@@ -88,6 +108,61 @@ lines.on('line', line => {
         total: 0,
         truncated: false
       }
+    }))
+    return
+  }
+  if (request.method === 'fs.write') {
+    if (request.params?.path === '../blocked.txt') {
+      console.log(JSON.stringify({
+        protocolVersion: 1,
+        id: request.id,
+        ok: false,
+        error: {
+          code: 'fs_write_failed',
+          message: 'write target is outside the allowed root'
+        }
+      }))
+      return
+    }
+    console.log(JSON.stringify({
+      protocolVersion: 1,
+      id: request.id,
+      ok: true,
+      result: {
+        source: 'mock',
+        path: request.params?.path ?? '',
+        bytes: 2,
+        validated: true
+      }
+    }))
+    return
+  }
+  if (request.method === 'jarvis.queue.enqueue') {
+    globalThis.__queueItem = request.params?.item
+    console.log(JSON.stringify({
+      protocolVersion: 1,
+      id: request.id,
+      ok: true,
+      result: { source: 'mock', item: globalThis.__queueItem }
+    }))
+    return
+  }
+  if (request.method === 'jarvis.queue.claim') {
+    const item = { ...globalThis.__queueItem, status: 'running' }
+    console.log(JSON.stringify({
+      protocolVersion: 1,
+      id: request.id,
+      ok: true,
+      result: { source: 'mock', item }
+    }))
+    return
+  }
+  if (request.method === 'jarvis.queue.recover') {
+    console.log(JSON.stringify({
+      protocolVersion: 1,
+      id: request.id,
+      ok: true,
+      result: { source: 'mock', recovered: 1 }
     }))
     return
   }
@@ -133,8 +208,14 @@ describe('RustSidecarClient', () => {
           'runtime.hello',
           'runtime.echo',
           'session.index',
+          'session.index.incremental',
           'fs.glob',
           'fs.grep',
+          'fs.validateWrite',
+          'fs.write',
+          'jarvis.queue.enqueue',
+          'jarvis.queue.claim',
+          'jarvis.queue.recover',
         ],
       })
       await expect(client.request('runtime.echo', { value: 42 })).resolves.toEqual(
@@ -177,8 +258,11 @@ describe('RustSidecarClient', () => {
       'echo_roundtrip',
       'unknown_method_error',
       'session_index_smoke',
+      'session_index_incremental_cache',
       'fs_glob_smoke',
       'fs_grep_smoke',
+      'fs_write_boundary',
+      'jarvis_queue_atomic_claim',
     ])
   })
 })

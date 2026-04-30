@@ -11,6 +11,7 @@ export type RuntimeShellClassifyResult = {
   shell: string
   risk: 'low' | 'medium' | 'high'
   readOnly: boolean
+  action: 'allow' | 'confirm' | 'deny'
   reasons: string[]
   fallbackReason?: string
 }
@@ -45,8 +46,8 @@ function classifyWithTypescript(
   const normalized = options.command.toLowerCase()
   const power = options.shell.toLowerCase().includes('power') || options.shell === 'pwsh'
   const high = power
-    ? ['invoke-expression', ' iex', 'downloadstring', 'remove-item', ' -recurse']
-    : ['rm -rf', 'curl ', 'wget ', '| sh', '| bash', 'mkfs', 'dd if=']
+    ? ['invoke-expression', ' iex', 'downloadstring', 'remove-item', ' -recurse', 'format c:', 'cipher /w', 'remove-item c:\\', 'del /s /q c:\\']
+    : ['rm -rf', 'curl ', 'wget ', '| sh', '| bash', 'mkfs', 'dd if=', 'rm -rf /']
   const medium = ['git push', 'npm install', 'bun install', 'pip install', 'cargo install', 'chmod']
   const highReasons = high.filter(pattern => normalized.includes(pattern))
   if (highReasons.length > 0) {
@@ -55,6 +56,11 @@ function classifyWithTypescript(
       shell: options.shell,
       risk: 'high',
       readOnly: false,
+      action: highReasons.some(pattern =>
+        ['format c:', 'cipher /w', 'rm -rf /', 'remove-item c:\\', 'del /s /q c:\\'].includes(pattern),
+      )
+        ? 'deny'
+        : 'confirm',
       reasons: highReasons,
     }
   }
@@ -64,6 +70,7 @@ function classifyWithTypescript(
     shell: options.shell,
     risk: mediumReasons.length > 0 ? 'medium' : 'low',
     readOnly: mediumReasons.length === 0,
+    action: mediumReasons.length > 0 ? 'confirm' : 'allow',
     reasons: mediumReasons,
   }
 }
@@ -76,6 +83,7 @@ function normalizeResult(value: unknown): RuntimeShellClassifyResult {
     shell: String(value.shell ?? ''),
     risk,
     readOnly: value.readOnly === true,
+    action: value.action === 'deny' || value.action === 'confirm' ? value.action : 'allow',
     reasons: Array.isArray(value.reasons)
       ? value.reasons.filter((item): item is string => typeof item === 'string')
       : [],

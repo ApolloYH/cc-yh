@@ -68,6 +68,7 @@ import { getPlatform } from '../../utils/platform.js'
 import { SandboxManager } from '../../utils/sandbox/sandbox-adapter.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { windowsPathToPosixPath } from '../../utils/windowsPaths.js'
+import { runtimeClassifyShell } from '../../runtime/shellSafetyService.js'
 import { BashTool } from './BashTool.js'
 import { checkCommandOperatorPermissions } from './bashCommandHelpers.js'
 import {
@@ -1667,6 +1668,33 @@ export async function bashToolHasPermission(
   getCommandSubcommandPrefixFn = getCommandSubcommandPrefix,
 ): Promise<PermissionResult> {
   let appState = context.getAppState()
+  const runtimePolicy = await runtimeClassifyShell({
+    shell: 'bash',
+    command: input.command,
+  })
+  if (runtimePolicy.action === 'deny') {
+    const decisionReason: PermissionDecisionReason = {
+      type: 'other' as const,
+      reason: `Rust runtime blocked command: ${runtimePolicy.reasons.join(', ') || runtimePolicy.risk}`,
+    }
+    return {
+      behavior: 'deny',
+      decisionReason,
+      message: `Permission to use ${BashTool.name} with command ${input.command} has been denied.`,
+    }
+  }
+  if (runtimePolicy.action === 'confirm') {
+    const decisionReason: PermissionDecisionReason = {
+      type: 'other' as const,
+      reason: `Rust runtime requires approval: ${runtimePolicy.reasons.join(', ') || runtimePolicy.risk}`,
+    }
+    return {
+      behavior: 'ask',
+      decisionReason,
+      message: createPermissionRequestMessage(BashTool.name, decisionReason),
+      suggestions: [],
+    }
+  }
 
   // 0. AST-based security parse. This replaces both tryParseShellCommand
   // (the shell-quote pre-check) and the bashCommandIsSafe misparsing gate.
