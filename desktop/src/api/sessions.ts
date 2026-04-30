@@ -57,4 +57,8 @@ export const sessionsApi = {
   getSlashCommands(sessionId: string) {
     return api.get<{ commands: Array<{ name: string; description: string }> }>(`/api/sessions/${sessionId}/slash-commands`)
   },
+
+  finalize(sessionId: string, reason = 'session-left-ui') {
+    return api.post<{ ok: true }>(`/api/sessions/${sessionId}/finalize`, { reason, timeoutMs: 120000 })
+  },
 }

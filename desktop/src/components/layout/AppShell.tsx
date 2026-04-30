@@ -11,6 +11,7 @@ import { WindowControls, showWindowControls } from './WindowControls'
 import { useTabStore, SETTINGS_TAB_ID } from '../../stores/tabStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useTranslation } from '../../i18n'
+import { sessionsApi } from '../../api/sessions'
 
 const APP_MIN_WIDTH = 1120
 const APP_MIN_HEIGHT = 720
@@ -76,6 +77,22 @@ export function AppShell() {
   }, [])
 
   useKeyboardShortcuts()
+
+  useEffect(() => {
+    const unsubscribe = useTabStore.subscribe((state, previousState) => {
+      const previousId = previousState.activeTabId
+      if (!previousId || previousId === state.activeTabId) return
+      const previousTab = previousState.tabs.find((tab) => tab.sessionId === previousId)
+      if (previousTab?.type !== 'session') return
+
+      useChatStore.getState().disconnectSession(previousId)
+      sessionsApi.finalize(previousId, 'desktop-tab-left')
+        .catch((error) => {
+          console.warn('Failed to finalize memory after leaving session tab', error)
+        })
+    })
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     if (!ready && !startupError) return

@@ -963,7 +963,14 @@ function MemoryEventsPanel({
                 {typeof event.durationMs === 'number' && <span>{event.durationMs} ms</span>}
               </div>
               {event.error && <div className="mt-1 truncate text-xs text-[var(--color-error)]">{event.error}</div>}
-              {event.data && <div className="mt-1 truncate font-mono text-xs text-[var(--color-text-tertiary)]">{formatMemoryEventData(event.data)}</div>}
+              {event.data && (
+                <div
+                  className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-[var(--color-text-tertiary)]"
+                  title={JSON.stringify(event.data, null, 2)}
+                >
+                  {formatMemoryEventData(event.data)}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -974,6 +981,7 @@ function MemoryEventsPanel({
 
 function memoryEventLabel(event: MemoryEvent): string {
   const name = event.event ?? 'event'
+  const title = memoryEventSessionTitle(event.data)
   switch (name) {
     case 'scheduled':
       return '已安排记忆抽取'
@@ -986,13 +994,46 @@ function memoryEventLabel(event: MemoryEvent): string {
     case 'cleanup/remove_failed':
       return '清理旧记忆失败'
     default:
-      return `${event.scope ?? 'memory'} / ${name}`
+      return title
+        ? `${event.scope ?? 'memory'} / ${name} · ${title}`
+        : `${event.scope ?? 'memory'} / ${name}`
   }
 }
 
 function formatMemoryEventData(data: Record<string, unknown>): string {
+  const lines: string[] = []
+  const title = memoryEventSessionTitle(data)
+  if (title) lines.push(`会话：${title}`)
+  if (typeof data.sessionId === 'string') lines.push(`ID：${data.sessionId}`)
+  if (typeof data.reason === 'string') lines.push(`原因：${data.reason}`)
+  if (typeof data.messageCount === 'number') lines.push(`消息数：${data.messageCount}`)
+  const result = data.result && typeof data.result === 'object'
+    ? data.result as Record<string, unknown>
+    : null
+  if (result) {
+    const counts = ['summaries', 'stale', 'candidates', 'applied', 'skills']
+      .map(key => `${key}=${String(result[key] ?? 0)}`)
+      .join('，')
+    lines.push(`结果：${counts}`)
+    for (const key of ['summaryTitles', 'candidateTitles', 'appliedTitles']) {
+      const value = result[key]
+      if (Array.isArray(value) && value.length > 0) {
+        lines.push(`${key}：${value.map(String).join(' / ')}`)
+      }
+    }
+    if (typeof result.skipped === 'string') lines.push(`跳过：${result.skipped}`)
+  }
+  if (lines.length > 0) return lines.join('\n')
   const text = JSON.stringify(data)
-  return text.length > 180 ? `${text.slice(0, 177)}...` : text
+  return text.length > 420 ? `${text.slice(0, 417)}...` : text
+}
+
+function memoryEventSessionTitle(data: Record<string, unknown> | undefined): string | null {
+  if (!data) return null
+  if (typeof data.sessionTitle === 'string' && data.sessionTitle.trim()) {
+    return data.sessionTitle.trim()
+  }
+  return null
 }
 
 function ProviderSettings() {

@@ -64,17 +64,6 @@ export type MemoryV2SearchResult = {
   method: 'faiss-dashscope-embedding' | 'faiss-openai-compatible-embedding' | 'faiss-local-embedding' | 'local-semantic-embedding'
 }
 
-export type MemoryV2DistillCandidate = {
-  id: string
-  layer: 'L2' | 'L3'
-  title: string
-  content: string
-  source: string
-  confidence: number
-  reason: string
-  verified: true
-}
-
 export type MemoryEmbeddingConfig = {
   provider: 'dashscope' | 'openai-compatible' | 'local'
   baseUrl: string
@@ -116,15 +105,6 @@ export const memoryApi = {
   },
   search(query: string) {
     return api.post<{ results: MemoryV2SearchResult[] }>('/api/memory-v2/search', { query, limit: 20 })
-  },
-  summarize(limit = 20) {
-    return api.post<{ entries: MemoryV2Entry[] }>('/api/memory-v2/summarize', { limit })
-  },
-  stale() {
-    return api.get<{ entries: MemoryV2Entry[] }>('/api/memory-v2/stale')
-  },
-  distill(apply = false) {
-    return api.post<{ candidates: MemoryV2DistillCandidate[]; applied?: MemoryV2Entry[] }>('/api/memory-v2/distill', { limit: 12, apply })
   },
   embedding() {
     return api.get<{ config: MemoryEmbeddingConfig }>('/api/memory-v2/embedding')
