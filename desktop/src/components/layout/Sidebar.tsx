@@ -14,6 +14,7 @@ import { ProjectFilter } from './ProjectFilter'
 import type { SessionListItem } from '../../types/session'
 import { useTabStore, SETTINGS_TAB_ID, SCHEDULED_TAB_ID } from '../../stores/tabStore'
 import { useChatStore } from '../../stores/chatStore'
+import { sessionsApi } from '../../api/sessions'
 
 const isTauri = typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
 const isWindows = typeof navigator !== 'undefined' && /Win/.test(navigator.platform)
@@ -40,6 +41,15 @@ export function Sidebar() {
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [pinnedSessionIds, setPinnedSessionIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('claude-yh:pinned-sessions') || '[]') as string[]
+    } catch {
+      return []
+    }
+  })
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
     fetchSessions()
@@ -63,14 +73,27 @@ export function Sidebar() {
       const q = searchQuery.toLowerCase()
       result = result.filter((s) => s.title.toLowerCase().includes(q))
     }
-    return result
-  }, [sessions, selectedProjects, searchQuery])
+    const pinned = new Set(pinnedSessionIds)
+    return [...result].sort((a, b) => {
+      const pinDelta = Number(pinned.has(b.id)) - Number(pinned.has(a.id))
+      if (pinDelta !== 0) return pinDelta
+      return new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime()
+    })
+  }, [sessions, selectedProjects, searchQuery, pinnedSessionIds])
 
   // Group by time
-  const timeGroups = useMemo(() => groupByTime(filteredSessions), [filteredSessions])
+  const pinnedSessions = useMemo(() => {
+    const pinned = new Set(pinnedSessionIds)
+    return filteredSessions.filter((session) => pinned.has(session.id))
+  }, [filteredSessions, pinnedSessionIds])
+  const timeGroups = useMemo(() => {
+    const pinned = new Set(pinnedSessionIds)
+    return groupByTime(filteredSessions.filter((session) => !pinned.has(session.id)))
+  }, [filteredSessions, pinnedSessionIds])
 
   const handleContextMenu = useCallback((e: MouseEvent, id: string) => {
     e.preventDefault()
+    e.stopPropagation()
     setContextMenu({ id, x: e.clientX, y: e.clientY })
   }, [])
 
@@ -103,6 +126,70 @@ export function Sidebar() {
     setRenameValue('')
   }, [renamingId, renameValue, renameSession])
 
+  const setPinnedSessions = useCallback((next: string[]) => {
+    setPinnedSessionIds(next)
+    localStorage.setItem('claude-yh:pinned-sessions', JSON.stringify(next))
+  }, [])
+
+  const handleTogglePinned = useCallback((id: string) => {
+    setContextMenu(null)
+    setPinnedSessions(
+      pinnedSessionIds.includes(id)
+        ? pinnedSessionIds.filter((item) => item !== id)
+        : [id, ...pinnedSessionIds],
+    )
+  }, [pinnedSessionIds, setPinnedSessions])
+
+  const downloadJson = useCallback((filename: string, data: unknown) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }, [])
+
+  const handleExport = useCallback(async (id: string) => {
+    setContextMenu(null)
+    const session = sessions.find((item) => item.id === id)
+    const { messages } = await sessionsApi.getMessages(id)
+    downloadJson(`claude-yh-session-${id}.json`, { session, messages })
+  }, [downloadJson, sessions])
+
+  const handleBatchExport = useCallback(async () => {
+    const ids = [...selectedSessionIds]
+    const exported = []
+    for (const id of ids) {
+      const session = sessions.find((item) => item.id === id)
+      const { messages } = await sessionsApi.getMessages(id)
+      exported.push({ session, messages })
+    }
+    downloadJson(`claude-yh-sessions-${new Date().toISOString().slice(0, 10)}.json`, exported)
+  }, [downloadJson, selectedSessionIds, sessions])
+
+  const handleBatchDelete = useCallback(async () => {
+    const ids = [...selectedSessionIds]
+    if (ids.length === 0) return
+    if (!window.confirm(`删除选中的 ${ids.length} 个对话？此操作不可撤销。`)) return
+    for (const id of ids) {
+      await handleDelete(id)
+    }
+    setSelectedSessionIds(new Set())
+    setBatchMode(false)
+  }, [handleDelete, selectedSessionIds])
+
+  const toggleBatchSelection = useCallback((id: string) => {
+    setSelectedSessionIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
   const startDraggingRef = useRef<(() => Promise<void>) | null>(null)
 
   useEffect(() => {
@@ -132,6 +219,85 @@ export function Sidebar() {
   const scheduledLabel = t('sidebar.scheduled')
   const settingsLabel = t('sidebar.settings')
   const sidebarToggleLabel = sidebarOpen ? t('sidebar.collapse') : t('sidebar.expand')
+  const renderSessionRow = (session: SessionListItem) => {
+    const selected = selectedSessionIds.has(session.id)
+    const pinned = pinnedSessionIds.includes(session.id)
+    return (
+      <div key={session.id} className="relative">
+        {renamingId === session.id ? (
+          <input
+            autoFocus
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={handleFinishRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleFinishRename()
+              if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
+            }}
+            className="w-full px-3 py-2 text-sm rounded-[var(--radius-md)] border border-[var(--color-border-focus)] bg-[var(--color-surface)] text-[var(--color-text-primary)] outline-none ml-1"
+          />
+        ) : (
+          <div className="group relative">
+            <button
+              onClick={() => {
+                if (batchMode) {
+                  toggleBatchSelection(session.id)
+                  return
+                }
+                useTabStore.getState().openTab(session.id, session.title)
+                useChatStore.getState().connectToSession(session.id)
+              }}
+              onContextMenu={(e) => handleContextMenu(e, session.id)}
+              className={`
+                w-full flex items-center gap-2 pl-4 pr-14 py-1.5 text-sm text-left rounded-[var(--radius-md)] transition-colors duration-200
+                ${session.id === activeTabId
+                  ? 'bg-[var(--color-surface-selected)] text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
+                }
+              `}
+            >
+              {batchMode ? (
+                <span className={`flex h-4 w-4 items-center justify-center rounded border text-[10px] ${selected ? 'border-[var(--color-brand)] bg-[var(--color-brand)] text-white' : 'border-[var(--color-border)]'}`}>
+                  {selected ? '✓' : ''}
+                </span>
+              ) : (
+                <span className="w-1 h-1 rounded-full flex-shrink-0" style={{
+                  backgroundColor: session.id === activeTabId ? 'var(--color-brand)' : 'var(--color-text-tertiary)',
+                  opacity: session.id === activeTabId ? 1 : 0.5,
+                }} />
+              )}
+              <span className="truncate flex-1">{session.title || 'Untitled'}</span>
+              {pinned && (
+                <span className="material-symbols-outlined text-[12px] text-[var(--color-brand)]">push_pin</span>
+              )}
+              {!session.workDirExists && (
+                <span
+                  className="text-[10px] text-[var(--color-warning)] flex-shrink-0"
+                  title={session.workDir ?? ''}
+                >
+                  {t('sidebar.missingDir')}
+                </span>
+              )}
+              <span className="text-[10px] text-[var(--color-text-tertiary)] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                {formatRelativeTime(session.modifiedAt)}
+              </span>
+            </button>
+            {!batchMode && (
+              <button
+                type="button"
+                aria-label={`打开 ${session.title || 'Untitled'} 的更多操作`}
+                title="更多"
+                onClick={(e) => handleContextMenu(e, session.id)}
+                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--color-text-tertiary)] opacity-0 transition-all hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] group-hover:opacity-100 focus:opacity-100"
+              >
+                <MoreIcon />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <aside onMouseDown={handleSidebarDrag} className="w-[var(--sidebar-width)] h-full flex flex-col bg-[var(--color-surface-sidebar)] border-r border-[var(--color-border)] shadow-[1px_0_18px_rgba(15,23,42,0.045)] select-none transition-[width] duration-200">
@@ -238,6 +404,14 @@ export function Sidebar() {
             {searchQuery ? t('sidebar.noMatching') : t('sidebar.noSessions')}
           </div>
         )}
+        {pinnedSessions.length > 0 && (
+          <div className="mb-1">
+            <div className="px-2 pt-3 pb-1 text-[11px] font-semibold text-[var(--color-text-tertiary)] tracking-wide">
+              已置顶
+            </div>
+            {pinnedSessions.map(renderSessionRow)}
+          </div>
+        )}
         {TIME_GROUP_ORDER.map((group) => {
           const items = timeGroups.get(group)
           if (!items || items.length === 0) return null
@@ -246,75 +420,56 @@ export function Sidebar() {
               <div className="px-2 pt-3 pb-1 text-[11px] font-semibold text-[var(--color-text-tertiary)] tracking-wide">
                 {TIME_GROUP_LABELS[group]}
               </div>
-              {items.map((session) => (
-                <div key={session.id} className="relative">
-                  {renamingId === session.id ? (
-                    <input
-                      autoFocus
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={handleFinishRename}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleFinishRename()
-                        if (e.key === 'Escape') { setRenamingId(null); setRenameValue('') }
-                      }}
-                      className="w-full px-3 py-2 text-sm rounded-[var(--radius-md)] border border-[var(--color-border-focus)] bg-[var(--color-surface)] text-[var(--color-text-primary)] outline-none ml-1"
-                    />
-                  ) : (
-                    <div className="group relative">
-                      <button
-                        onClick={() => {
-                          useTabStore.getState().openTab(session.id, session.title)
-                          useChatStore.getState().connectToSession(session.id)
-                        }}
-                        onContextMenu={(e) => handleContextMenu(e, session.id)}
-                        className={`
-                          w-full flex items-center gap-2 pl-4 pr-16 py-1.5 text-sm text-left rounded-[var(--radius-md)] transition-colors duration-200
-                          ${session.id === activeTabId
-                            ? 'bg-[var(--color-surface-selected)] text-[var(--color-text-primary)]'
-                            : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]'
-                          }
-                        `}
-                      >
-                        <span className="w-1 h-1 rounded-full flex-shrink-0" style={{
-                          backgroundColor: session.id === activeTabId ? 'var(--color-brand)' : 'var(--color-text-tertiary)',
-                          opacity: session.id === activeTabId ? 1 : 0.5,
-                        }} />
-                        <span className="truncate flex-1">{session.title || 'Untitled'}</span>
-                        {!session.workDirExists && (
-                          <span
-                            className="text-[10px] text-[var(--color-warning)] flex-shrink-0"
-                            title={session.workDir ?? ''}
-                          >
-                            {t('sidebar.missingDir')}
-                          </span>
-                        )}
-                        <span className="text-[10px] text-[var(--color-text-tertiary)] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {formatRelativeTime(session.modifiedAt)}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`${t('common.delete')} ${session.title || 'Untitled'}`}
-                        title={t('common.delete')}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          void handleDelete(session.id)
-                        }}
-                        className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-[var(--color-text-tertiary)] opacity-0 transition-all hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-error)] group-hover:opacity-100 focus:opacity-100"
-                      >
-                        <TrashIcon />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+              {items.map(renderSessionRow)}
             </div>
           )
         })}
           </>
         )}
       </div>
+
+      {sidebarOpen && batchMode && (
+        <div className="border-t border-[var(--color-border)] px-3 py-2">
+          <div className="mb-2 text-xs text-[var(--color-text-tertiary)]">
+            已选择 {selectedSessionIds.size} 个对话
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            <button
+              type="button"
+              onClick={() => setSelectedSessionIds(new Set(filteredSessions.map((session) => session.id)))}
+              className="rounded-lg border border-[var(--color-border)] px-2 py-1.5 text-xs hover:bg-[var(--color-surface-hover)]"
+            >
+              全选
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleBatchExport()}
+              disabled={selectedSessionIds.size === 0}
+              className="rounded-lg border border-[var(--color-border)] px-2 py-1.5 text-xs hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
+            >
+              导出
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleBatchDelete()}
+              disabled={selectedSessionIds.size === 0}
+              className="rounded-lg border border-red-200 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              删除
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setBatchMode(false)
+              setSelectedSessionIds(new Set())
+            }}
+            className="mt-2 w-full rounded-lg px-2 py-1.5 text-xs text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)]"
+          >
+            退出批量管理
+          </button>
+        </div>
+      )}
 
       {/* Settings button at bottom */}
       <div className="p-3 border-t border-[var(--color-border)]">
@@ -332,24 +487,42 @@ export function Sidebar() {
       {/* Context menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] py-1 min-w-[140px]"
+          className="fixed z-50 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl py-2 min-w-[220px]"
           style={{ left: contextMenu.x, top: contextMenu.y, boxShadow: 'var(--shadow-dropdown)' }}
         >
-          <button
+          <MenuButton
+            icon="edit"
             onClick={() => {
               const session = sessions.find(s => s.id === contextMenu.id)
               handleStartRename(contextMenu.id, session?.title || '')
             }}
-            className="w-full px-3 py-1.5 text-xs text-left text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)] transition-colors"
           >
             {t('common.rename')}
-          </button>
-          <button
-            onClick={() => handleDelete(contextMenu.id)}
-            className="w-full px-3 py-1.5 text-xs text-left text-[var(--color-error)] hover:bg-[var(--color-surface-hover)] transition-colors"
+          </MenuButton>
+          <MenuButton icon="push_pin" onClick={() => handleTogglePinned(contextMenu.id)}>
+            {pinnedSessionIds.includes(contextMenu.id) ? '取消置顶' : '置顶此对话'}
+          </MenuButton>
+          <MenuButton icon="download" onClick={() => void handleExport(contextMenu.id)}>
+            导出对话 JSON
+          </MenuButton>
+          <MenuButton
+            icon="tune"
+            onClick={() => {
+              setContextMenu(null)
+              setBatchMode(true)
+              setSelectedSessionIds(new Set([contextMenu.id]))
+            }}
+          >
+            批量管理
+          </MenuButton>
+          <div className="my-2 h-px bg-[var(--color-border)]" />
+          <MenuButton
+            icon="delete"
+            danger
+            onClick={() => void handleDelete(contextMenu.id)}
           >
             {t('common.delete')}
-          </button>
+          </MenuButton>
         </div>
       )}
     </aside>
@@ -415,6 +588,31 @@ function NavItem({
   )
 }
 
+function MenuButton({
+  icon,
+  danger,
+  onClick,
+  children,
+}: {
+  icon: string
+  danger?: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors hover:bg-[var(--color-surface-hover)] ${
+        danger ? 'text-red-500' : 'text-[var(--color-text-primary)]'
+      }`}
+    >
+      <span className="material-symbols-outlined text-[18px]">{icon}</span>
+      <span>{children}</span>
+    </button>
+  )
+}
+
 function formatRelativeTime(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
   const min = Math.floor(diff / 60000)
@@ -425,6 +623,16 @@ function formatRelativeTime(dateStr: string): string {
   const day = Math.floor(hr / 24)
   if (day < 30) return `${day}d`
   return `${Math.floor(day / 30)}mo`
+}
+
+function MoreIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="5" cy="12" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="19" cy="12" r="1.8" />
+    </svg>
+  )
 }
 
 function SidebarToggleIcon({ collapsed }: { collapsed: boolean }) {
@@ -442,28 +650,6 @@ function PlusIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-}
-
-function TrashIcon() {
-  return (
-    <svg
-      width="11"
-      height="11"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 6h18" />
-      <path d="M8 6V4h8v2" />
-      <path d="M19 6l-1 14H6L5 6" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
     </svg>
   )
 }

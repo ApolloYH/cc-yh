@@ -17,6 +17,7 @@ import { sessionService } from '../services/sessionService.js'
 import { SettingsService } from '../services/settingsService.js'
 import { ProviderService } from '../services/providerService.js'
 import { deriveTitle, generateTitle, saveAiTitle } from '../services/titleService.js'
+import { addUsage } from '../api/status.js'
 
 const settingsService = new SettingsService()
 const providerService = new ProviderService()
@@ -686,7 +687,16 @@ function translateCliMessage(cliMsg: any, sessionId: string): ServerMessage[] {
       const usage = {
         input_tokens: cliMsg.usage?.input_tokens || 0,
         output_tokens: cliMsg.usage?.output_tokens || 0,
+        cache_read_input_tokens: cliMsg.usage?.cache_read_input_tokens || 0,
+        cache_creation_input_tokens: cliMsg.usage?.cache_creation_input_tokens || 0,
       }
+      addUsage(
+        usage.input_tokens,
+        usage.output_tokens,
+        0,
+        usage.cache_read_input_tokens,
+        usage.cache_creation_input_tokens,
+      )
 
       if (cliMsg.is_error) {
         // If the user requested stop, this "error" is just the interrupt

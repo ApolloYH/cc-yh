@@ -50,6 +50,8 @@ export type ServerMessage =
 export type TokenUsage = {
   input_tokens: number
   output_tokens: number
+  cache_read_input_tokens?: number
+  cache_creation_input_tokens?: number
   cache_read_tokens?: number
   cache_creation_tokens?: number
 }

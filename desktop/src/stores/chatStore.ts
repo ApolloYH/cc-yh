@@ -37,6 +37,7 @@ export type PerSessionState = {
     description?: string
   } | null
   tokenUsage: TokenUsage
+  cumulativeTokenUsage?: TokenUsage
   elapsedSeconds: number
   statusVerb: string
   slashCommands: Array<{ name: string; description: string }>
@@ -55,6 +56,7 @@ const DEFAULT_SESSION_STATE: PerSessionState = {
   activeThinkingId: null,
   pendingPermission: null,
   tokenUsage: { input_tokens: 0, output_tokens: 0 },
+  cumulativeTokenUsage: { input_tokens: 0, output_tokens: 0 },
   elapsedSeconds: 0,
   statusVerb: '',
   slashCommands: [],
@@ -63,7 +65,12 @@ const DEFAULT_SESSION_STATE: PerSessionState = {
 }
 
 function createDefaultSessionState(): PerSessionState {
-  return { ...DEFAULT_SESSION_STATE, messages: [], tokenUsage: { input_tokens: 0, output_tokens: 0 } }
+  return {
+    ...DEFAULT_SESSION_STATE,
+    messages: [],
+    tokenUsage: { input_tokens: 0, output_tokens: 0 },
+    cumulativeTokenUsage: { input_tokens: 0, output_tokens: 0 },
+  }
 }
 
 type ChatStore = {
@@ -88,6 +95,35 @@ type ChatStoreSet = (
 ) => void
 
 const TASK_TOOL_NAMES = new Set(['TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'TodoWrite'])
+
+function getCacheReadTokens(usage?: TokenUsage): number {
+  return usage?.cache_read_input_tokens ?? usage?.cache_read_tokens ?? 0
+}
+
+function getCacheCreationTokens(usage?: TokenUsage): number {
+  return usage?.cache_creation_input_tokens ?? usage?.cache_creation_tokens ?? 0
+}
+
+function addTokenUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
+  return {
+    input_tokens: (a.input_tokens || 0) + (b.input_tokens || 0),
+    output_tokens: (a.output_tokens || 0) + (b.output_tokens || 0),
+    cache_read_input_tokens: getCacheReadTokens(a) + getCacheReadTokens(b),
+    cache_creation_input_tokens: getCacheCreationTokens(a) + getCacheCreationTokens(b),
+  }
+}
+
+function calculateHistoryTokenUsage(messages: MessageEntry[]): TokenUsage {
+  return messages.reduce<TokenUsage>((total, message) => {
+    if (!message.usage) return total
+    return addTokenUsage(total, {
+      input_tokens: message.usage.input_tokens ?? 0,
+      output_tokens: message.usage.output_tokens ?? 0,
+      cache_read_input_tokens: message.usage.cache_read_input_tokens ?? 0,
+      cache_creation_input_tokens: message.usage.cache_creation_input_tokens ?? 0,
+    })
+  }, { input_tokens: 0, output_tokens: 0 })
+}
 const pendingTaskToolUseIds = new Set<string>()
 
 let msgCounter = 0
@@ -384,12 +420,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     try {
       const { messages } = await sessionsApi.getMessages(sessionId)
       const uiMessages = mapHistoryMessagesToUiMessages(messages)
+      const historyTokenUsage = calculateHistoryTokenUsage(messages)
       const restoredNotifications = reconstructAgentNotifications(messages)
       set((state) => {
         const session = state.sessions[sessionId]
         if (!session || session.messages.length > 0) return state
         return { sessions: updateSessionIn(state.sessions, sessionId, (s) => ({
           messages: uiMessages,
+          cumulativeTokenUsage: historyTokenUsage,
+          tokenUsage: historyTokenUsage,
           agentTaskNotifications: { ...s.agentTaskNotifications, ...restoredNotifications },
         })) }
       })
@@ -408,7 +447,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   clearMessages: (sessionId) => {
     disposeStreamingBuffer(sessionId)
-    set((s) => ({ sessions: updateSessionIn(s.sessions, sessionId, () => ({ messages: [], streamingText: '', chatState: 'idle' })) }))
+    set((s) => ({
+      sessions: updateSessionIn(s.sessions, sessionId, () => ({
+        messages: [],
+        streamingText: '',
+        chatState: 'idle',
+        tokenUsage: { input_tokens: 0, output_tokens: 0 },
+        cumulativeTokenUsage: { input_tokens: 0, output_tokens: 0 },
+      })),
+    }))
   },
 
   handleServerMessage: (sessionId, msg) => {
@@ -562,7 +609,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           }))
         }
         if (session.elapsedTimer) clearInterval(session.elapsedTimer)
-        update(() => ({ tokenUsage: msg.usage, chatState: 'idle', activeThinkingId: null, elapsedTimer: null }))
+        update((s) => ({
+          tokenUsage: msg.usage,
+          cumulativeTokenUsage: addTokenUsage(s.cumulativeTokenUsage ?? { input_tokens: 0, output_tokens: 0 }, msg.usage),
+          chatState: 'idle',
+          activeThinkingId: null,
+          elapsedTimer: null,
+        }))
         break
       }
 

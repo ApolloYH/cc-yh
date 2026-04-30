@@ -44,6 +44,12 @@ export type MessageEntry = {
   content: unknown
   timestamp: string
   model?: string
+  usage?: {
+    input_tokens?: number
+    output_tokens?: number
+    cache_read_input_tokens?: number
+    cache_creation_input_tokens?: number
+  }
   parentUuid?: string
   parentToolUseId?: string
   isSidechain?: boolean
@@ -62,6 +68,7 @@ type RawEntry = {
     role?: string
     content?: unknown
     model?: string
+    usage?: MessageEntry['usage']
     id?: string
     type?: string
   }
@@ -202,6 +209,7 @@ export class SessionService {
       content: msg.content,
       timestamp: entry.timestamp || new Date().toISOString(),
       model: msg.model,
+      usage: msg.usage,
       parentUuid: entry.parentUuid ?? undefined,
       parentToolUseId,
       isSidechain: entry.isSidechain,

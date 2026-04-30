@@ -13,6 +13,22 @@ import { DirectoryPicker } from '../components/shared/DirectoryPicker'
 
 const TASK_POLL_INTERVAL_MS = 1000
 
+function tokenTotal(usage: {
+  input_tokens?: number
+  output_tokens?: number
+  cache_read_input_tokens?: number
+  cache_creation_input_tokens?: number
+  cache_read_tokens?: number
+  cache_creation_tokens?: number
+}) {
+  return (
+    (usage.input_tokens ?? 0) +
+    (usage.output_tokens ?? 0) +
+    (usage.cache_read_input_tokens ?? usage.cache_read_tokens ?? 0) +
+    (usage.cache_creation_input_tokens ?? usage.cache_creation_tokens ?? 0)
+  )
+}
+
 export function ActiveSession() {
   const activeTabId = useTabStore((s) => s.activeTabId)
   const sessions = useSessionStore((s) => s.sessions)
@@ -22,7 +38,7 @@ export function ActiveSession() {
   const trackedTaskSessionId = useCLITaskStore((s) => s.sessionId)
   const hasIncompleteTasks = useCLITaskStore((s) => s.tasks.some((task) => task.status !== 'completed'))
   const chatState = sessionState?.chatState ?? 'idle'
-  const tokenUsage = sessionState?.tokenUsage ?? { input_tokens: 0, output_tokens: 0 }
+  const tokenUsage = sessionState?.cumulativeTokenUsage ?? sessionState?.tokenUsage ?? { input_tokens: 0, output_tokens: 0 }
 
   const session = sessions.find((s) => s.id === activeTabId)
   const memberInfo = useTeamStore((s) => activeTabId ? s.getMemberBySessionId(activeTabId) : null)
@@ -67,7 +83,7 @@ export function ActiveSession() {
   const [isSwitchingWorkDir, setIsSwitchingWorkDir] = useState(false)
 
   const isActive = chatState !== 'idle'
-  const totalTokens = tokenUsage.input_tokens + tokenUsage.output_tokens
+  const totalTokens = tokenTotal(tokenUsage)
   const sessionTitle = session?.title || t('session.untitled')
 
   const handleChangeWorkDir = async (newWorkDir: string) => {
@@ -216,7 +232,9 @@ export function ActiveSession() {
                   {totalTokens > 0 && (
                     <>
                       <span className="text-[var(--color-outline)]">·</span>
-                      <span>{totalTokens.toLocaleString()} t</span>
+                      <span title={`输入 ${tokenUsage.input_tokens.toLocaleString()} · 输出 ${tokenUsage.output_tokens.toLocaleString()}`}>
+                        Token {totalTokens.toLocaleString()}
+                      </span>
                     </>
                   )}
                   {lastUpdated && (

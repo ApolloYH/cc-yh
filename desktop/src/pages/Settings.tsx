@@ -19,6 +19,7 @@ import { useSkillStore } from '../stores/skillStore'
 import { SkillList } from '../components/skills/SkillList'
 import { SkillDetail } from '../components/skills/SkillDetail'
 import { ComputerUseSettings } from './ComputerUseSettings'
+import { UsageSettings } from './UsageSettings'
 import { useUIStore, type SettingsTab } from '../stores/uiStore'
 import { useUpdateStore } from '../stores/updateStore'
 import { providersApi, type AuthStatusResponse } from '../api/providers'
@@ -47,6 +48,7 @@ export function Settings() {
             <TabButton icon="smart_toy" label={t('settings.tab.agents')} active={activeTab === 'agents'} onClick={() => setActiveTab('agents')} />
             <TabButton icon="auto_awesome" label={t('settings.tab.skills')} active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
             <TabButton icon="mouse" label={t('settings.tab.computerUse')} active={activeTab === 'computerUse'} onClick={() => setActiveTab('computerUse')} />
+            <TabButton icon="bar_chart" label="使用统计" active={activeTab === 'usage'} onClick={() => setActiveTab('usage')} />
           </div>
           <div className="border-t border-[var(--color-border)]/40 pt-1">
             <TabButton icon="info" label={t('settings.tab.about')} active={activeTab === 'about'} onClick={() => setActiveTab('about')} />
@@ -62,6 +64,7 @@ export function Settings() {
           {activeTab === 'agents' && <AgentsSettings />}
           {activeTab === 'skills' && <SkillSettings />}
           {activeTab === 'computerUse' && <ComputerUseSettings />}
+          {activeTab === 'usage' && <UsageSettings />}
           {activeTab === 'about' && <AboutSettings />}
         </div>
       </div>

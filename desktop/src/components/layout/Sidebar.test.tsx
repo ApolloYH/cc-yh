@@ -135,7 +135,7 @@ describe('Sidebar', () => {
     expect(useUIStore.getState().sidebarOpen).toBe(false)
   })
 
-  it('deletes a session from the history list via the inline delete action', async () => {
+  it('deletes a session from the history list via the session action menu', async () => {
     deleteSession.mockResolvedValue(undefined)
 
     useSessionStore.setState({
@@ -166,7 +166,11 @@ describe('Sidebar', () => {
     render(<Sidebar />)
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Delete Delete Me' }))
+      fireEvent.click(screen.getByRole('button', { name: '打开 Delete Me 的更多操作' }))
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'delete Delete' }))
     })
 
     await waitFor(() => {
