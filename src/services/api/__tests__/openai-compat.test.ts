@@ -230,9 +230,58 @@ describe('OpenAI compatibility transforms', () => {
     ])
   })
 
+  test('parses standalone think tag chunks without leaking raw tags', () => {
+    const state = createTaggedThinkingStreamState()
+
+    const first = consumeTaggedThinkingChunk('<think>', state)
+    const second = consumeTaggedThinkingChunk('</think>OK', state)
+
+    expect(first).toEqual([])
+    expect(second).toEqual([{ type: 'text', text: 'OK' }])
+  })
+
   test('splitTaggedThinkingText leaves plain text untouched', () => {
     expect(splitTaggedThinkingText('plain text')).toEqual([
       { type: 'text', text: 'plain text' },
+    ])
+  })
+
+  test('splitTaggedThinkingText strips orphan closing think tags from plain text', () => {
+    expect(splitTaggedThinkingText('</think>VISIBLE')).toEqual([
+      { type: 'text', text: 'VISIBLE' },
+    ])
+  })
+
+  test('openaiChatToAnthropic strips orphan closing think tags in visible text', () => {
+    const anthropicResponse = openaiChatToAnthropic(
+      {
+        id: 'chatcmpl_orphan_close',
+        object: 'chat.completion',
+        created: 0,
+        model: 'gpt-4o',
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              reasoning_content: 'internal reasoning',
+              content: '</think>CLI_OK',
+            },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 5,
+          total_tokens: 15,
+        },
+      } as any,
+      'gpt-4o',
+    )
+
+    expect(anthropicResponse.content).toEqual([
+      { type: 'thinking', thinking: 'internal reasoning' },
+      { type: 'text', text: 'CLI_OK' },
     ])
   })
 })

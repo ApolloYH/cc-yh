@@ -431,12 +431,20 @@ export class CronScheduler {
         '--output-format',
         'stream-json',
         ...(sessionId ? ['--session-id', sessionId] : []),
+        ...(task.model ? ['--model', task.model] : []),
+        ...(task.permissionMode ? ['--permission-mode', task.permissionMode] : []),
       ],
       {
         stdin: 'pipe',
         stdout: 'pipe',
         stderr: 'pipe',
         cwd: workDir,
+        env: {
+          ...process.env,
+          CALLER_DIR: workDir,
+          PWD: workDir,
+          CLAUDE_YH_SKIP_DOTENV: '1',
+        },
       },
     )
 

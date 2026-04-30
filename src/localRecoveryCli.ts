@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { readFileSync } from 'fs'
 import { createInterface } from 'readline'
+import { PRODUCT_DISPLAY_NAME, PRODUCT_DISPLAY_VERSION } from './utils/branding.js'
 
 type OutputFormat = 'text' | 'json'
 
@@ -33,7 +34,9 @@ function printHelp(): void {
 }
 
 function printVersion(): void {
-  process.stdout.write('999.0.0-local (Claude Code local recovery)\n')
+  process.stdout.write(
+    `${PRODUCT_DISPLAY_VERSION} (${PRODUCT_DISPLAY_NAME} local recovery)\n`,
+  )
 }
 
 function parseArgs(argv: string[]) {

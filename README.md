@@ -1,21 +1,6 @@
 # Claude YH
 
-<p align="center">
-  <img src="docs/images/logo-horizontal.jpg" alt="Claude YH" width="480">
-</p>
 
-<div align="center">
-
-[![GitHub Stars](https://img.shields.io/github/stars/NanmiCoder/claude-yh?style=social)](https://github.com/NanmiCoder/claude-yh/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/NanmiCoder/claude-yh?style=social)](https://github.com/NanmiCoder/claude-yh/network/members)
-[![GitHub Issues](https://img.shields.io/github/issues/NanmiCoder/claude-yh)](https://github.com/NanmiCoder/claude-yh/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/NanmiCoder/claude-yh)](https://github.com/NanmiCoder/claude-yh/pulls)
-[![License](https://img.shields.io/github/license/NanmiCoder/claude-yh)](https://github.com/NanmiCoder/claude-yh/blob/main/LICENSE)
-[![中文](https://img.shields.io/badge/🇨🇳_中文-当前-blue)](README.md)
-[![English](https://img.shields.io/badge/🇺🇸_English-Available-green)](README.en.md)
-[![Docs](https://img.shields.io/badge/📖_文档站点-Visit-D97757)](https://claudecode-haha.relakkesyang.org)
-
-</div>
 
 基于 Claude Code 泄露源码修复的**本地可运行版本**，支持接入任意 Anthropic 兼容 API（MiniMax、OpenRouter 等）。在完整 TUI 之外，还补全了 Computer Use（macOS / Windows）、打造了图形化**桌面端**，并支持通过 Telegram / 飞书**完整远程驱动**。
 
@@ -218,7 +203,7 @@ http://127.0.0.1:2024
 | [Channel 系统](docs/channel/01-channel-system.md) | 通过 Telegram/飞书/Discord 等 IM 平台远程控制 Agent                                                                                                            |
 | [Computer Use](docs/features/computer-use.md)     | 桌面控制功能（截屏、鼠标、键盘）—[架构解析](docs/features/computer-use-architecture.md)                                                                          |
 | [桌面端](docs/desktop/)                           | Tauri 2 + React 图形化客户端 —[快速上手](docs/desktop/01-quick-start.md) \| [架构设计](docs/desktop/02-architecture.md) \| [安装指南](docs/desktop/04-installation.md) |
-| [全局使用](docs/guide/global-usage.md)            | 在任意目录启动 claude-yh                                                                                                                                     |
+| [全局使用](docs/guide/global-usage.md)            | 在任意目录启动 claude-yh                                                                                                                                       |
 | [常见问题](docs/guide/faq.md)                     | 常见错误排查                                                                                                                                                   |
 | [源码修复记录](docs/reference/fixes.md)           | 相对于原始泄露源码的修复内容                                                                                                                                   |
 | [项目结构](docs/reference/project-structure.md)   | 代码目录结构说明                                                                                                                                               |

@@ -63,3 +63,7 @@ sidebar-snapshot.md
 docs/.vitepress/dist
 docs/.vitepress/cache
 runtime/__pycache__
+analysis
+progress.md
+task_plan.md
+findings.md

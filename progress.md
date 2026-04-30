@@ -29,3 +29,44 @@
 ## 2026-04-21 Manual QA Follow-up
 - Switched from code-level verification to manual functional validation at the user's request.
 - Added a new plan focused on isolated runtime testing of CLI, config storage, API/server flows, WebSocket chat, and real model-path validation where possible.
+- Fixed `ConversationService.buildChildEnv()` so desktop-managed provider env from `claude-yh/settings.json` is explicitly merged into spawned CLI env, including OpenAI compat flags.
+- Updated `src/server/__tests__/conversation-service.test.ts` to assert desktop provider env is injected instead of stripped to `undefined`.
+- Re-ran targeted validation:
+  - `bun test src/server/__tests__/conversation-service.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+- Verified direct CLI with the current `.env` still works for both:
+  - `MiniMax-M2.7`
+  - `MiniMax-M2.7-highspeed`
+- Manual isolated REST + WebSocket validation against a real upstream provider now passes when the provider is created with the same OpenAI-compat mode as the active `.env`:
+  - provider create/activate succeeded
+  - parent-process `ANTHROPIC_*` / compat env vars were deleted after activation
+  - `/api/providers/auth-status` still reported `source: claude-yh-provider`
+  - one main-model WebSocket turn returned `QA_MAIN_OK`
+  - switching to `MiniMax-M2.7-highspeed` via `/api/models/current` succeeded
+  - a second WebSocket turn returned `QA_HAIKU_OK`
+- Found and fixed another real runtime leak: session transcript entries still stamped `version: 999.0.0-local`.
+  - `src/utils/sessionStorage.ts` now uses `PRODUCT_DISPLAY_VERSION`
+  - verified isolated session JSONL entries now record `version: 521`
+- Found and fixed a real scheduled-task bug:
+  - `CronScheduler.executeTask()` was ignoring task-level `model` and `permissionMode`
+  - it now passes both flags to the CLI and pins `CALLER_DIR` / `PWD` while setting `CLAUDE_YH_SKIP_DOTENV=1`
+- Added regression coverage in `src/server/__tests__/cron-scheduler.test.ts` for scheduled-task spawn args and env.
+- Re-ran targeted validation:
+  - `bun test src/server/__tests__/cron-scheduler.test.ts`
+  - `bun x tsc --noEmit -p tsconfig.json`
+- Manual isolated scheduled-task validation now passes against the real upstream provider:
+  - created a task with `model: MiniMax-M2.7-highspeed`
+  - created a task with `permissionMode: plan`
+  - manual `run now` completed successfully
+  - run output was `TASK_HAIKU_OK`
+  - linked session transcript shows `permissionMode: plan`, `model: MiniMax-M2.7-highspeed`, and `version: 521`
+- Added an explicit dual-protocol validation pass against the same upstream account:
+  - direct provider probing confirmed `openai_chat` works on `https://api.minimaxi.com/v1/chat/completions`
+  - direct provider probing confirmed native `anthropic` works on `https://api.minimaxi.com/anthropic/v1/messages`
+  - a full isolated app flow also passed in native `anthropic` mode when configured against `https://api.minimaxi.com/anthropic`
+    - real WebSocket turn returned `ANTHROPIC_PROTOCOL_OK`
+    - scheduled task manual run returned `ANTHROPIC_TASK_PROTOCOL_OK`
+- Also confirmed a protocol-specific upstream limitation for the current token/account:
+  - `MiniMax-M2.7-highspeed` works on the OpenAI-compatible endpoint
+  - the same model on the native Anthropic endpoint returns upstream `500 api_error: your current token plan not support model, MiniMax-M2.7-highspeed (2061)`
+  - this is an upstream model-availability difference, not a local protocol-translation failure

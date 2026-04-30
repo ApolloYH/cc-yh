@@ -276,6 +276,51 @@ describe('CronScheduler', () => {
     expect(updated?.enabled).not.toBe(false)
   })
 
+  it('passes task model, permission mode, and isolated env to the spawned CLI', async () => {
+    const spawnSpy = spyOn(Bun as any, 'spawn').mockImplementation((..._args: any[]) => {
+      const emptyStream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.close()
+        },
+      })
+
+      return {
+        stdin: {
+          write: mock(() => {}),
+          end: mock(() => {}),
+        },
+        stdout: emptyStream,
+        stderr: emptyStream,
+        exited: Promise.resolve(0),
+        kill: mock(() => {}),
+      } as unknown as ReturnType<typeof Bun.spawn>
+    })
+
+    const task = await cronService.createTask({
+      cron: '* * * * *',
+      prompt: 'run with explicit model and permissions',
+      recurring: true,
+      model: 'MiniMax-M2.7-highspeed',
+      permissionMode: 'plan',
+      folderPath: tmpDir,
+    })
+
+    await scheduler.executeTask(task)
+
+    expect(spawnSpy).toHaveBeenCalledTimes(1)
+    const [argv, options] = spawnSpy.mock.calls[0] as [string[], { cwd: string; env: Record<string, string> }]
+    expect(argv).toContain('--model')
+    expect(argv).toContain('MiniMax-M2.7-highspeed')
+    expect(argv).toContain('--permission-mode')
+    expect(argv).toContain('plan')
+    expect(options.cwd).toBe(tmpDir)
+    expect(options.env.CALLER_DIR).toBe(tmpDir)
+    expect(options.env.PWD).toBe(tmpDir)
+    expect(options.env.CLAUDE_YH_SKIP_DOTENV).toBe('1')
+
+    spawnSpy.mockRestore()
+  })
+
   it('should update lastFiredAt after execution', async () => {
     const task = await cronService.createTask({
       cron: '* * * * *',

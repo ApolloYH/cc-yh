@@ -11,6 +11,18 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { sessionService } from './sessionService.js'
 
+const PROVIDER_ENV_KEYS = [
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'CLAUDE_CODE_COMPAT_PROVIDER',
+  'CLAUDE_CODE_OPENAI_COMPAT_MODE',
+] as const
+
 type AttachmentRef = {
   type: 'file' | 'image'
   name?: string
@@ -479,19 +491,10 @@ export class ConversationService {
     // If the user never configured a Desktop provider and only launched the
     // app/server with ANTHROPIC_* env vars, keep those env vars so Windows
     // dev-mode and env-only setups can still authenticate successfully.
-    const PROVIDER_ENV_KEYS = [
-      'ANTHROPIC_API_KEY',
-      'ANTHROPIC_BASE_URL',
-      'ANTHROPIC_AUTH_TOKEN',
-      'ANTHROPIC_MODEL',
-      'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-      'ANTHROPIC_DEFAULT_SONNET_MODEL',
-      'ANTHROPIC_DEFAULT_OPUS_MODEL',
-    ] as const
-
+    const desktopProviderEnv = this.getDesktopProviderEnv()
     const cleanEnv = { ...process.env }
     delete cleanEnv.CLAUDE_CODE_OAUTH_TOKEN
-    if (this.shouldStripInheritedProviderEnv()) {
+    if (this.shouldStripInheritedProviderEnv(desktopProviderEnv)) {
       for (const key of PROVIDER_ENV_KEYS) {
         delete cleanEnv[key]
       }
@@ -499,6 +502,7 @@ export class ConversationService {
 
     return {
       ...cleanEnv,
+      ...desktopProviderEnv,
       CLAUDE_CODE_ENABLE_TASKS: '1',
       CALLER_DIR: workDir,
       PWD: workDir,
@@ -514,6 +518,30 @@ export class ConversationService {
       ...(this.shouldMarkManagedOAuth()
         ? await this.buildOfficialOAuthEnv()
         : {}),
+    }
+  }
+
+  private getDesktopProviderEnv(): Record<string, string> {
+    const configDir =
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
+    const settingsPath = path.join(configDir, 'claude-yh', 'settings.json')
+
+    try {
+      const raw = fs.readFileSync(settingsPath, 'utf-8')
+      const parsed = JSON.parse(raw) as { env?: Record<string, unknown> }
+      const settingsEnv = parsed.env ?? {}
+      const desktopProviderEnv: Record<string, string> = {}
+
+      for (const key of PROVIDER_ENV_KEYS) {
+        const value = settingsEnv[key]
+        if (typeof value === 'string' && value.trim().length > 0) {
+          desktopProviderEnv[key] = value
+        }
+      }
+
+      return desktopProviderEnv
+    } catch {
+      return {}
     }
   }
 
@@ -545,27 +573,10 @@ export class ConversationService {
     return env
   }
 
-  private shouldStripInheritedProviderEnv(): boolean {
-    const configDir =
-      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude-yh')
-    const settingsPath = path.join(configDir, 'claude-yh', 'settings.json')
-
-    try {
-      const raw = fs.readFileSync(settingsPath, 'utf-8')
-      const parsed = JSON.parse(raw) as { env?: Record<string, string> }
-      const env = parsed.env ?? {}
-      return [
-        'ANTHROPIC_API_KEY',
-        'ANTHROPIC_BASE_URL',
-        'ANTHROPIC_AUTH_TOKEN',
-        'ANTHROPIC_MODEL',
-        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-        'ANTHROPIC_DEFAULT_SONNET_MODEL',
-        'ANTHROPIC_DEFAULT_OPUS_MODEL',
-      ].some((key) => typeof env[key] === 'string' && env[key]!.trim().length > 0)
-    } catch {
-      return false
-    }
+  private shouldStripInheritedProviderEnv(
+    desktopProviderEnv = this.getDesktopProviderEnv(),
+  ): boolean {
+    return Object.keys(desktopProviderEnv).length > 0
   }
 
   /**

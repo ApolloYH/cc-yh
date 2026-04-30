@@ -65,7 +65,7 @@ describe('ConversationService', () => {
     expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBeUndefined()
   })
 
-  test('strips inherited provider env when desktop provider settings contain provider env', async () => {
+  test('injects desktop provider env and strips stale inherited provider env', async () => {
     const ccHahaDir = path.join(tmpDir, 'claude-yh')
     await fs.mkdir(ccHahaDir, { recursive: true })
     await fs.writeFile(
@@ -75,6 +75,8 @@ describe('ConversationService', () => {
           ANTHROPIC_AUTH_TOKEN: 'desktop-provider-token',
           ANTHROPIC_BASE_URL: 'https://desktop-provider.invalid',
           ANTHROPIC_MODEL: 'desktop-provider-model',
+          CLAUDE_CODE_COMPAT_PROVIDER: 'openai',
+          CLAUDE_CODE_OPENAI_COMPAT_MODE: 'responses',
         },
       }),
       'utf-8',
@@ -83,9 +85,12 @@ describe('ConversationService', () => {
     const service = new ConversationService() as any
     const env = (await service.buildChildEnv('D:\\workspace\\code\\myself_code\\claude-yh')) as Record<string, string>
 
-    expect(env.ANTHROPIC_AUTH_TOKEN).toBeUndefined()
-    expect(env.ANTHROPIC_BASE_URL).toBeUndefined()
-    expect(env.ANTHROPIC_MODEL).toBeUndefined()
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBe('desktop-provider-token')
+    expect(env.ANTHROPIC_BASE_URL).toBe('https://desktop-provider.invalid')
+    expect(env.ANTHROPIC_MODEL).toBe('desktop-provider-model')
+    expect(env.CLAUDE_CODE_COMPAT_PROVIDER).toBe('openai')
+    expect(env.CLAUDE_CODE_OPENAI_COMPAT_MODE).toBe('responses')
+    expect(env.CLAUDE_YH_SKIP_DOTENV).toBe('1')
   })
 
   test('buildChildEnv injects CLAUDE_CODE_OAUTH_TOKEN when official mode + haha oauth token exists', async () => {

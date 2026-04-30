@@ -10,6 +10,10 @@ export type TaggedThinkingStreamState = {
 const OPEN_TAG = '<think>'
 const CLOSE_TAG = '</think>'
 
+function stripOrphanCloseTags(text: string): string {
+  return text.includes(CLOSE_TAG) ? text.split(CLOSE_TAG).join('') : text
+}
+
 function longestPartialMatch(value: string, token: string): number {
   const max = Math.min(value.length, token.length - 1)
   for (let size = max; size > 0; size -= 1) {
@@ -22,7 +26,8 @@ function longestPartialMatch(value: string, token: string): number {
 
 export function splitTaggedThinkingText(input: string): TaggedThinkingSegment[] {
   if (!input.includes(OPEN_TAG)) {
-    return input.length > 0 ? [{ type: 'text', text: input }] : []
+    const sanitized = stripOrphanCloseTags(input)
+    return sanitized.length > 0 ? [{ type: 'text', text: sanitized }] : []
   }
 
   const segments: TaggedThinkingSegment[] = []
@@ -37,7 +42,8 @@ export function splitTaggedThinkingText(input: string): TaggedThinkingSegment[] 
     }
 
     const before = input.slice(cursor, openIndex)
-    if (before) segments.push({ type: 'text', text: before })
+    const sanitizedBefore = stripOrphanCloseTags(before)
+    if (sanitizedBefore) segments.push({ type: 'text', text: sanitizedBefore })
 
     const thinkStart = openIndex + OPEN_TAG.length
     const closeIndex = input.indexOf(CLOSE_TAG, thinkStart)
@@ -74,13 +80,15 @@ export function consumeTaggedThinkingChunk(
       const openIndex = state.pending.indexOf(OPEN_TAG)
       if (openIndex === -1) {
         const keep = longestPartialMatch(state.pending, OPEN_TAG)
-        const emit = state.pending.slice(0, state.pending.length - keep)
+        const emit = stripOrphanCloseTags(
+          state.pending.slice(0, state.pending.length - keep),
+        )
         if (emit) segments.push({ type: 'text', text: emit })
         state.pending = state.pending.slice(state.pending.length - keep)
         break
       }
 
-      const before = state.pending.slice(0, openIndex)
+      const before = stripOrphanCloseTags(state.pending.slice(0, openIndex))
       if (before) segments.push({ type: 'text', text: before })
       state.pending = state.pending.slice(openIndex + OPEN_TAG.length)
       state.inThinking = true
@@ -114,7 +122,8 @@ export function flushTaggedThinkingState(
   if (state.inThinking) {
     segments.push({ type: 'thinking', text: state.pending })
   } else {
-    segments.push({ type: 'text', text: state.pending })
+    const sanitized = stripOrphanCloseTags(state.pending)
+    if (sanitized) segments.push({ type: 'text', text: sanitized })
   }
   state.pending = ''
   return segments

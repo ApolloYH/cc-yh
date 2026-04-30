@@ -23,3 +23,33 @@
   - internal constants and historical identifiers with compatibility impact
 - The current user request raises a valid QA gap: automated tests prove regression coverage, but they do not by themselves prove that the packaged `claude-yh` flows behave correctly for a human operator.
 - For trustworthy manual verification, runtime checks need to be isolated from the user's real `~/.claude-yh` and legacy `~/.claude` data.
+- The active repo `.env` no longer represents a native Anthropic Messages endpoint. It currently uses:
+  - `ANTHROPIC_BASE_URL=https://api.minimaxi.com/v1`
+  - `CLAUDE_CODE_COMPAT_PROVIDER=openai`
+  - `CLAUDE_CODE_OPENAI_COMPAT_MODE=chat_completions`
+  This matters because creating a manual provider as `anthropic` against that base URL produces a false failure that looks like a runtime bug but is actually a test setup mismatch.
+- `ConversationService.buildChildEnv()` did have a real gap before this pass: it stripped inherited provider env when desktop-managed provider settings existed, but it did not explicitly merge the managed provider env back into the child process. That is now fixed and covered by regression tests.
+- Session transcript stamping still leaked `999.0.0-local` through `src/utils/sessionStorage.ts` even after CLI/help/status surfaces were updated. That is now fixed; isolated transcript entries record `version: 521`.
+- `CronScheduler.executeTask()` had a real functionality bug: task-level `model` and `permissionMode` were stored by the API but never passed to the spawned CLI. That is now fixed and covered by regression tests.
+- After the current fixes, isolated real-provider manual validation succeeded for all of these user-facing flows:
+  - direct CLI prompt against the configured upstream provider
+  - provider create / activate
+  - auth fallback from active `claude-yh` provider after deleting inherited env vars
+  - WebSocket session on the provider's main model
+  - model switch to the provider's highspeed/haiku model
+  - WebSocket session on the switched model
+  - scheduled-task manual run with an explicit task model and permission mode
+- The same upstream account supports both protocol families, but on different base URLs:
+  - OpenAI-compatible: `https://api.minimaxi.com/v1`
+  - Anthropic-compatible: `https://api.minimaxi.com/anthropic`
+- Full app-level validation now confirms `claude-yh` itself is compatible with both:
+  - OpenAI-compatible provider flow: passed
+  - Anthropic-compatible provider flow: passed
+- Important distinction: protocol compatibility does not imply identical model availability across both endpoints.
+  - For the current token/account, `MiniMax-M2.7` works on both protocol families.
+  - For the current token/account, `MiniMax-M2.7-highspeed` works on the OpenAI-compatible endpoint but fails on the native Anthropic endpoint with upstream error `your current token plan not support model, MiniMax-M2.7-highspeed (2061)`.
+  - That is an upstream/provider-side product limitation, not evidence that `claude-yh` lacks Anthropic protocol support.
+- Residual risk is now mostly outside the local code:
+  - upstream provider outages / overloads
+  - user misconfiguring `apiFormat` relative to `baseUrl`
+  - remaining non-critical `MACRO.VERSION` references outside the manually validated surfaces

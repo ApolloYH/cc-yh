@@ -550,9 +550,22 @@ export async function* createAnthropicStreamFromOpenAI(input: {
         }
 
         if (delta?.content) {
-          const segments = consumeTaggedThinkingChunk(delta.content, taggedThinkingState)
+          const pendingBefore = taggedThinkingState.pending
+          const inThinkingBefore = taggedThinkingState.inThinking
+          const segments = consumeTaggedThinkingChunk(
+            delta.content,
+            taggedThinkingState,
+          )
+          const parserConsumedTaggedThinking =
+            pendingBefore !== taggedThinkingState.pending ||
+            inThinkingBefore !== taggedThinkingState.inThinking ||
+            delta.content.includes('<think>') ||
+            delta.content.includes('</think>')
+
           if (segments.length === 0) {
-            yield* emitNarrative('text', delta.content)
+            if (!parserConsumedTaggedThinking) {
+              yield* emitNarrative('text', delta.content)
+            }
           } else {
             for (const segment of segments) {
               yield* emitNarrative(
