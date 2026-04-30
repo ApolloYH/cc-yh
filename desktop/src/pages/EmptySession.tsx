@@ -359,7 +359,7 @@ export function EmptySession() {
       </div>
 
       <div className="absolute bottom-5 left-0 right-0 flex justify-center px-8">
-        <div className="flex w-full max-w-[820px] flex-col gap-2">
+        <div className="flex w-full min-w-[560px] max-w-[820px] flex-col gap-2">
           <div
             className="relative flex flex-col gap-3 rounded-[28px] border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] p-4"
             style={{ boxShadow: '0 2px 10px rgba(15, 23, 42, 0.08), 0 16px 42px rgba(15, 23, 42, 0.10)' }}
@@ -431,8 +431,8 @@ export function EmptySession() {
               />
             </div>
 
-            <div className="flex items-center justify-between border-t border-[var(--color-border)]/60 pt-3">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)]/60 pt-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <div ref={plusMenuRef} className="relative">
                   <button
                     onClick={() => setPlusMenuOpen((prev) => !prev)}
@@ -471,7 +471,7 @@ export function EmptySession() {
                 <PermissionModeSelector workDir={workDir} />
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 <ModelSelector />
                 <button
                   onClick={handleSubmit}

@@ -13,6 +13,7 @@ import * as fs from 'fs/promises'
 import { PRODUCT_DISPLAY_VERSION } from '../../utils/branding.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 import { sessionService, type MessageEntry } from '../services/sessionService.js'
+import { ModelPricingService } from '../services/modelPricingService.js'
 
 // 服务器启动时间（用于计算 uptime）
 const startedAt = Date.now()
@@ -25,6 +26,8 @@ const usage = {
   totalCacheCreationTokens: 0,
   totalCost: 0,
 }
+
+const modelPricingService = new ModelPricingService()
 
 /** 供外部累加 token 用量 */
 export function addUsage(
@@ -58,11 +61,15 @@ export async function handleStatusApi(
   segments: string[],
 ): Promise<Response> {
   try {
+    const sub = segments[2] // 'diagnostics' | 'usage' | 'user' | undefined
+
+    if (sub === 'model-pricing') {
+      return await handleModelPricing(req)
+    }
+
     if (req.method !== 'GET') {
       throw new ApiError(405, `Method ${req.method} not allowed`, 'METHOD_NOT_ALLOWED')
     }
-
-    const sub = segments[2] // 'diagnostics' | 'usage' | 'user' | undefined
 
     switch (sub) {
       case undefined:
@@ -132,10 +139,16 @@ async function handleUsageDetail(url: URL): Promise<Response> {
   const range = url.searchParams.get('range') || 'today'
   const { startMs, endMs } = resolveUsageRange(range)
   const { sessions } = await sessionService.listSessions({ limit: 10000 })
-  const logs: Array<{
+  type UsageLogCandidate = {
     requestId: string
     sessionId: string
     sessionTitle: string
+    providerName: string
+    billingModel: string
+    status: string
+    source: string
+    latencyMs: number | null
+    firstTokenMs: number | null
     model: string
     inputTokens: number
     outputTokens: number
@@ -144,7 +157,8 @@ async function handleUsageDetail(url: URL): Promise<Response> {
     totalTokens: number
     totalCostUsd: string
     createdAt: number
-  }> = []
+  }
+  const logCandidates = new Map<string, UsageLogCandidate>()
   const modelStats = new Map<string, {
     model: string
     requestCount: number
@@ -155,15 +169,16 @@ async function handleUsageDetail(url: URL): Promise<Response> {
     totalTokens: number
     totalCostUsd: number
   }>()
-  const trendStats = new Map<string, {
-    date: string
+  const providerStats = new Map<string, {
+    providerName: string
     requestCount: number
-    totalInputTokens: number
-    totalOutputTokens: number
-    totalCacheReadTokens: number
-    totalCacheCreationTokens: number
+    inputTokens: number
+    outputTokens: number
+    cacheReadTokens: number
+    cacheCreationTokens: number
     totalTokens: number
     totalCostUsd: number
+    successRate: number
   }>()
 
   for (const session of sessions) {
@@ -180,57 +195,87 @@ async function handleUsageDetail(url: URL): Promise<Response> {
         normalized.outputTokens +
         normalized.cacheReadTokens +
         normalized.cacheCreationTokens
-      logs.push({
+      const cost = await modelPricingService.calculateCost(model, normalized)
+      const providerName = inferProviderName(model)
+      const candidate = {
         requestId: message.id,
         sessionId: session.id,
         sessionTitle: session.title,
+        providerName,
+        billingModel: cost.matchedPricing?.modelId ?? model,
+        status: '成功',
+        source: '会话记录',
+        latencyMs: null,
+        firstTokenMs: null,
         model,
         ...normalized,
         totalTokens,
-        totalCostUsd: '0.000000',
+        totalCostUsd: cost.totalCostUsd.toFixed(6),
         createdAt,
-      })
-
-      const existingModel = modelStats.get(model) ?? {
-        model,
-        requestCount: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheReadTokens: 0,
-        cacheCreationTokens: 0,
-        totalTokens: 0,
-        totalCostUsd: 0,
       }
-      existingModel.requestCount += 1
-      existingModel.inputTokens += normalized.inputTokens
-      existingModel.outputTokens += normalized.outputTokens
-      existingModel.cacheReadTokens += normalized.cacheReadTokens
-      existingModel.cacheCreationTokens += normalized.cacheCreationTokens
-      existingModel.totalTokens += totalTokens
-      modelStats.set(model, existingModel)
-
-      const bucket = getTrendBucket(createdAt, range)
-      const existingTrend = trendStats.get(bucket) ?? {
-        date: bucket,
-        requestCount: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        totalCacheReadTokens: 0,
-        totalCacheCreationTokens: 0,
-        totalTokens: 0,
-        totalCostUsd: 0,
+      const dedupeKey = `${session.id}:${Math.floor(createdAt / 1000)}:${model}`
+      const existing = logCandidates.get(dedupeKey)
+      if (!existing || candidate.totalTokens > existing.totalTokens) {
+        logCandidates.set(dedupeKey, candidate)
       }
-      existingTrend.requestCount += 1
-      existingTrend.totalInputTokens += normalized.inputTokens
-      existingTrend.totalOutputTokens += normalized.outputTokens
-      existingTrend.totalCacheReadTokens += normalized.cacheReadTokens
-      existingTrend.totalCacheCreationTokens += normalized.cacheCreationTokens
-      existingTrend.totalTokens += totalTokens
-      trendStats.set(bucket, existingTrend)
     }
   }
 
+  const logs = [...logCandidates.values()]
   logs.sort((a, b) => b.createdAt - a.createdAt)
+  const trendStats = createEmptyTrendBuckets(logs, startMs, endMs, range)
+
+  for (const log of logs) {
+    const existingModel = modelStats.get(log.model) ?? {
+      model: log.model,
+      requestCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      totalTokens: 0,
+      totalCostUsd: 0,
+    }
+    existingModel.requestCount += 1
+    existingModel.inputTokens += log.inputTokens
+    existingModel.outputTokens += log.outputTokens
+    existingModel.cacheReadTokens += log.cacheReadTokens
+    existingModel.cacheCreationTokens += log.cacheCreationTokens
+    existingModel.totalTokens += log.totalTokens
+    existingModel.totalCostUsd += Number(log.totalCostUsd) || 0
+    modelStats.set(log.model, existingModel)
+
+    const existingProvider = providerStats.get(log.providerName) ?? {
+      providerName: log.providerName,
+      requestCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      totalTokens: 0,
+      totalCostUsd: 0,
+      successRate: 100,
+    }
+    existingProvider.requestCount += 1
+    existingProvider.inputTokens += log.inputTokens
+    existingProvider.outputTokens += log.outputTokens
+    existingProvider.cacheReadTokens += log.cacheReadTokens
+    existingProvider.cacheCreationTokens += log.cacheCreationTokens
+    existingProvider.totalTokens += log.totalTokens
+    existingProvider.totalCostUsd += Number(log.totalCostUsd) || 0
+    providerStats.set(log.providerName, existingProvider)
+
+    const bucket = getTrendBucket(log.createdAt, range)
+    const existingTrend = trendStats.get(bucket) ?? emptyTrendBucket(bucket)
+    existingTrend.requestCount += 1
+    existingTrend.totalInputTokens += log.inputTokens
+    existingTrend.totalOutputTokens += log.outputTokens
+    existingTrend.totalCacheReadTokens += log.cacheReadTokens
+    existingTrend.totalCacheCreationTokens += log.cacheCreationTokens
+    existingTrend.totalTokens += log.totalTokens
+    existingTrend.totalCostUsd += Number(log.totalCostUsd) || 0
+    trendStats.set(bucket, existingTrend)
+  }
 
   const summary = logs.reduce(
     (acc, log) => {
@@ -240,11 +285,13 @@ async function handleUsageDetail(url: URL): Promise<Response> {
       acc.totalCacheReadTokens += log.cacheReadTokens
       acc.totalCacheCreationTokens += log.cacheCreationTokens
       acc.totalTokens += log.totalTokens
+      acc.totalCostValue += Number(log.totalCostUsd) || 0
       return acc
     },
     {
       totalRequests: 0,
       totalCost: '0.000000',
+      totalCostValue: 0,
       totalInputTokens: 0,
       totalOutputTokens: 0,
       totalCacheReadTokens: 0,
@@ -253,14 +300,33 @@ async function handleUsageDetail(url: URL): Promise<Response> {
       successRate: logs.length > 0 ? 100 : 0,
     },
   )
+  summary.totalCost = summary.totalCostValue.toFixed(6)
+  const { totalCostValue: _totalCostValue, ...summaryResponse } = summary
 
   return Response.json({
     range,
-    summary,
+    summary: summaryResponse,
     trends: [...trendStats.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    providers: [...providerStats.values()].sort((a, b) => b.totalTokens - a.totalTokens),
     models: [...modelStats.values()].sort((a, b) => b.totalTokens - a.totalTokens),
     logs: logs.slice(0, 100),
   })
+}
+
+async function handleModelPricing(req: Request): Promise<Response> {
+  if (req.method === 'GET') {
+    return Response.json({ pricing: await modelPricingService.listPricing() })
+  }
+
+  if (req.method === 'PUT') {
+    const body = await req.json().catch(() => null) as { pricing?: unknown } | null
+    if (!body || !Array.isArray(body.pricing)) {
+      throw ApiError.badRequest('pricing array is required')
+    }
+    return Response.json({ pricing: await modelPricingService.savePricing(body.pricing) })
+  }
+
+  throw new ApiError(405, `Method ${req.method} not allowed`, 'METHOD_NOT_ALLOWED')
 }
 
 async function handleUser(): Promise<Response> {
@@ -286,8 +352,19 @@ function normalizeMessageUsage(message: MessageEntry): {
 
   const inputTokens = Math.max(0, Number(usage.input_tokens ?? 0))
   const outputTokens = Math.max(0, Number(usage.output_tokens ?? 0))
-  const cacheReadTokens = Math.max(0, Number(usage.cache_read_input_tokens ?? 0))
-  const cacheCreationTokens = Math.max(0, Number(usage.cache_creation_input_tokens ?? 0))
+  const cacheReadTokens = Math.max(0, Number(
+    usage.cache_read_input_tokens ??
+    usage.cache_read_tokens ??
+    usage.input_tokens_details?.cached_tokens ??
+    usage.prompt_tokens_details?.cached_tokens ??
+    0,
+  ))
+  const cacheCreationTokens = Math.max(0, Number(
+    usage.cache_creation_input_tokens ??
+    usage.cache_creation_tokens ??
+    ((usage.cache_creation?.ephemeral_5m_input_tokens ?? 0) +
+      (usage.cache_creation?.ephemeral_1h_input_tokens ?? 0)),
+  ))
 
   if (inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens <= 0) {
     return null
@@ -300,6 +377,7 @@ function resolveUsageRange(range: string): { startMs: number; endMs: number } {
   const now = new Date()
   const endMs = now.getTime()
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime()
 
   switch (range) {
     case '1d':
@@ -312,7 +390,7 @@ function resolveUsageRange(range: string): { startMs: number; endMs: number } {
       return { startMs: 0, endMs }
     case 'today':
     default:
-      return { startMs: startOfToday, endMs }
+      return { startMs: startOfToday, endMs: endOfToday }
   }
 }
 
@@ -323,6 +401,74 @@ function getTrendBucket(timestamp: number, range: string): string {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:00`
   }
   return date.toISOString().slice(0, 10)
+}
+
+function createEmptyTrendBuckets(
+  logs: Array<{ createdAt: number }>,
+  startMs: number,
+  endMs: number,
+  range: string,
+): Map<string, {
+  date: string
+  requestCount: number
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCacheReadTokens: number
+  totalCacheCreationTokens: number
+  totalTokens: number
+  totalCostUsd: number
+}> {
+  const buckets = new Map<string, ReturnType<typeof emptyTrendBucket>>()
+  const firstLogMs = logs.length > 0 ? Math.min(...logs.map((log) => log.createdAt)) : endMs
+  const actualStartMs = range === 'all' ? firstLogMs : startMs
+  const cursor = new Date(actualStartMs)
+  const end = new Date(endMs)
+
+  if (range === 'today' || range === '1d') {
+    cursor.setMinutes(0, 0, 0)
+    end.setMinutes(0, 0, 0)
+    while (cursor.getTime() <= end.getTime()) {
+      const bucket = getTrendBucket(cursor.getTime(), range)
+      buckets.set(bucket, emptyTrendBucket(bucket))
+      cursor.setHours(cursor.getHours() + 1)
+    }
+    return buckets
+  }
+
+  cursor.setHours(0, 0, 0, 0)
+  end.setHours(0, 0, 0, 0)
+  while (cursor.getTime() <= end.getTime()) {
+    const bucket = getTrendBucket(cursor.getTime(), range)
+    buckets.set(bucket, emptyTrendBucket(bucket))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return buckets
+}
+
+function emptyTrendBucket(date: string) {
+  return {
+    date,
+    requestCount: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalCacheReadTokens: 0,
+    totalCacheCreationTokens: 0,
+    totalTokens: 0,
+    totalCostUsd: 0,
+  }
+}
+
+function inferProviderName(model: string): string {
+  const normalized = model.toLowerCase()
+  if (normalized.includes('minimax')) return 'MiniMax'
+  if (normalized.includes('deepseek')) return 'DeepSeek'
+  if (normalized.includes('kimi') || normalized.includes('moonshot')) return 'Kimi'
+  if (normalized.includes('glm')) return '智谱 GLM'
+  if (normalized.includes('qwen')) return '通义千问'
+  if (normalized.includes('gemini')) return 'Google Gemini'
+  if (normalized.includes('gpt') || normalized.includes('o1') || normalized.includes('o3') || normalized.includes('o4') || normalized.includes('codex')) return 'OpenAI'
+  if (normalized.includes('claude')) return 'Anthropic'
+  return 'Claude YH'
 }
 
 function getConfigDir(): string {

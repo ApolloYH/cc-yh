@@ -392,7 +392,7 @@ export function ChatInput() {
 
   return (
     <div className="bg-[var(--color-background)] px-4 pb-5 pt-3">
-      <div className="mx-auto max-w-[820px]">
+      <div className="mx-auto w-full max-w-[820px] min-w-[560px]">
         <div
           className="relative rounded-[28px] border border-[var(--color-border)] bg-[var(--color-surface-container-lowest)] p-4 transition-colors focus-within:border-[var(--color-outline)]"
           style={{ boxShadow: '0 2px 10px rgba(15, 23, 42, 0.08), 0 16px 42px rgba(15, 23, 42, 0.10)' }}
@@ -485,11 +485,11 @@ export function ChatInput() {
             }
             disabled={isWorkspaceMissing}
             rows={1}
-            className="w-full resize-none bg-transparent py-2 pb-12 text-[15px] leading-7 text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] disabled:opacity-50"
+            className="w-full resize-none bg-transparent py-2 text-[15px] leading-7 text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-tertiary)] disabled:opacity-50"
           />
 
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between border-t border-[var(--color-border)]/70 px-4 py-3">
-            <div className="flex items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)]/70 pt-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               {!isMemberSession && (
                 <>
                   <div ref={plusMenuRef} className="relative">
@@ -532,7 +532,7 @@ export function ChatInput() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               {!isMemberSession && <ModelSelector />}
               <button
                 onClick={!isMemberSession && isActive ? () => stopGeneration(activeTabId!) : handleSubmit}

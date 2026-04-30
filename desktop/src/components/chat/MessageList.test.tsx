@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '../../test/testingLi
 import { MessageList, buildRenderItems } from './MessageList'
 import { useChatStore } from '../../stores/chatStore'
 import { useTabStore } from '../../stores/tabStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import type { UIMessage } from '../../types/chat'
 import type { PerSessionState } from '../../stores/chatStore'
 
@@ -32,6 +33,7 @@ function makeSessionState(overrides: Partial<PerSessionState> = {}): PerSessionS
 
 describe('MessageList nested tool calls', () => {
   beforeEach(() => {
+    useSettingsStore.setState({ locale: 'zh' })
     useTabStore.setState({ activeTabId: ACTIVE_TAB, tabs: [{ sessionId: ACTIVE_TAB, title: 'Test', type: 'session' as const, status: 'idle' }] })
     useChatStore.setState({ sessions: { [ACTIVE_TAB]: makeSessionState() } })
   })

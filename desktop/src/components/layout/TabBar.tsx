@@ -151,7 +151,7 @@ export function TabBar() {
     <div
       data-testid="tab-bar"
       data-tauri-drag-region
-      className="flex items-stretch bg-[var(--color-surface-container)] min-h-[37px] select-none border-b border-[var(--color-border)]"
+      className="flex min-w-0 items-stretch overflow-hidden bg-[var(--color-surface-container)] min-h-[37px] select-none border-b border-[var(--color-border)]"
     >
 
       {canScrollLeft && (
@@ -160,7 +160,7 @@ export function TabBar() {
         </button>
       )}
 
-      <div ref={scrollRef} className="flex-1 flex items-stretch overflow-x-hidden" onDragOver={(e) => e.preventDefault()}>
+      <div ref={scrollRef} className="flex min-w-0 flex-1 items-stretch overflow-x-hidden" onDragOver={(e) => e.preventDefault()}>
         {tabs.map((tab, index) => (
           <TabItem
             key={tab.sessionId}

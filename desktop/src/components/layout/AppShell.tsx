@@ -12,6 +12,14 @@ import { useTabStore, SETTINGS_TAB_ID } from '../../stores/tabStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useTranslation } from '../../i18n'
 
+const APP_MIN_WIDTH = 1120
+const APP_MIN_HEIGHT = 720
+const APP_DEFAULT_WIDTH = 1440
+const APP_DEFAULT_HEIGHT = 900
+const APP_BOOT_WIDTH = 620
+const APP_BOOT_HEIGHT = 360
+const APP_EXPAND_DURATION_MS = 520
+
 export function AppShell() {
   const fetchSettings = useSettingsStore((s) => s.fetchAll)
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
@@ -71,6 +79,87 @@ export function AppShell() {
 
   useKeyboardShortcuts()
 
+  useEffect(() => {
+    if (!ready && !startupError) return
+    let cancelled = false
+    const timers: number[] = []
+
+    const easeInOutCubic = (value: number) =>
+      value < 0.5 ? 4 * value * value * value : 1 - Math.pow(-2 * value + 2, 3) / 2
+
+    const applyFinalWindowSize = async () => {
+      const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window')
+      const win = getCurrentWindow()
+      if (await win.isMaximized()) {
+        await win.unmaximize()
+      }
+      await win.setMinSize(new LogicalSize(APP_MIN_WIDTH, APP_MIN_HEIGHT))
+      await win.setSize(new LogicalSize(APP_DEFAULT_WIDTH, APP_DEFAULT_HEIGHT))
+      await win.center()
+      await win.show()
+      await win.setFocus()
+    }
+
+    const animateWindowSize = async () => {
+      const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window')
+      const win = getCurrentWindow()
+      if (await win.isMaximized()) {
+        await win.unmaximize()
+      }
+      await win.show()
+      await win.setFocus()
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        await applyFinalWindowSize()
+        return
+      }
+
+      const start = performance.now()
+      const frameMs = 1000 / 45
+      let lastFrame = 0
+      const animate = async (now: number): Promise<void> => {
+        if (cancelled) return
+        if (now - lastFrame < frameMs) {
+          requestAnimationFrame((time) => void animate(time))
+          return
+        }
+        lastFrame = now
+        const progress = Math.min(1, (now - start) / APP_EXPAND_DURATION_MS)
+        const eased = easeInOutCubic(progress)
+        const width = APP_BOOT_WIDTH + (APP_DEFAULT_WIDTH - APP_BOOT_WIDTH) * eased
+        const height = APP_BOOT_HEIGHT + (APP_DEFAULT_HEIGHT - APP_BOOT_HEIGHT) * eased
+        await win.setSize(new LogicalSize(Math.round(width), Math.round(height)))
+        if (progress < 1) {
+          requestAnimationFrame((time) => void animate(time))
+          return
+        }
+        await win.center()
+        await win.setMinSize(new LogicalSize(APP_MIN_WIDTH, APP_MIN_HEIGHT))
+      }
+      requestAnimationFrame((time) => void animate(time))
+    }
+
+    animateWindowSize().catch((error) => {
+      console.warn('Failed to animate desktop window size', error)
+      applyFinalWindowSize().catch(() => {})
+    })
+
+    for (const delay of [APP_EXPAND_DURATION_MS + 220, 1200]) {
+      timers.push(window.setTimeout(() => {
+        if (!cancelled) {
+          applyFinalWindowSize().catch((error) => {
+            console.warn('Failed to apply desktop window size', error)
+          })
+        }
+      }, delay))
+    }
+
+    return () => {
+      cancelled = true
+      timers.forEach((timer) => window.clearTimeout(timer))
+    }
+  }, [ready, startupError])
+
   if (startupError) {
     return (
       <div className="h-screen flex items-center justify-center bg-[var(--color-surface)] px-6">
@@ -88,8 +177,10 @@ export function AppShell() {
 
   if (!ready) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[var(--color-surface)] text-[var(--color-text-secondary)]">
-        {t('app.launching')}
+      <div className="h-screen flex items-center justify-center bg-[#f7f7f8]">
+        <div className="grid h-[170px] w-[380px] place-items-center rounded-[28px] border border-[#e5e7eb] bg-white shadow-[0_18px_55px_rgba(15,23,42,0.12)]">
+          <img src="/app-icon.svg" alt="Claude YH" className="h-[76px] w-[76px]" />
+        </div>
       </div>
     )
   }
@@ -99,9 +190,9 @@ export function AppShell() {
   } as CSSProperties
 
   return (
-    <div className="h-screen flex overflow-hidden" style={shellStyle}>
+    <div className="flex h-screen min-h-0 min-w-0 overflow-hidden" style={shellStyle}>
       <Sidebar />
-      <main id="content-area" className="flex-1 flex flex-col overflow-hidden">
+      <main id="content-area" className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TabBar />
         <ContentRouter />
       </main>

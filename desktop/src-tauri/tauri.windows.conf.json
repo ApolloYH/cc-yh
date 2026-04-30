@@ -3,10 +3,12 @@
     "windows": [
       {
         "title": "Claude YH",
-        "width": 1440,
-        "height": 960,
-        "minWidth": 960,
-        "minHeight": 640,
+        "width": 620,
+        "height": 360,
+        "minWidth": 520,
+        "minHeight": 300,
+        "center": true,
+        "visible": true,
         "decorations": false,
         "transparent": false,
         "acceptFirstMouse": true

@@ -57,14 +57,14 @@ export function ModelSelector({ value, onChange }: Props = {}) {
   }
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative min-w-0">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--color-surface-container-low)] hover:bg-[var(--color-surface-hover)] rounded-full text-xs font-medium text-[var(--color-text-secondary)] transition-colors"
+        className="flex max-w-[220px] min-w-0 items-center gap-1.5 rounded-full bg-[var(--color-surface-container-low)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)]"
       >
-        <span className="material-symbols-outlined text-[14px] text-[var(--color-brand)]">auto_awesome</span>
-        <span>{selectedModel?.name ?? t('model.selectModel')}</span>
-        <span className="material-symbols-outlined text-[12px]">expand_more</span>
+        <span className="material-symbols-outlined shrink-0 text-[14px] text-[var(--color-brand)]">auto_awesome</span>
+        <span className="min-w-0 truncate whitespace-nowrap">{selectedModel?.name ?? t('model.selectModel')}</span>
+        <span className="material-symbols-outlined shrink-0 text-[12px]">expand_more</span>
       </button>
 
       {open && (

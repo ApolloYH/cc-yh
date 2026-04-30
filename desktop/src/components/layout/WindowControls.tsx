@@ -43,7 +43,7 @@ export function WindowControls() {
   if (!showWindowControls || !win) return null
 
   return (
-    <div data-testid="window-controls" className="flex items-stretch flex-shrink-0 -my-px">
+    <div data-testid="window-controls" className="z-20 flex flex-shrink-0 items-stretch self-stretch bg-[var(--color-surface-container)] -my-px">
       {/* Minimize */}
       <button
         onClick={() => runWindowAction(() => win.minimize())}

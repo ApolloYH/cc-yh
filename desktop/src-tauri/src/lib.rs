@@ -41,19 +41,30 @@ struct AdapterState(Mutex<Option<CommandChild>>);
 
 #[tauri::command]
 fn get_server_url(state: State<'_, ServerState>) -> Result<String, String> {
-    let guard = state
-        .0
-        .lock()
-        .map_err(|_| "desktop server state is unavailable".to_string())?;
+    let deadline = Instant::now() + Duration::from_secs(20);
 
-    if let Some(runtime) = guard.runtime.as_ref() {
-        return Ok(runtime.url.clone());
+    loop {
+        {
+            let guard = state
+                .0
+                .lock()
+                .map_err(|_| "desktop server state is unavailable".to_string())?;
+
+            if let Some(runtime) = guard.runtime.as_ref() {
+                return Ok(runtime.url.clone());
+            }
+
+            if let Some(error) = guard.startup_error.as_ref() {
+                return Err(error.clone());
+            }
+        }
+
+        if Instant::now() >= deadline {
+            return Err("desktop server did not become ready within 20 seconds".to_string());
+        }
+
+        std::thread::sleep(Duration::from_millis(100));
     }
-
-    Err(guard
-        .startup_error
-        .clone()
-        .unwrap_or_else(|| "desktop server did not start".to_string()))
 }
 
 /// 前端在设置页保存飞书 / Telegram 凭据后调用，触发 adapter sidecar 热重启。
@@ -293,6 +304,34 @@ fn stop_adapters_sidecar(app: &AppHandle) {
     }
 }
 
+fn start_server_sidecar_in_background(app: AppHandle) {
+    tauri::async_runtime::spawn_blocking(move || {
+        match start_server_sidecar(&app) {
+            Ok(runtime) => {
+                if let Some(state) = app.try_state::<ServerState>() {
+                    if let Ok(mut guard) = state.0.lock() {
+                        guard.runtime = Some(runtime);
+                        guard.startup_error = None;
+                    }
+                }
+
+                // Adapters need the dynamic desktop server URL, so launch them
+                // only after the server runtime is published.
+                spawn_and_track_adapters_sidecar(&app);
+            }
+            Err(err) => {
+                eprintln!("[desktop] failed to start local server: {err}");
+                if let Some(state) = app.try_state::<ServerState>() {
+                    if let Ok(mut guard) = state.0.lock() {
+                        guard.runtime = None;
+                        guard.startup_error = Some(err);
+                    }
+                }
+            }
+        }
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -371,28 +410,16 @@ pub fn run() {
     let app = builder
         .setup(|app| {
             let state = app.state::<ServerState>();
-            let mut guard = state
+            let guard = state
                 .0
                 .lock()
                 .map_err(|_| IoError::new(ErrorKind::Other, "server state lock poisoned"))?;
-
-            match start_server_sidecar(&app.handle()) {
-                Ok(runtime) => {
-                    guard.runtime = Some(runtime);
-                    guard.startup_error = None;
-                }
-                Err(err) => {
-                    eprintln!("[desktop] failed to start local server: {err}");
-                    guard.runtime = None;
-                    guard.startup_error = Some(err);
-                }
-            }
             drop(guard);
 
             // server 起来之后再起 adapter sidecar —— start_adapters_sidecar
             // 内部会从 ServerState 读 server URL 注入 ADAPTER_SERVER_URL env，
             // 让 adapter 连上动态端口。
-            spawn_and_track_adapters_sidecar(&app.handle());
+            start_server_sidecar_in_background(app.handle().clone());
 
             Ok(())
         })

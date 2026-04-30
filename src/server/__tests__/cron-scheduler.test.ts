@@ -368,17 +368,34 @@ describe('CronScheduler', () => {
       recurring: true,
     })
 
-    // Execute twice
-    try {
-      await scheduler.executeTask(task)
-    } catch {
-      /* ignore */
-    }
-    try {
-      await scheduler.executeTask(task)
-    } catch {
-      /* ignore */
-    }
+    const logPath = path.join(tmpDir, 'scheduled_tasks_log.json')
+    const older = new Date(Date.now() - 1000).toISOString()
+    const newer = new Date().toISOString()
+    const seededRuns: TaskRun[] = [
+      {
+        id: 'run-older',
+        taskId: task.id,
+        taskName: task.name,
+        startedAt: older,
+        completedAt: older,
+        status: 'completed',
+        prompt: task.prompt,
+        exitCode: 0,
+        durationMs: 100,
+      },
+      {
+        id: 'run-newer',
+        taskId: task.id,
+        taskName: task.name,
+        startedAt: newer,
+        completedAt: newer,
+        status: 'completed',
+        prompt: task.prompt,
+        exitCode: 0,
+        durationMs: 100,
+      },
+    ]
+    await fs.writeFile(logPath, JSON.stringify({ runs: seededRuns }, null, 2), 'utf-8')
 
     const runs = await scheduler.getTaskRuns(task.id)
     expect(runs.length).toBeGreaterThanOrEqual(2)

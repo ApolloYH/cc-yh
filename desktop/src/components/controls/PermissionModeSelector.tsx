@@ -101,14 +101,14 @@ export function PermissionModeSelector({ workDir: workDirProp, value, onChange }
   }, [open])
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative min-w-0">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[var(--color-surface-container-low)] hover:bg-[var(--color-surface-hover)] rounded-full text-xs font-medium text-[var(--color-text-secondary)] transition-colors"
+        className="flex max-w-[190px] min-w-0 items-center gap-1.5 rounded-full bg-[var(--color-surface-container-low)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)]"
       >
-        <span className="material-symbols-outlined text-[14px]">{MODE_ICONS[currentMode]}</span>
-        <span>{MODE_LABELS[currentMode]}</span>
-        <span className="material-symbols-outlined text-[12px]">expand_more</span>
+        <span className="material-symbols-outlined shrink-0 text-[14px]">{MODE_ICONS[currentMode]}</span>
+        <span className="min-w-0 truncate whitespace-nowrap">{MODE_LABELS[currentMode]}</span>
+        <span className="material-symbols-outlined shrink-0 text-[12px]">expand_more</span>
       </button>
 
       {open && (

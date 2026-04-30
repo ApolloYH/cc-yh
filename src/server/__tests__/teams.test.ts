@@ -461,11 +461,8 @@ describe('Teams API', () => {
 
     const { handleTeamsApi } = await import('../api/teams.js')
 
-    const port = 40000 + Math.floor(Math.random() * 10000)
-    baseUrl = `http://127.0.0.1:${port}`
-
     server = Bun.serve({
-      port,
+      port: 0,
       hostname: '127.0.0.1',
 
       async fetch(req) {
@@ -479,6 +476,7 @@ describe('Teams API', () => {
         return new Response('Not Found', { status: 404 })
       },
     })
+    baseUrl = `http://127.0.0.1:${server.port}`
   })
 
   afterEach(async () => {

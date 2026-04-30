@@ -190,6 +190,38 @@ export function Sidebar() {
     })
   }, [])
 
+  const openSessionFromHistory = useCallback((session: SessionListItem) => {
+    const tabStore = useTabStore.getState()
+    const chatStore = useChatStore.getState()
+    const activeTab = tabStore.tabs.find((tab) => tab.sessionId === tabStore.activeTabId)
+    const activeSession = activeTab?.type === 'session'
+      ? useSessionStore.getState().sessions.find((item) => item.id === activeTab.sessionId)
+      : null
+    const activeChat = activeTab?.type === 'session'
+      ? chatStore.sessions[activeTab.sessionId]
+      : null
+    const activeSessionIsDisposable =
+      !!activeTab &&
+      activeTab.type === 'session' &&
+      activeTab.sessionId !== session.id &&
+      (activeSession?.messageCount ?? activeChat?.messages.length ?? 0) === 0 &&
+      activeChat?.chatState !== 'thinking' &&
+      activeChat?.chatState !== 'streaming' &&
+      activeChat?.chatState !== 'tool_executing' &&
+      activeChat?.chatState !== 'permission_pending'
+
+    if (activeSessionIsDisposable) {
+      chatStore.disconnectSession(activeTab.sessionId)
+      tabStore.replaceTabSession(activeTab.sessionId, session.id)
+      tabStore.updateTabTitle(session.id, session.title || 'Untitled')
+    } else {
+      tabStore.openTab(session.id, session.title || 'Untitled')
+    }
+
+    useSessionStore.getState().setActiveSession(session.id)
+    chatStore.connectToSession(session.id)
+  }, [])
+
   const startDraggingRef = useRef<(() => Promise<void>) | null>(null)
 
   useEffect(() => {
@@ -244,8 +276,7 @@ export function Sidebar() {
                   toggleBatchSelection(session.id)
                   return
                 }
-                useTabStore.getState().openTab(session.id, session.title)
-                useChatStore.getState().connectToSession(session.id)
+                openSessionFromHistory(session)
               }}
               onContextMenu={(e) => handleContextMenu(e, session.id)}
               className={`

@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 const desktopRoot = path.resolve(import.meta.dir, '..')
@@ -11,6 +11,13 @@ const targetTriple =
   (await detectHostTriple())
 
 const bunTarget = mapTargetTripleToBun(targetTriple)
+const sidecarOutfileBase = path.join(binariesDir, `claude-sidecar-${targetTriple}`)
+const sidecarExecutable = bunTarget.includes('windows') ? `${sidecarOutfileBase}.exe` : sidecarOutfileBase
+
+if (await isSidecarFresh(sidecarExecutable)) {
+  console.log(`[build-sidecars] Existing sidecar is fresh: ${sidecarExecutable}`)
+  process.exit(0)
+}
 
 // 编译前先扫一遍 src/ 把所有缺失的 ant-internal 模块在磁盘上 stub 出来。
 // 见 desktop/scripts/scan-missing-imports.ts。
@@ -31,14 +38,60 @@ await mkdir(binariesDir, { recursive: true })
 // 选择 'server' 或 'cli' 模式，详见 desktop/sidecars/claude-sidecar.ts。
 await compileExecutable({
   entrypoint: path.join(desktopRoot, 'sidecars/claude-sidecar.ts'),
-  outfileBase: path.join(binariesDir, `claude-sidecar-${targetTriple}`),
+  outfileBase: sidecarOutfileBase,
   productName: 'Claude Code Sidecar',
   bunTarget,
 })
 
 console.log(`[build-sidecars] Built desktop sidecar for ${targetTriple} (${bunTarget})`)
 
+async function isSidecarFresh(outputPath: string): Promise<boolean> {
+  const outputStat = await stat(outputPath).catch(() => null)
+  if (!outputStat) return false
+
+  const latestSourceMtime = await latestMtime([
+    path.join(desktopRoot, 'sidecars'),
+    path.join(repoRoot, 'src', 'server'),
+    path.join(repoRoot, 'src', 'sdk'),
+    path.join(repoRoot, 'src', 'utils'),
+    path.join(repoRoot, 'src', 'entrypoints'),
+  ])
+  return outputStat.mtimeMs >= latestSourceMtime
+}
+
+async function latestMtime(paths: string[]): Promise<number> {
+  let latest = 0
+  for (const item of paths) {
+    const itemStat = await stat(item).catch(() => null)
+    if (!itemStat) continue
+    if (itemStat.isFile()) {
+      latest = Math.max(latest, itemStat.mtimeMs)
+      continue
+    }
+    if (!itemStat.isDirectory()) continue
+
+    const entries = await readdir(item, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === 'target') {
+        continue
+      }
+      latest = Math.max(latest, await latestMtime([path.join(item, entry.name)]))
+    }
+  }
+  return latest
+}
+
 async function detectHostTriple() {
+  if (process.platform === 'win32') {
+    return process.arch === 'arm64' ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-msvc'
+  }
+  if (process.platform === 'darwin') {
+    return process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin'
+  }
+  if (process.platform === 'linux') {
+    return process.arch === 'arm64' ? 'aarch64-unknown-linux-gnu' : 'x86_64-unknown-linux-gnu'
+  }
+
   const proc = Bun.spawn(['rustc', '-vV'], {
     cwd: repoRoot,
     stdout: 'pipe',

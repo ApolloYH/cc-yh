@@ -106,7 +106,7 @@ export function TaskRow({ task, showLogs, onToggleLogs }: Props) {
                 title={task.enabled ? t('tasks.runNow') : undefined}
               >
                 <span className={`material-symbols-outlined text-[18px] ${isRunning ? 'animate-spin' : ''}`}>
-                  {isRunning ? 'sync' : 'play_arrow'}
+                  {isRunning ? 'sync' : 'arrow_upward'}
                 </span>
               </button>
               {confirmAction === 'run' && (

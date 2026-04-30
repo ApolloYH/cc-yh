@@ -1,6 +1,7 @@
 import { JSDOM } from 'jsdom'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
+import { useSettingsStore } from '../stores/settingsStore'
 
 type DomTestLockState = {
   tail: Promise<void>
@@ -87,8 +88,13 @@ beforeEach(async () => {
 })
 
 afterEach(() => {
-  cleanup()
-  globalThis.document.body.innerHTML = ''
-  domTestLockState.release?.()
-  domTestLockState.release = null
+  try {
+    cleanup()
+    useSettingsStore.setState({ locale: 'zh' })
+    try { globalThis.localStorage?.removeItem('claude-yh-locale') } catch { /* noop */ }
+    globalThis.document.body.innerHTML = ''
+  } finally {
+    domTestLockState.release?.()
+    domTestLockState.release = null
+  }
 })

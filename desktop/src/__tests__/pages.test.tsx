@@ -16,8 +16,10 @@ import { UserMessage } from '../components/chat/UserMessage'
 import { useChatStore } from '../stores/chatStore'
 import { useTabStore } from '../stores/tabStore'
 import { useTeamStore } from '../stores/teamStore'
+import { useSettingsStore } from '../stores/settingsStore'
 
 beforeEach(() => {
+  useSettingsStore.setState({ locale: 'zh' })
   useTabStore.setState({ tabs: [], activeTabId: null })
   useChatStore.setState({ sessions: {} })
   useTeamStore.setState({ teams: [], activeTeam: null, memberColors: new Map(), error: null })
