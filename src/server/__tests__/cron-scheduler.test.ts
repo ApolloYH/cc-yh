@@ -649,4 +649,37 @@ describe('Scheduled Tasks API — runs endpoints', () => {
     expect(body.runs).toHaveLength(1)
     expect(body.runs[0].taskId).toBe('task-a')
   })
+
+  it('GET /api/scheduled-tasks/health should report task health', async () => {
+    const createReq = new Request('http://localhost/api/scheduled-tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'Health task',
+        cron: '* * * * *',
+        prompt: 'health check',
+        enabled: true,
+      }),
+    })
+    await handleScheduledTasksApi(createReq, new URL(createReq.url), [
+      'api',
+      'scheduled-tasks',
+    ])
+
+    const req = new Request('http://localhost/api/scheduled-tasks/health', {
+      method: 'GET',
+    })
+    const resp = await handleScheduledTasksApi(req, new URL(req.url), [
+      'api',
+      'scheduled-tasks',
+      'health',
+    ])
+    const body = (await resp.json()) as {
+      health: Array<{ name?: string; status: string; reason: string }>
+    }
+    expect(resp.status).toBe(200)
+    expect(body.health).toHaveLength(1)
+    expect(body.health[0].name).toBe('Health task')
+    expect(body.health[0].status).toBe('NEVER_RUN')
+    expect(body.health[0].reason).toContain('not fired')
+  })
 })

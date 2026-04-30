@@ -3,6 +3,8 @@ import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { getAutoMemPath } from '../../memdir/paths.js'
+import { runMemoryV2Automation } from '../../memoryV2/automation.js'
+import { writeMemoryFact } from '../../memoryV2/store.js'
 import { handleMemoryV2Api } from '../api/memory-v2.js'
 
 let tmpDir: string
@@ -43,21 +45,13 @@ describe('MemoryV2 API', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('creates a verified L2 fact through the API', async () => {
-    const req = new Request('http://localhost/api/memory-v2/fact', {
-      method: 'POST',
-      body: JSON.stringify({
-        title: 'Away safety rule',
-        content: 'Pause before external sending.',
-        verified: true,
-      }),
+  it('serves automatically written L2 facts through the API', async () => {
+    await writeMemoryFact({
+      title: 'Away safety rule',
+      content: 'Pause before external sending.',
+      verified: true,
+      source: 'test-automation',
     })
-    const url = new URL(req.url)
-    const response = await handleMemoryV2Api(req, url, ['api', 'memory-v2', 'fact'])
-    const body = await response.json()
-
-    expect(response.status).toBe(201)
-    expect(body.entry.layer).toBe('L2')
 
     const statusReq = new Request('http://localhost/api/memory-v2')
     const statusUrl = new URL(statusReq.url)
@@ -72,7 +66,7 @@ describe('MemoryV2 API', () => {
     expect(status.indexPath).toBe(path.join(tmpDir, 'project-memory', 'MEMORY.md'))
   })
 
-  it('serves four-layer memory actions through the API', async () => {
+  it('serves memory view/search APIs while extraction stays automatic-only', async () => {
     await fs.mkdir(path.join(tmpDir, 'projects', 'repo-a'), { recursive: true })
     await fs.writeFile(
       path.join(tmpDir, 'projects', 'repo-a', 'session-browser.jsonl'),
@@ -84,16 +78,7 @@ describe('MemoryV2 API', () => {
       'utf-8',
     )
 
-    const summarizeReq = new Request('http://localhost/api/memory-v2/summarize', {
-      method: 'POST',
-      body: JSON.stringify({ limit: 3 }),
-    })
-    const summarize = await handleMemoryV2Api(summarizeReq, new URL(summarizeReq.url), [
-      'api',
-      'memory-v2',
-      'summarize',
-    ])
-    expect(summarize.status).toBe(201)
+    await runMemoryV2Automation({ sessionId: 'session-browser', limit: 3 })
 
     const searchReq = new Request('http://localhost/api/memory-v2/search?q=browser')
     const search = await handleMemoryV2Api(searchReq, new URL(searchReq.url), [
@@ -114,13 +99,24 @@ describe('MemoryV2 API', () => {
     ])
     expect(entry.status).toBe(200)
 
+    const summarizeReq = new Request('http://localhost/api/memory-v2/summarize', {
+      method: 'POST',
+      body: JSON.stringify({ limit: 3 }),
+    })
+    const summarize = await handleMemoryV2Api(summarizeReq, new URL(summarizeReq.url), [
+      'api',
+      'memory-v2',
+      'summarize',
+    ])
+    expect(summarize.status).toBe(405)
+
     const staleReq = new Request('http://localhost/api/memory-v2/stale')
     const stale = await handleMemoryV2Api(staleReq, new URL(staleReq.url), [
       'api',
       'memory-v2',
       'stale',
     ])
-    expect(stale.status).toBe(200)
+    expect(stale.status).toBe(405)
 
     const distillReq = new Request('http://localhost/api/memory-v2/distill', {
       method: 'POST',
@@ -131,7 +127,18 @@ describe('MemoryV2 API', () => {
       'memory-v2',
       'distill',
     ])
-    expect(distill.status).toBe(201)
+    expect(distill.status).toBe(405)
+
+    const factReq = new Request('http://localhost/api/memory-v2/fact', {
+      method: 'POST',
+      body: JSON.stringify({ title: 'manual', content: 'manual' }),
+    })
+    const fact = await handleMemoryV2Api(factReq, new URL(factReq.url), [
+      'api',
+      'memory-v2',
+      'fact',
+    ])
+    expect(fact.status).toBe(405)
   })
 
   it('updates embedding provider settings without echoing the API key', async () => {

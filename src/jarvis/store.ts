@@ -418,6 +418,7 @@ function isEventType(value: unknown): value is JarvisEventType {
   return (
     value === 'heartbeat' ||
     value === 'checkpoint' ||
+    value === 'report' ||
     value === 'config' ||
     value === 'paused' ||
     value === 'error'

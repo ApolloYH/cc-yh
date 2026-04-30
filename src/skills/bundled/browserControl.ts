@@ -23,7 +23,12 @@ Important operating rules:
 - Do not attempt to bypass captcha, 2FA, login security, payment confirmation, or other human-only checks.
 - Treat cookie reads, raw CDP calls, external sends, form submission, payment, account changes, and destructive actions as sensitive. Ask for confirmation unless the user has explicitly approved the exact action.
 - There is no domain allow/deny policy. Do not ask the user to run /browser allow or edit allowed domains.
-- If an action fails, inspect the BrowserControl error and current tabs before asking the user to do it manually.
+- Keep the tabId/session id stable after tabs.read. Multi-tab tasks should always name the target tab explicitly.
+- For click/type, prefer BrowserControl page.click/page.type on stable CSS selectors. The TMWD backend performs CDP mouseMoved/mousePressed/mouseReleased and native text insertion, which is more reliable than injected JavaScript.
+- JavaScript-dispatched clicks and inputs can be rejected by sites because isTrusted=false. Use raw cdp.call only for inspection, recovery, or advanced frame/shadow DOM handling.
+- For file upload, use files.upload on the real input[type=file] selector. It maps to CDP DOM.setFileInputFiles.
+- For iframes, shadow DOM, canvas-heavy pages, zoomed pages, or elements visible in screenshots but missing from DOM text, take page.screenshot and then use cdp.call DOM.getDocument({pierce:true}), DOM.getBoxModel, Runtime.evaluate, Page.bringToFront, or frame inspection.
+- If an action fails, inspect BrowserControl statusCode, error, and recovery.nextActions; then run tabs.read, page.read_dom, and page.screenshot before asking the user to do it manually.
 
 User-facing configuration:
 - CLI: /browser status, /browser tabs, /browser smoke, /browser high-risk on|off, /browser confirm on|off

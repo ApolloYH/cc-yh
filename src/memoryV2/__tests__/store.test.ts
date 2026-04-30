@@ -80,14 +80,15 @@ describe('MemoryV2 store', () => {
     expect(status.root).toBe(path.join(tmpDir, 'project-memory'))
     expect(status.indexPath).toBe(path.join(tmpDir, 'project-memory', 'MEMORY.md'))
     const index = await fs.readFile(status.indexPath, 'utf-8')
-    expect(index).toContain('我在 L2 facts `facts/` 中保存长期事实、偏好和稳定规则')
-    expect(index).toContain('我在 L3 SOP `sops/` 中保存可复用流程')
-    expect(index).toContain('我在 L3 Skills `sops/skills/` 中保存 claude-yh 专属技能')
+    expect(index).toContain('L1 存在性索引')
+    expect(index).toContain('L2 facts `facts/`')
+    expect(index).toContain('L3 SOP `sops/`')
+    expect(index).toContain('L3 Skills `sops/skills/`')
     expect(index).toContain('Provider base URL')
     expect(index).toContain('Provider smoke test')
     expect(index).not.toContain('[Provider base URL](facts/provider-base-url.md)')
     expect(index).not.toContain('## 沉淀规则')
-    expect(index.split(/\r?\n/).length).toBeLessThanOrEqual(10)
+    expect(index.split(/\r?\n/).length).toBeLessThanOrEqual(14)
   })
 
   it('keeps L3 SOP and Skill mutually exclusive for the same workflow', async () => {
@@ -190,7 +191,7 @@ describe('MemoryV2 store', () => {
     expect(index).toContain('Legacy smoke')
     expect(index).not.toContain('[Legacy provider](facts/legacy-provider.md)')
     expect(index).not.toContain('[Legacy smoke](sops/legacy-smoke.md)')
-    expect(index.split(/\r?\n/).length).toBeLessThanOrEqual(10)
+    expect(index.split(/\r?\n/).length).toBeLessThanOrEqual(14)
   })
 
   it('summarizes L4 sessions, searches vectors, updates entries, and detects stale items', async () => {

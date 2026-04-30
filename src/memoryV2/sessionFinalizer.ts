@@ -1,5 +1,6 @@
 import { flushScheduledMemoryV2Automation, runMemoryV2Automation } from './automation.js'
 import { logDiagnosticEvent } from '../utils/diagnosticLog.js'
+import { getSessionIndex } from '../runtime/sessionIndexService.js'
 
 type FinalizeSessionMemoryInput = {
   sessionId?: string
@@ -13,7 +14,7 @@ export async function finalizeSessionMemory(
   input: FinalizeSessionMemoryInput,
 ): Promise<void> {
   const sessionId = input.sessionId || 'unknown'
-  const key = `${sessionId}:${input.reason}`
+  const key = sessionId
   const existing = inFlight.get(key)
   if (existing) return existing
 
@@ -30,17 +31,18 @@ async function finalizeSessionMemoryOnce(
   const startedAt = Date.now()
   const sessionId = input.sessionId || 'unknown'
   const timeoutMs = input.timeoutMs ?? 60_000
+  const sessionMeta = await resolveSessionMeta(sessionId)
   logDiagnosticEvent({
     scope: 'memoryV2.session',
     event: 'finalize_started',
     ok: true,
-    data: { sessionId, reason: input.reason, timeoutMs },
+    data: { sessionId, ...sessionMeta, reason: input.reason, timeoutMs },
   })
 
   try {
     const flushed = await flushScheduledMemoryV2Automation(timeoutMs)
     const result = flushed ?? await withTimeout(
-      runMemoryV2Automation(),
+      runMemoryV2Automation({ sessionId }),
       timeoutMs,
     )
     logDiagnosticEvent({
@@ -48,7 +50,7 @@ async function finalizeSessionMemoryOnce(
       event: 'finalize_completed',
       ok: true,
       durationMs: Date.now() - startedAt,
-      data: { sessionId, reason: input.reason, result },
+      data: { sessionId, ...sessionMeta, reason: input.reason, result },
     })
   } catch (error) {
     logDiagnosticEvent({
@@ -59,11 +61,31 @@ async function finalizeSessionMemoryOnce(
       durationMs: Date.now() - startedAt,
       data: {
         sessionId,
+        ...sessionMeta,
         reason: input.reason,
         error: error instanceof Error ? error.message : String(error),
       },
     })
     throw error
+  }
+}
+
+async function resolveSessionMeta(sessionId: string): Promise<Record<string, unknown>> {
+  if (!sessionId || sessionId === 'unknown' || sessionId.startsWith('__')) {
+    return {}
+  }
+  try {
+    const index = await getSessionIndex({ limit: 500 })
+    const session = index.sessions.find(item => item.id === sessionId)
+    if (!session) return {}
+    return {
+      sessionTitle: session.title,
+      projectPath: session.projectPath,
+      messageCount: session.messageCount,
+      modifiedAt: session.modifiedAt,
+    }
+  } catch {
+    return {}
   }
 }
 

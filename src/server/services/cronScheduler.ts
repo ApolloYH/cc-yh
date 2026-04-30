@@ -23,6 +23,7 @@ import {
   type AwayRunnerConfig,
 } from '../../awayRunner/index.js'
 import { appendJarvisEvent } from '../../jarvis/store.js'
+import { logDiagnosticEvent } from '../../utils/diagnosticLog.js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -220,6 +221,16 @@ async function appendRun(run: TaskRun): Promise<void> {
   data.runs.push(run)
   trimRuns(data)
   await writeRunsFile(data)
+  logDiagnosticEvent({
+    scope: 'scheduledTasks.scheduler',
+    event: 'run_append',
+    ok: true,
+    data: {
+      runId: run.id,
+      taskId: run.taskId,
+      status: run.status,
+    },
+  })
 }
 
 /** Update an existing run in the log (matched by run.id). */
@@ -233,6 +244,19 @@ async function updateRun(run: TaskRun): Promise<void> {
   }
   trimRuns(data)
   await writeRunsFile(data)
+  logDiagnosticEvent({
+    scope: 'scheduledTasks.scheduler',
+    event: 'run_update',
+    ok: run.status === 'completed' || run.status === 'running',
+    severity: run.status === 'completed' || run.status === 'running' ? 'info' : 'warn',
+    data: {
+      runId: run.id,
+      taskId: run.taskId,
+      status: run.status,
+      error: run.error,
+      durationMs: run.durationMs,
+    },
+  })
 }
 
 const MAX_RUNS_PER_TASK = 100

@@ -1,18 +1,10 @@
 import * as fs from 'node:fs/promises'
 import {
-  applyMemoryV2DistillCandidate,
-  detectMemoryV2Stale,
-  generateMemoryV2DistillCandidates,
   getMemoryV2Status,
   readMemoryV2Entry,
   searchMemoryV2,
-  summarizeMemoryV2Sessions,
   updateMemoryV2Entry,
-  writeMemoryFact,
-  writeMemorySop,
   type MemoryLayer,
-  type MemoryV2DistillCandidate,
-  type MemoryV2WriteInput,
 } from '../../memoryV2/index.js'
 import { getMemoryEmbeddingConfig } from '../../memoryV2/embeddingProvider.js'
 import { getDiagnosticLogPath } from '../../utils/diagnosticLog.js'
@@ -77,31 +69,6 @@ export async function handleMemoryV2Api(
       }
     }
 
-    if (method === 'POST' && (action === 'fact' || action === 'sop')) {
-      const body = await parseJsonBody(req)
-      try {
-        const entry =
-          action === 'fact'
-            ? await writeMemoryFact(body as MemoryV2WriteInput)
-            : await writeMemorySop(body as MemoryV2WriteInput)
-        return Response.json({ entry }, { status: 201 })
-      } catch (error) {
-        throw ApiError.badRequest(
-          error instanceof Error ? error.message : String(error),
-        )
-      }
-    }
-
-    if (method === 'POST' && action === 'summarize') {
-      const body: Record<string, unknown> = await parseJsonBody(req).catch(() => ({}))
-      const limit = readOptionalNumber(body.limit) ?? 20
-      return Response.json({ entries: await summarizeMemoryV2Sessions(limit) }, { status: 201 })
-    }
-
-    if (method === 'GET' && action === 'stale') {
-      return Response.json({ entries: await detectMemoryV2Stale() })
-    }
-
     if (method === 'GET' && action === 'embedding') {
       return Response.json({ config: publicEmbeddingConfig(await getMemoryEmbeddingConfig()) })
     }
@@ -124,26 +91,6 @@ export async function handleMemoryV2Api(
       }
       await service.updateUserSettings({ memoryEmbedding: next })
       return Response.json({ config: publicEmbeddingConfig(await getMemoryEmbeddingConfig()) })
-    }
-
-    if (method === 'POST' && action === 'distill') {
-      const body: Record<string, unknown> = await parseJsonBody(req).catch(() => ({}))
-      const limit = readOptionalNumber(body.limit) ?? 10
-      const candidates = await generateMemoryV2DistillCandidates(limit)
-      if (body.apply === true) {
-        const requestedIds = Array.isArray(body.ids)
-          ? new Set(body.ids.filter((id): id is string => typeof id === 'string'))
-          : null
-        const selected = requestedIds
-          ? candidates.filter(candidate => requestedIds.has(candidate.id))
-          : candidates
-        const applied = []
-        for (const candidate of selected) {
-          applied.push(await applyMemoryV2DistillCandidate(candidate as MemoryV2DistillCandidate))
-        }
-        return Response.json({ candidates, applied }, { status: 201 })
-      }
-      return Response.json({ candidates }, { status: 201 })
     }
 
     throw new ApiError(

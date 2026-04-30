@@ -1371,6 +1371,37 @@ async function finalizeExecution(params: {
     auditId,
     error: params.error ?? 'browser_control_failed',
     statusCode: params.statusCode,
+    recovery: buildBrowserControlRecovery(params.input, params.error),
+  }
+}
+
+function buildBrowserControlRecovery(
+  input: BrowserControlExecuteRequest,
+  error?: string,
+): { summary: string; nextActions: string[] } {
+  const actions = [
+    'Run tabs.read and keep operating on an explicit tabId/session id.',
+    'Run page.read_dom on the selected tab and choose a stable CSS selector from the returned DOM.',
+    'If DOM is incomplete or the element is visually present, run page.screenshot and retry with a better selector or raw CDP box-model lookup.',
+  ]
+  if (
+    input.action.capability === 'page.click' ||
+    input.action.capability === 'page.type'
+  ) {
+    actions.push('For interactive controls, prefer BrowserControl page.click/page.type over injected JavaScript because JS click events may be untrusted.')
+  }
+  if (input.action.capability === 'files.upload') {
+    actions.push('For file inputs, retry files.upload with the actual input[type=file] selector; the TMWD backend uses DOM.setFileInputFiles.')
+  }
+  if (/frame|iframe|shadow|node|selector/i.test(error ?? '')) {
+    actions.push('For iframe or shadow DOM pages, use cdp.call DOM.getDocument with pierce=true, DOM.getBoxModel, or Runtime.evaluate inside the target frame.')
+  }
+  if (/timeout|connect|bridge|18765|websocket/i.test(error ?? '')) {
+    actions.push('Check Settings -> Browser connection state, then reload the TMWD extension or restart the local claude-yh app/server owning ws://127.0.0.1:18765.')
+  }
+  return {
+    summary: 'BrowserControl failed; recover by re-identifying the active tab and page evidence before retrying the action.',
+    nextActions: actions,
   }
 }
 
@@ -1424,7 +1455,21 @@ async function blockedExecution(
       auditId,
     },
   })
-  return { ok: false, backendId, decision, auditId, error, statusCode }
+  return {
+    ok: false,
+    backendId,
+    decision,
+    auditId,
+    error,
+    statusCode,
+    recovery: {
+      summary: 'BrowserControl was blocked before execution.',
+      nextActions: [
+        'Check the policy decision reason.',
+        'If the page shows captcha, login, payment, or another human-only step, pause and ask the user.',
+      ],
+    },
+  }
 }
 
 function summarizeExecutionData(data: unknown): Record<string, unknown> | undefined {

@@ -15,6 +15,10 @@ type MemoryV2AutomationResult = {
   candidates: number
   applied: number
   skills: number
+  summaryTitles?: string[]
+  candidateTitles?: string[]
+  appliedTitles?: string[]
+  skipped?: string
 }
 
 let inProgress: Promise<MemoryV2AutomationResult> | null = null
@@ -99,11 +103,12 @@ export async function flushScheduledMemoryV2Automation(
 }
 
 export async function runMemoryV2Automation(
-  limit = 12,
+  options: number | { limit?: number; sessionId?: string } = 12,
 ): Promise<MemoryV2AutomationResult> {
   if (inProgress) return inProgress
 
-  inProgress = runMemoryV2AutomationOnce(limit).finally(() => {
+  const normalized = typeof options === 'number' ? { limit: options } : options
+  inProgress = runMemoryV2AutomationOnce(normalized.limit ?? 12, normalized.sessionId).finally(() => {
     inProgress = null
   })
   return inProgress
@@ -111,18 +116,21 @@ export async function runMemoryV2Automation(
 
 async function runMemoryV2AutomationOnce(
   limit: number,
+  sessionId?: string,
 ): Promise<MemoryV2AutomationResult> {
   const startedAt = Date.now()
   try {
-    const summaries = await summarizeMemoryV2Sessions(limit)
+    const summaries = await summarizeMemoryV2Sessions({ limit, sessionId })
     await getMemoryV2Status()
     const stale = await detectMemoryV2Stale()
-    const candidates = await generateMemoryV2DistillCandidates(limit)
+    const candidates = await generateMemoryV2DistillCandidates(limit, summaries)
     let applied = 0
     let skills = 0
+    const appliedTitles: string[] = []
     for (const candidate of candidates) {
       await applyMemoryV2DistillCandidate(candidate)
       applied += 1
+      appliedTitles.push(candidate.title)
       const skill = await autoDistillSkillFromMemoryCandidate(candidate)
       if (skill) skills += 1
     }
@@ -133,6 +141,12 @@ async function runMemoryV2AutomationOnce(
       candidates: candidates.length,
       applied,
       skills,
+      summaryTitles: summaries.map(entry => entry.title).slice(0, 12),
+      candidateTitles: candidates.map(candidate => candidate.title).slice(0, 12),
+      appliedTitles: appliedTitles.slice(0, 12),
+      skipped: summaries.length === 0 && candidates.length === 0
+        ? 'No changed sessions or new memory candidates.'
+        : undefined,
     }
     logForDebugging(
       `[memory-l1-l4] automation completed summaries=${result.summaries} stale=${result.stale} candidates=${result.candidates} applied=${result.applied} skills=${result.skills}`,

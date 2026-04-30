@@ -180,13 +180,25 @@ export async function updateMemoryV2Entry(input: {
   })
 }
 
-export async function summarizeMemoryV2Sessions(limit = 20): Promise<MemoryV2Entry[]> {
+export async function summarizeMemoryV2Sessions(
+  options: number | { limit?: number; sessionId?: string } = 20,
+): Promise<MemoryV2Entry[]> {
+  const limit = typeof options === 'number' ? options : options.limit ?? 20
+  const sessionId = typeof options === 'number' ? undefined : options.sessionId
   const paths = getMemoryV2Paths()
   await ensureMemoryV2Dirs(paths)
-  const index = await getSessionIndex({ limit })
+  const index = await getSessionIndex({ limit: sessionId ? Math.max(limit, 500) : limit })
+  const sessions = sessionId
+    ? index.sessions.filter(session => session.id === sessionId)
+    : index.sessions
   const entries: MemoryV2Entry[] = []
-  for (const session of index.sessions) {
+  for (const session of sessions) {
     const id = `session-${session.id}`
+    const summaryPath = path.join(paths.summariesDir, `${id}.md`)
+    const existing = await fs.stat(summaryPath).catch(() => null)
+    if (existing && existing.mtimeMs >= session.modifiedAtMs) {
+      continue
+    }
     const transcript = await readSessionTranscriptText(session.filePath)
     const content = await deepSessionSummary({
       title: session.title,
@@ -197,7 +209,7 @@ export async function summarizeMemoryV2Sessions(limit = 20): Promise<MemoryV2Ent
       filePath: session.filePath,
       transcript,
     })
-    entries.push(await writeEntryAtPath('L4', path.join(paths.summariesDir, `${id}.md`), {
+    entries.push(await writeEntryAtPath('L4', summaryPath, {
       title: session.title,
       content,
       source: session.filePath,
@@ -274,8 +286,14 @@ export async function detectMemoryV2Stale(): Promise<MemoryV2Entry[]> {
   return status.layers.flatMap(layer => layer.entries).filter(entry => entry.stale?.stale)
 }
 
-export async function generateMemoryV2DistillCandidates(limit = 10): Promise<MemoryV2DistillCandidate[]> {
-  const summaries = await summarizeMemoryV2Sessions(limit)
+export async function generateMemoryV2DistillCandidates(
+  limit = 10,
+  sourceSummaries?: MemoryV2Entry[],
+): Promise<MemoryV2DistillCandidate[]> {
+  let summaries = sourceSummaries ?? await summarizeMemoryV2Sessions(limit)
+  if (!sourceSummaries && summaries.length === 0) {
+    summaries = await listL4Entries(limit)
+  }
   const candidates = summaries
     .filter(entry => {
       const text = (entry.title + '\n' + (entry.content ?? '')).toLowerCase()
@@ -319,6 +337,7 @@ async function ensureMemoryV2Dirs(paths = getMemoryV2Paths()): Promise<void> {
   await fs.mkdir(paths.sopsDir, { recursive: true })
   await fs.mkdir(paths.skillsDir, { recursive: true })
   await fs.mkdir(paths.summariesDir, { recursive: true })
+  await ensureCoreMemorySops(paths)
   try {
     await fs.access(paths.indexPath)
     const current = await fs.readFile(paths.indexPath, 'utf-8')
@@ -345,27 +364,18 @@ async function ensureMemoryV2Dirs(paths = getMemoryV2Paths()): Promise<void> {
 }
 
 function defaultL1IndexContent(): string {
-  return [
-    '# 记忆索引',
-    '',
-    '我是 claude-yh 的全局长期记忆入口，只保留 L2/L3 的精炼摘要和检索路线，不保存原始会话内容。',
-    '',
-    '我在 L2 facts `facts/` 中保存长期事实、偏好和稳定规则。',
-    '我在 L3 SOP `sops/` 中保存可复用流程。',
-    '我在 L3 Skills `sops/skills/` 中保存 claude-yh 专属技能。',
-    '',
-  ].join('\n')
+  return currentL1IndexContent()
 }
 
 function currentL1IndexContent(): string {
   return [
     '# 记忆索引',
     '',
-    '我是 claude-yh 的全局长期记忆入口，只保留 L2/L3 的精炼摘要和检索路线，不保存原始会话内容。',
+    '我是 claude-yh 的 L1 存在性索引，只保存 L2/L3 的入口、主题和触发词；具体内容按相对路径检索读取。',
     '',
-    '- L2 稳定事实、偏好、项目规则放在 `facts/`。',
-    '- L3 可复用 SOP 和 Skill 流程放在 `sops/`。',
-    '- L4 原始会话和摘要只作为证据来源，不能直接污染 L1/L2/L3。',
+    '- L2 facts/：长期事实、偏好、稳定规则。',
+    '- L3 sops/：可复用 SOP；sops/skills/：claude-yh 专属 Skill。',
+    '- L4 sessions/：会话摘要和证据归档，只用于溯源，不直接注入上下文。',
     '',
   ].join('\n')
 }
@@ -373,7 +383,13 @@ function currentL1IndexContent(): string {
 function isBrokenDefaultL1Index(content: string): boolean {
   const trimmed = content.trim()
   if (!trimmed) return true
-  return trimmed.includes('璁板繂') || trimmed.includes('涓嶄繚瀛') || trimmed.includes('绱㈠紩')
+  return (
+    trimmed.includes('Memory Index') ||
+    trimmed.includes('鐠佹澘') ||
+    trimmed.includes('璁板繂') ||
+    trimmed.includes('鎴戞槸') ||
+    trimmed.includes('L1 index: short pointers only')
+  )
 }
 
 function normalizeL1IndexContent(content: string, oldDefault: string): string {
@@ -383,63 +399,75 @@ function normalizeL1IndexContent(content: string, oldDefault: string): string {
   return content
 }
 
+async function ensureCoreMemorySops(paths: MemoryV2Paths): Promise<void> {
+  if (
+    process.env.CLAUDE_YH_DISABLE_CORE_MEMORY_SOPS === '1' ||
+    process.env.CLAUDE_COWORK_MEMORY_PATH_OVERRIDE
+  ) {
+    return
+  }
+
+  const coreSops: Array<{ file: string; title: string; source: string; content: string }> = [
+    {
+      file: 'memory-management.md',
+      title: 'Memory management SOP',
+      source: 'builtin:ga-memory-management-sop',
+      content: [
+        'claude-yh 的长期记忆遵守 Action-Verified Memory：只有用户明确表达的长期偏好、稳定事实、配置约束，或已经被工具结果验证过的经验，才能写入 L2/L3。',
+        '',
+        '- L1 只做存在性索引和检索路线，不罗列完整文件清单，不保存原始会话。',
+        '- L2 facts/ 保存长期事实、偏好、角色定位和稳定规则，必须能追溯到 source。',
+        '- L3 sops/ 保存可复用流程；sops/skills/ 保存可被模型主动调用的 claude-yh 专属 Skill。',
+        '- L4 sessions/ 保存原始会话摘要、证据和来源，只能作为溯源材料。',
+        '- 同一经验在 L3 内二选一：适合主动调用写 Skill，否则写 SOP，不能重复保存。',
+        '- 会话关闭、切换会话、应用退出或长时间空闲后统一抽取；L2/L3 变化后再重写 L1。',
+      ].join('\n'),
+    },
+    {
+      file: 'verification.md',
+      title: 'Verification SOP',
+      source: 'builtin:ga-verification-sop',
+      content: [
+        '完成任务前必须尽量给出真实验证证据，而不是只做静态编译或口头判断。',
+        '',
+        '- 代码改动优先运行相关单测、类型检查、构建或实际交互 smoke test。',
+        '- UI/浏览器能力优先用真实页面、截图、DOM、控制台或网络日志验证。',
+        '- 输出结论必须区分 PASS、PARTIAL、FAIL，并记录未验证的残余风险。',
+        '- 失败时保留错误原文、命令、时间和可复现入口，方便后续分析。',
+      ].join('\n'),
+    },
+    {
+      file: 'jarvis-autonomous-operation.md',
+      title: 'Jarvis autonomous operation SOP',
+      source: 'builtin:ga-proactive-agent-sop',
+      content: [
+        'Jarvis 是 24 小时常驻的主动型智能体，不是普通定时任务包装。它应接收目标、拆解计划、排队执行、记录 checkpoint，并在风险边界内主动推进。',
+        '',
+        '- 每个 Jarvis 任务需要 goal、边界、预算、停止条件和恢复 checkpoint。',
+        '- 遇到登录、验证码、支付、外部发送、不可逆操作或密钥隐私风险时暂停并请求确认。',
+        '- 每次执行后写 TODO、history 和 report，记录做了什么、结果如何、下一步是什么。',
+        '- 进程重启后从 checkpoint 和队列恢复，不能重复 claim 同一任务。',
+      ].join('\n'),
+    },
+  ]
+
+  for (const sop of coreSops) {
+    const targetPath = path.join(paths.sopsDir, sop.file)
+    if (await pathExists(targetPath)) continue
+    await writeEntryAtPath('L3', targetPath, {
+      title: sop.title,
+      content: sop.content,
+      verified: true,
+      source: sop.source,
+    })
+  }
+}
+
 async function rewriteCompactIndex(paths: MemoryV2Paths): Promise<void> {
   const facts = (await listMarkdownEntries('L2', paths.factsDir)).filter(entry => !isLowValueMemory(entry))
   const sops = (await listL3Entries(paths)).filter(entry => !isLowValueMemory(entry))
   const l4 = await listSummaryEntries(paths.summariesDir)
   await fs.writeFile(paths.indexPath, buildProseL1Index(paths, facts, sops, l4), 'utf-8')
-}
-
-function buildCompactL1Index(
-  paths: MemoryV2Paths,
-  facts: MemoryV2Entry[],
-  sops: MemoryV2Entry[],
-  l4: MemoryV2Entry[],
-): string {
-  const triggers = deriveL1Triggers([...facts, ...sops])
-  return [
-    '# 记忆索引',
-    '',
-    'L1 索引：只保存路由入口和高 ROI 触发词，不保存 L2/L3/L4 明细。',
-    '',
-    '## 层级入口',
-    `- L2 facts/: ${facts.length} 条稳定事实、偏好、项目规则；需要具体内容时搜索或读取 \`${relativeMemoryPath(paths.root, paths.factsDir)}/\`。`,
-    `- L3 sops/: ${sops.length} 条 SOP/Skill；遇到重复任务、浏览器、搜索、Jarvis、配置问题时先搜索 \`${relativeMemoryPath(paths.root, paths.sopsDir)}/\`。`,
-    `- L4 sessions/: ${l4.length} 条会话摘要；只作为证据来源，不能直接当成长期事实。`,
-    '',
-    '## 触发词',
-    `- ${triggers.length > 0 ? triggers.join(' / ') : '暂无高频触发词，优先使用语义搜索。'}`,
-    '',
-    '## 规则',
-    '- No Execution, No Memory：写入 L2/L3 必须来自用户确认或成功工具结果。',
-    '- L1 只写“哪里有知识”，不写“知识本身”；详细内容靠 embedding 检索、grep 或读取文件召回。',
-    '- L4 只能经验证后沉淀到 L2/L3，不能直接污染长期记忆。',
-    '',
-  ].join('\n')
-}
-
-function deriveL1Triggers(entries: MemoryV2Entry[]): string[] {
-  const ignored = /^(fact:\s*)?(你好|你是谁|只回答\s*ok|untitled session|年后|搜索北京的天气)$/i
-  const usefulTechnicalSignal = /browser|browsercontrol|chrome|cdp|tmwd|jarvis|rust|runtime|provider|web\s*search|web搜索|浏览器|配置|设置|记忆|memory|skill|sop/i
-  const seen = new Set<string>()
-  const result: string[] = []
-  for (const entry of entries) {
-    const title = entry.title
-      .replace(/^(Fact|SOP):\s*/i, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-    if (!title || ignored.test(title)) continue
-    if (/^(你|只|搜索北京)/.test(title)) continue
-    if (/^workbench/i.test(title)) continue
-    if (!usefulTechnicalSignal.test(title)) continue
-    const trigger = title.length > 34 ? `${title.slice(0, 31)}...` : title
-    const key = trigger.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    result.push(trigger)
-    if (result.length >= 10) break
-  }
-  return result
 }
 
 function relativeMemoryPath(root: string, target: string): string {
@@ -450,36 +478,32 @@ function buildProseL1Index(
   paths: MemoryV2Paths,
   facts: MemoryV2Entry[],
   sops: MemoryV2Entry[],
-  _l4: MemoryV2Entry[],
+  l4: MemoryV2Entry[],
 ): string {
   const skills = sops.filter(isSkillEntry)
   const regularSops = sops.filter(entry => !isSkillEntry(entry))
-  const l2Summary = summarizeL1MemoryEntries(facts, {
-    empty: '暂无长期事实、偏好或稳定规则。',
-    prefix: '我记住了',
-  })
-  const l3Summary = summarizeL1MemoryEntries(regularSops, {
-    empty: '暂无普通 SOP。',
-    prefix: '我沉淀了',
-  })
-  const skillSummary = summarizeL1MemoryEntries(skills, {
-    empty: '暂无 claude-yh 专属 Skill。',
-    prefix: '我可以调用',
-  })
+  const l2Summary = summarizeL1MemoryEntries(facts, '暂无长期事实、偏好或稳定规则')
+  const l3Summary = summarizeL1MemoryEntries(regularSops, '暂无普通 SOP')
+  const skillSummary = summarizeL1MemoryEntries(skills, '暂无 claude-yh 专属 Skill')
   const l2Path = `${relativeMemoryPath(paths.root, paths.factsDir)}/`
   const sopPath = `${relativeMemoryPath(paths.root, paths.sopsDir)}/`
   const skillPath = `${relativeMemoryPath(paths.root, paths.skillsDir)}/`
+  const l4Path = `${relativeMemoryPath(paths.root, paths.summariesDir)}/`
 
   return [
     '# 记忆索引',
     '',
-    '我是 claude-yh 的全局长期记忆摘要。对话开始时我会先读这里，具体事实、SOP 和 Skill 再按相对路径检索。',
+    '我是 claude-yh 的 L1 存在性索引。对话开始只读取这里；需要细节时按相对路径检索 L2/L3，再用 source 回溯 L4。',
     '',
-    `我在 L2 facts \`${l2Path}\` 中保存长期事实、偏好和稳定规则：${l2Summary}`,
+    `L2 facts \`${l2Path}\`：${l2Summary}。`,
     '',
-    `我在 L3 SOP \`${sopPath}\` 中保存可复用流程：${l3Summary}`,
+    `L3 SOP \`${sopPath}\`：${l3Summary}。`,
     '',
-    `我在 L3 Skills \`${skillPath}\` 中保存 claude-yh 专属技能：${skillSummary}`,
+    `L3 Skills \`${skillPath}\`：${skillSummary}。`,
+    '',
+    `L4 sessions \`${l4Path}\`：${l4.length} 条会话摘要和证据归档，只用于溯源，不直接作为长期事实注入上下文。`,
+    '',
+    '固定规则：No Execution, No Memory；L3 中 Skill 和 SOP 二选一，不能重复沉淀同一流程。',
     '',
   ].join('\n')
 }
@@ -488,26 +512,9 @@ function isSkillEntry(entry: MemoryV2Entry): boolean {
   return entry.id.startsWith('skill-') || entry.path.includes(`${path.sep}skills${path.sep}`)
 }
 
-function summarizeL1RoleAndPreferences(facts: MemoryV2Entry[]): string {
-  const roleLike = facts.filter(entry =>
-    /角色|定位|偏好|习惯|要求|规则|配置|provider|模型|web.?search|browser|浏览器|jarvis|rust|memory|记忆/i
-      .test(`${entry.title}\n${entry.content}`),
-  )
-  const source = roleLike.length > 0 ? roleLike : facts
-  const summary = summarizeEntryThemes(source, 5)
-  if (!summary) {
-    return 'claude-yh 应把这套记忆当作用户级长期记忆，而不是当前项目的私有偏好。进入任何新项目时都使用同一套全局记忆；项目本身的规则仍以仓库文件、AGENTS.md、CLAUDE.md 和用户当前指令为准。'
-  }
-  return `claude-yh 应把这套记忆当作用户级长期记忆，而不是当前项目的私有偏好。当前已知的长期画像和偏好可以概括为：${summary}。进入任何新项目时都使用同一套全局记忆；项目本身的规则仍以仓库文件、AGENTS.md、CLAUDE.md 和用户当前指令为准。`
-}
-
-function summarizeL1MemoryEntries(
-  entries: MemoryV2Entry[],
-  options: { prefix: string; empty: string },
-): string {
+function summarizeL1MemoryEntries(entries: MemoryV2Entry[], empty: string): string {
   const summary = summarizeEntryThemes(entries, 8)
-  if (!summary) return options.empty
-  return `${options.prefix} ${summary}。`
+  return summary || empty
 }
 
 function summarizeEntryThemes(entries: MemoryV2Entry[], limit: number): string {
@@ -551,13 +558,25 @@ function firstUsefulSentence(content: string): string {
     .replace(/\s+/g, ' ')
     .trim()
   if (!normalized) return ''
-  const [sentence] = normalized.split(/(?<=[。！？.!?])\s+/u)
+  const [sentence] = normalized.split(/(?<=[。！？!?])\s+/u)
   return sentence?.trim() || ''
 }
 
 function truncateText(value: string, maxLength: number): string {
   const trimmed = value.trim()
-  return trimmed.length <= maxLength ? trimmed : `${trimmed.slice(0, maxLength - 1)}…`
+  if (trimmed.length <= maxLength) return trimmed
+  const candidate = trimmed.slice(0, maxLength)
+  const punctuationCut = Math.max(
+    candidate.lastIndexOf('。'),
+    candidate.lastIndexOf('；'),
+    candidate.lastIndexOf(';'),
+    candidate.lastIndexOf('，'),
+    candidate.lastIndexOf(','),
+  )
+  if (punctuationCut >= 20) return candidate.slice(0, punctuationCut)
+  const spaceCut = candidate.lastIndexOf(' ')
+  if (spaceCut >= 20) return candidate.slice(0, spaceCut)
+  return candidate
 }
 
 function joinChineseProse(items: string[]): string {

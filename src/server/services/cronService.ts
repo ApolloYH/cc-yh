@@ -11,6 +11,7 @@ import * as os from 'os'
 import * as crypto from 'crypto'
 import { ApiError } from '../middleware/errorHandler.js'
 import type { AwayRunnerConfig } from '../../awayRunner/index.js'
+import { logDiagnosticEvent } from '../../utils/diagnosticLog.js'
 
 export type TaskNotificationConfig = {
   enabled: boolean
@@ -42,6 +43,32 @@ type TasksFile = {
 
 const TASKS_FILE_WRITE_ATTEMPTS = 2
 
+export type CronTaskHealthStatus =
+  | 'HEALTHY'
+  | 'DISABLED'
+  | 'NEVER_RUN'
+  | 'ERROR'
+  | 'OVERDUE'
+
+export type CronTaskRunLike = {
+  taskId: string
+  status: 'running' | 'completed' | 'failed' | 'timeout'
+  startedAt: string
+  completedAt?: string
+  error?: string
+}
+
+export type CronTaskHealth = {
+  taskId: string
+  name?: string
+  status: CronTaskHealthStatus
+  reason: string
+  lastFiredAt?: string
+  lastRunAt?: string
+  lastRunStatus?: CronTaskRunLike['status']
+  error?: string
+}
+
 export class CronService {
   /** 任务文件路径 */
   private getTasksFilePath(): string {
@@ -60,6 +87,53 @@ export class CronService {
     return data.tasks
   }
 
+  async getHealth(runs: CronTaskRunLike[] = []): Promise<CronTaskHealth[]> {
+    const tasks = await this.listTasks()
+    const latestRunByTask = new Map<string, CronTaskRunLike>()
+    for (const run of runs) {
+      const current = latestRunByTask.get(run.taskId)
+      if (!current || run.startedAt.localeCompare(current.startedAt) > 0) {
+        latestRunByTask.set(run.taskId, run)
+      }
+    }
+    return tasks.map(task => {
+      const latestRun = latestRunByTask.get(task.id)
+      const base = {
+        taskId: task.id,
+        name: task.name,
+        lastFiredAt: task.lastFiredAt,
+        lastRunAt: latestRun?.startedAt,
+        lastRunStatus: latestRun?.status,
+        error: latestRun?.error,
+      }
+      if (task.enabled === false) {
+        return { ...base, status: 'DISABLED' as const, reason: 'Task is disabled.' }
+      }
+      if (latestRun?.status === 'failed' || latestRun?.status === 'timeout') {
+        return {
+          ...base,
+          status: 'ERROR' as const,
+          reason: latestRun.error || `Latest run ended with ${latestRun.status}.`,
+        }
+      }
+      if (!task.lastFiredAt && !latestRun) {
+        return { ...base, status: 'NEVER_RUN' as const, reason: 'Task has not fired yet.' }
+      }
+      if (
+        task.recurring !== false &&
+        task.lastFiredAt &&
+        Date.now() - Date.parse(task.lastFiredAt) > 48 * 60 * 60 * 1000
+      ) {
+        return {
+          ...base,
+          status: 'OVERDUE' as const,
+          reason: 'Recurring task has not fired in the last 48 hours.',
+        }
+      }
+      return { ...base, status: 'HEALTHY' as const, reason: 'Latest known state is healthy.' }
+    })
+  }
+
   /** 创建新任务 */
   async createTask(
     task: Omit<CronTask, 'id' | 'createdAt'>,
@@ -76,6 +150,12 @@ export class CronService {
     }
     data.tasks.push(newTask)
     await this.writeTasksFile(data)
+    logDiagnosticEvent({
+      scope: 'scheduledTasks.service',
+      event: 'create',
+      ok: true,
+      data: { taskId: newTask.id, name: newTask.name },
+    })
     return newTask
   }
 
@@ -91,6 +171,12 @@ export class CronService {
     const { id: _id, createdAt: _ca, ...safeUpdates } = updates
     data.tasks[index] = { ...data.tasks[index], ...safeUpdates }
     await this.writeTasksFile(data)
+    logDiagnosticEvent({
+      scope: 'scheduledTasks.service',
+      event: 'update',
+      ok: true,
+      data: { taskId: id, keys: Object.keys(safeUpdates) },
+    })
     return data.tasks[index]
   }
 
@@ -103,6 +189,12 @@ export class CronService {
     }
     data.tasks.splice(index, 1)
     await this.writeTasksFile(data)
+    logDiagnosticEvent({
+      scope: 'scheduledTasks.service',
+      event: 'delete',
+      ok: true,
+      data: { taskId: id },
+    })
   }
 
   /** 更新任务的最后执行时间 */

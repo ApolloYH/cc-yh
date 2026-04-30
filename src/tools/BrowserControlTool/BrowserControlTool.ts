@@ -135,6 +135,12 @@ const outputSchema = lazySchema(() =>
     data: z.unknown().optional(),
     error: z.string().optional(),
     statusCode: z.number().optional(),
+    recovery: z
+      .object({
+        summary: z.string(),
+        nextActions: z.array(z.string()),
+      })
+      .optional(),
   }),
 )
 type OutputSchema = ReturnType<typeof outputSchema>
@@ -173,7 +179,9 @@ export const BrowserControlTool = buildTool({
       'Start with tabs.read to discover connected tabs, then use tabId for multi-tab workflows so recovery is stable.',
       'There is no domain allow/deny policy. Do not ask the user to run /browser allow or inspect allowedDomains when a page action fails.',
       'For interactive sites, prefer page.click/page.type on stable CSS selectors. The tmwd backend uses CDP coordinate clicks and native text insertion on the user\'s current Chrome tab.',
-      'If BrowserControl returns an error, read the error text and current tabs, then retry with a better tabId or selector before asking the user to operate the page manually.',
+      'If BrowserControl returns an error, read the error text, statusCode, and recovery.nextActions. Then run tabs.read, page.read_dom, and page.screenshot before retrying with a better tabId or selector.',
+      'For iframe, shadow DOM, canvas, or visually present elements that do not appear in DOM text, use screenshots plus cdp.call DOM.getDocument({pierce:true}), DOM.getBoxModel, Runtime.evaluate, or Page.bringToFront as needed.',
+      'For uploads, use files.upload with the real input[type=file] selector. For SPA forms, page.click/page.type is preferred over injected JavaScript because some sites reject untrusted JS events.',
       '',
       'Available backends:',
       backends,
@@ -295,7 +303,7 @@ export const BrowserControlTool = buildTool({
     return {
       type: 'tool_result' as const,
       tool_use_id: toolUseID,
-      content: `BrowserControl failed on ${failure.backendId}.\nDecision: ${jsonStringify(failure.decision)}\nAudit: ${failure.auditId}\nError: ${failure.error}`,
+      content: `BrowserControl failed on ${failure.backendId}.\nDecision: ${jsonStringify(failure.decision)}\nAudit: ${failure.auditId}\nStatus: ${failure.statusCode ?? 'unknown'}\nError: ${failure.error}\nRecovery: ${jsonStringify(failure.recovery)}`,
       is_error: true as const,
     }
   },

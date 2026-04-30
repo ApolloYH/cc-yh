@@ -82,6 +82,16 @@ export async function handleSessionsApi(
       return Response.json({ commands: getSlashCommands(sessionId) })
     }
 
+    if (subResource === 'finalize') {
+      if (req.method !== 'POST') {
+        return Response.json(
+          { error: 'METHOD_NOT_ALLOWED', message: `Method ${req.method} not allowed` },
+          { status: 405 }
+        )
+      }
+      return await finalizeSession(req, sessionId)
+    }
+
     // Route to conversations handler if sub-resource is 'chat'
     if (subResource === 'chat') {
       // This is handled by the conversations API, but in case the router
@@ -174,6 +184,23 @@ async function deleteSession(sessionId: string): Promise<Response> {
         error instanceof Error ? error.message : String(error)
       }`,
     )
+  })
+  return Response.json({ ok: true })
+}
+
+async function finalizeSession(req: Request, sessionId: string): Promise<Response> {
+  let body: { reason?: string; timeoutMs?: number } = {}
+  try {
+    body = await req.json() as { reason?: string; timeoutMs?: number }
+  } catch {
+    body = {}
+  }
+  await finalizeSessionMemory({
+    sessionId,
+    reason: typeof body.reason === 'string' && body.reason.trim()
+      ? body.reason.trim()
+      : 'session-left-ui',
+    timeoutMs: typeof body.timeoutMs === 'number' ? body.timeoutMs : 120_000,
   })
   return Response.json({ ok: true })
 }

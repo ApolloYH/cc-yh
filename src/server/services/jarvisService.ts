@@ -20,6 +20,12 @@ import {
   updateJarvisQueueItem,
 } from '../../jarvis/queue.js'
 import { submitJarvisGoal } from '../../jarvis/planner.js'
+import {
+  appendJarvisTodo,
+  ensureJarvisWorkspace,
+  readJarvisReports,
+  writeJarvisReport,
+} from '../../jarvis/reports.js'
 import type {
   JarvisEvent,
   JarvisMetrics,
@@ -54,6 +60,7 @@ export class JarvisService {
   }
 
   async start(): Promise<void> {
+    await ensureJarvisWorkspace()
     const config = await readJarvisConfig()
     const recovered = await recoverInterruptedJarvisQueue()
     if (recovered > 0) {
@@ -179,12 +186,14 @@ export class JarvisService {
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       })),
+      reports: await readJarvisReports(10),
     }
   }
 
   async submitGoal(goal: string, priority?: number): Promise<JarvisStatus> {
     const config = await updateJarvisConfig({ enabled: true })
     const plan = await submitJarvisGoal({ goal, config, priority })
+    await appendJarvisTodo(`${plan.title}: ${goal}`)
     await appendJarvisEvent({
       type: 'checkpoint',
       title: 'Jarvis task planned',
@@ -326,6 +335,14 @@ export class JarvisService {
         },
       }
       const run = await this.runTask(task)
+      const report = await writeJarvisReport({
+        taskId: item.id,
+        title: item.title || 'Jarvis autonomous task',
+        goal: item.goal || item.prompt,
+        status: run.status === 'completed' ? 'completed' : 'paused',
+        summary: run.output || run.error || `Run ${run.id} finished without output.`,
+        checkpoint: run.output?.slice(0, 2000) || item.checkpoint,
+      })
       await updateJarvisQueueItem(item.id, {
         status: run.status === 'completed'
           ? 'completed'
@@ -340,7 +357,13 @@ export class JarvisService {
         type: run.status === 'completed' ? 'checkpoint' : 'paused',
         severity: run.status === 'completed' ? 'info' : 'warn',
         title: `Jarvis autonomous task ${run.status}`,
-        message: run.output || run.error || `Run ${run.id} finished.`,
+        message: `${run.output || run.error || `Run ${run.id} finished.`} Report: ${report.reportPath}`,
+      })
+      await appendJarvisEvent({
+        type: 'report',
+        severity: run.status === 'completed' ? 'info' : 'warn',
+        title: 'Jarvis report written',
+        message: report.reportPath,
       })
     } finally {
       this.runningContinuousTask = false

@@ -34,6 +34,12 @@ export async function handleScheduledTasksApi(
       return Response.json({ runs })
     }
 
+    if (method === 'GET' && taskId === 'health') {
+      const runs = await cronScheduler.getRecentRuns(200)
+      const health = await cronService.getHealth(runs)
+      return Response.json({ health })
+    }
+
     // ── GET /api/scheduled-tasks/:id/runs ────────────────────────────────
     if (method === 'GET' && taskId && subResource === 'runs') {
       const runs = await cronScheduler.getTaskRuns(taskId)

@@ -1,16 +1,9 @@
 import {
-  applyMemoryV2DistillCandidate,
-  detectMemoryV2Stale,
-  generateMemoryV2DistillCandidates,
   getMemoryV2Status,
   readMemoryV2Entry,
   searchMemoryV2,
-  summarizeMemoryV2Sessions,
   updateMemoryV2Entry,
-  writeMemoryFact,
-  writeMemorySop,
   type MemoryLayer,
-  type MemoryV2DistillCandidate,
   type MemoryV2Entry,
 } from '../../memoryV2/index.js'
 import { getMemoryEmbeddingConfig } from '../../memoryV2/embeddingProvider.js'
@@ -47,18 +40,9 @@ export async function runMemoryCli(args: string): Promise<string> {
     ].join('\n')
   }
 
-  if (action === 'summarize') {
-    const limit = readLimit(rest[0], 20)
-    const entries = await summarizeMemoryV2Sessions(limit)
-    return [
-      `L4 summaries refreshed: ${entries.length}`,
-      '',
-      ...entries.slice(0, 10).map(entry => `- ${entry.id}: ${entry.title}`),
-    ].join('\n')
-  }
-
   if (action === 'stale') {
-    const entries = await detectMemoryV2Stale()
+    const status = await getMemoryV2Status()
+    const entries = status.stale
     return entries.length
       ? [
           `Stale memory entries: ${entries.length}`,
@@ -83,34 +67,6 @@ export async function runMemoryCli(args: string): Promise<string> {
     ].join('\n')
   }
 
-  if (action === 'distill') {
-    const apply = rest[0] === 'apply'
-    const candidates = await generateMemoryV2DistillCandidates(12)
-    if (apply) {
-      const applied: MemoryV2Entry[] = []
-      for (const candidate of candidates) {
-        applied.push(await applyMemoryV2DistillCandidate(candidate as MemoryV2DistillCandidate))
-      }
-      return [
-        `Distill candidates applied: ${applied.length}`,
-        '',
-        ...applied.map(entry => `- ${entry.layer}/${entry.id}: ${entry.title}`),
-      ].join('\n')
-    }
-    return candidates.length
-      ? [
-          `Distill candidates: ${candidates.length}`,
-          '',
-          ...candidates.map(candidate => [
-            `- ${candidate.id} -> ${candidate.layer}: ${candidate.title}`,
-            `  confidence=${candidate.confidence}; ${candidate.reason}`,
-          ].join('\n')),
-          '',
-          'Run /memory distill apply to save all current candidates.',
-        ].join('\n')
-      : 'No distill candidates found.'
-  }
-
   if (action === 'set') {
     const layer = parseLayer(rest[0])
     const id = rest[1] || (layer === 'L1' ? 'index' : '')
@@ -123,16 +79,6 @@ export async function runMemoryCli(args: string): Promise<string> {
       verified: true,
     })
     return `Updated ${entry.layer}/${entry.id}: ${entry.path}`
-  }
-
-  if (action === 'fact' || action === 'sop') {
-    const title = rest[0]
-    const content = rest.slice(1).join(' ')
-    if (!title || !content.trim()) return `Usage: /memory ${action} <title> <content>`
-    const entry = action === 'fact'
-      ? await writeMemoryFact({ title, content, verified: true, source: 'cli' })
-      : await writeMemorySop({ title, content, verified: true, source: 'cli' })
-    return `Saved ${entry.layer}/${entry.id}: ${entry.path}`
   }
 
   return usage()
@@ -174,24 +120,14 @@ function parseLayer(value: string | undefined): MemoryLayer {
   throw new Error('layer must be one of L1, L2, L3, L4')
 }
 
-function readLimit(value: string | undefined, fallback: number): number {
-  const parsed = value ? Number.parseInt(value, 10) : Number.NaN
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
-}
-
 function usage(): string {
   return [
     'Usage:',
     '/memory list',
     '/memory show <L1|L2|L3|L4> <id>',
     '/memory search <query>',
-    '/memory summarize [limit]',
     '/memory stale',
     '/memory embedding',
-    '/memory distill',
-    '/memory distill apply',
-    '/memory fact <title> <content>',
-    '/memory sop <title> <content>',
     '/memory set <L1|L2|L3|L4> <id> <content>',
     '',
     'Without arguments, /memory opens the existing interactive memory file editor.',

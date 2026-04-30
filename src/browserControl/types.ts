@@ -125,4 +125,8 @@ export type BrowserControlExecution =
       auditId: string
       error: string
       statusCode?: number
+      recovery?: {
+        summary: string
+        nextActions: string[]
+      }
     }

@@ -51,6 +51,7 @@ export type JarvisBoundaries = {
 export type JarvisEventType =
   | 'heartbeat'
   | 'checkpoint'
+  | 'report'
   | 'config'
   | 'paused'
   | 'error'
@@ -103,5 +104,15 @@ export type JarvisStatus = {
     error?: string
     createdAt: string
     updatedAt: string
+  }>
+  reports?: Array<{
+    id: string
+    taskId?: string
+    title: string
+    status: string
+    summary: string
+    checkpoint?: string
+    reportPath: string
+    createdAt: string
   }>
 }

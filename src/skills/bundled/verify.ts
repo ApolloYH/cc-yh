@@ -10,17 +10,20 @@ const DESCRIPTION =
     : 'Verify a code change does what it should by running the app.'
 
 export function registerVerifySkill(): void {
-  if (process.env.USER_TYPE !== 'ant') {
-    return
-  }
-
   registerBundledSkill({
     name: 'verify',
     description: DESCRIPTION,
     userInvocable: true,
     files: SKILL_FILES,
     async getPromptForCommand(args) {
-      const parts: string[] = [SKILL_BODY.trimStart()]
+      const parts: string[] = [
+        [
+          'Use this verification SOP for claude-yh tasks.',
+          'Do not mark work complete from static inspection alone when a relevant command, app interaction, browser smoke test, or tool-level check is available.',
+          'Return PASS, PARTIAL, or FAIL with the concrete evidence, commands, screenshots, DOM/tool results, or remaining risk.',
+        ].join('\n'),
+        SKILL_BODY.trimStart(),
+      ]
       if (args) {
         parts.push(`## User Request\n\n${args}`)
       }
