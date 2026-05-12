@@ -84,7 +84,7 @@ const hasBundledRipgrep = existsSync(
 
 const bunArgs = []
 if (existsSync(join(rootDir, 'preload.ts'))) {
-  bunArgs.push('--preload=./preload.ts')
+  bunArgs.push(`--preload=${join(rootDir, 'preload.ts')}`)
 }
 
 if (explicitEnvFile && process.env.CLAUDE_YH_SKIP_DOTENV !== '1') {
