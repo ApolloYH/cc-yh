@@ -51,6 +51,7 @@ export function anthropicToOpenaiChat(
 
   if (body.temperature !== undefined) result.temperature = body.temperature
   if (body.top_p !== undefined) result.top_p = body.top_p
+  if (body.max_tokens !== undefined) result.max_tokens = body.max_tokens
 
   if (body.stop_sequences && body.stop_sequences.length > 0) {
     result.stop = body.stop_sequences

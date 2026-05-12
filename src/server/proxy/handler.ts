@@ -89,7 +89,8 @@ async function handleOpenaiChat(
 ): Promise<Response> {
   const toolNameMapping: ToolNameMapping = {}
   const transformed = anthropicToOpenaiChat(body, toolNameMapping)
-  const url = `${baseUrl}/v1/chat/completions`
+  normalizeOpenaiChatRequestForProvider(transformed, baseUrl, body.model)
+  const url = buildVersionedApiUrl(baseUrl, 'chat/completions')
 
   const upstream = await fetch(url, {
     method: 'POST',
@@ -151,7 +152,7 @@ async function handleOpenaiResponses(
 ): Promise<Response> {
   const toolNameMapping: ToolNameMapping = {}
   const transformed = anthropicToOpenaiResponses(body, toolNameMapping)
-  const url = `${baseUrl}/v1/responses`
+  const url = buildVersionedApiUrl(baseUrl, 'responses')
 
   const upstream = await fetch(url, {
     method: 'POST',
@@ -203,4 +204,25 @@ async function handleOpenaiResponses(
     toolNameMapping,
   )
   return Response.json(anthropicResponse)
+}
+
+function buildVersionedApiUrl(base: string, endpoint: string): string {
+  const normalizedBase = base.replace(/\/+$/, '')
+  const normalizedEndpoint = endpoint.replace(/^\/+/, '')
+  return /\/v\d+$/i.test(normalizedBase)
+    ? `${normalizedBase}/${normalizedEndpoint}`
+    : `${normalizedBase}/v1/${normalizedEndpoint}`
+}
+
+function normalizeOpenaiChatRequestForProvider(
+  body: Record<string, unknown>,
+  baseUrl: string,
+  modelId: string,
+): void {
+  if (!/aistudio\.baidu/i.test(baseUrl) && !/^ernie-/i.test(modelId)) return
+  const maxTokens = typeof body.max_tokens === 'number' ? body.max_tokens : undefined
+  if (maxTokens !== undefined && body.max_completion_tokens === undefined) {
+    body.max_completion_tokens = Math.max(maxTokens, 128)
+    delete body.max_tokens
+  }
 }

@@ -76,6 +76,15 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     websiteUrl: 'https://token-plan-cn.xiaomimimo.com',
   },
   {
+    id: 'wenxin',
+    name: '文心',
+    baseUrl: 'https://aistudio.baidu.com/llm/lmapi/v3',
+    apiFormat: 'openai_chat',
+    defaultModels: { main: 'ernie-5.1', haiku: 'ernie-5.1', sonnet: 'ernie-5.1', opus: 'ernie-5.1' },
+    needsApiKey: true,
+    websiteUrl: 'https://ai.baidu.com/ai-doc/AISTUDIO/slmkadt9z',
+  },
+  {
     id: 'custom',
     name: 'Custom',
     baseUrl: '',

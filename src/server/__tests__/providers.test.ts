@@ -5,6 +5,7 @@ import * as path from 'path'
 import * as os from 'os'
 import { ProviderService } from '../services/providerService.js'
 import { handleProvidersApi } from '../api/providers.js'
+import { PROVIDER_PRESETS } from '../config/providerPresets.js'
 
 let tmpDir: string
 let originalConfigDir: string | undefined
@@ -276,6 +277,58 @@ describe('ProviderService', () => {
         'https://api.minimaxi.com/v1/chat/completions',
         'https://api.minimaxi.com/v1/chat/completions',
       ])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('Wenxin preset uses AI Studio v3 OpenAI chat endpoint', async () => {
+    const preset = PROVIDER_PRESETS.find((p) => p.id === 'wenxin')
+    expect(preset).toBeDefined()
+    expect(preset?.name).toBe('文心')
+    expect(preset?.apiFormat).toBe('openai_chat')
+    expect(preset?.baseUrl).toBe('https://aistudio.baidu.com/llm/lmapi/v3')
+    expect(preset?.defaultModels.main).toBe('ernie-5.1')
+
+    const svc = new ProviderService()
+    const originalFetch = globalThis.fetch
+    const calledUrls: string[] = []
+    const requestBodies: Array<Record<string, unknown>> = []
+
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calledUrls.push(String(input))
+      requestBodies.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>)
+      return new Response(
+        JSON.stringify({
+          id: 'chatcmpl-test',
+          model: 'ernie-5.1',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'ok' } }],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )
+    }) as typeof fetch
+
+    try {
+      const result = await svc.testProviderConfig({
+        baseUrl: preset!.baseUrl,
+        apiKey: 'sk-test',
+        modelId: preset!.defaultModels.main,
+        apiFormat: preset!.apiFormat,
+      })
+
+      expect(result.connectivity.success).toBe(true)
+      expect(result.proxy?.success).toBe(true)
+      expect(calledUrls).toEqual([
+        'https://aistudio.baidu.com/llm/lmapi/v3/chat/completions',
+        'https://aistudio.baidu.com/llm/lmapi/v3/chat/completions',
+      ])
+      expect(requestBodies[0].max_completion_tokens).toBe(128)
+      expect(requestBodies[0].max_tokens).toBeUndefined()
+      expect(requestBodies[1].max_completion_tokens).toBe(128)
+      expect(requestBodies[1].max_tokens).toBeUndefined()
     } finally {
       globalThis.fetch = originalFetch
     }

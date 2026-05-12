@@ -256,7 +256,7 @@ function buildModelUrl(baseUrl: string, apiFormat: ApiFormat): string {
 }
 
 function appendV1(base: string, endpoint: string): string {
-  return /\/v1$/i.test(base) ? `${base}/${endpoint}` : `${base}/v1/${endpoint}`
+  return /\/v\d+$/i.test(base) ? `${base}/${endpoint}` : `${base}/v1/${endpoint}`
 }
 
 function buildHeaders(config: MainModelConfig): Record<string, string> {
@@ -301,7 +301,7 @@ function buildBody(
         { role: 'user', content: params.userPrompt },
       ],
     }
-    if (isMimoConfig(config)) {
+    if (usesMaxCompletionTokens(config)) {
       body.max_completion_tokens = maxTokens
     } else {
       body.max_tokens = maxTokens
@@ -335,6 +335,14 @@ function buildBody(
 
 function isMimoConfig(config: MainModelConfig): boolean {
   return /xiaomimimo\.com/i.test(config.baseUrl) || /^mimo-/i.test(config.model)
+}
+
+function isBaiduConfig(config: MainModelConfig): boolean {
+  return /aistudio\.baidu\.com/i.test(config.baseUrl) || /^ernie-/i.test(config.model)
+}
+
+function usesMaxCompletionTokens(config: MainModelConfig): boolean {
+  return isMimoConfig(config) || isBaiduConfig(config)
 }
 
 function supportsThinkingDisable(config: MainModelConfig): boolean {

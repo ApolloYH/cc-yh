@@ -664,6 +664,7 @@ export class ProviderService {
       let transformedBody: unknown
       if (format === 'openai_chat') {
         transformedBody = anthropicToOpenaiChat(anthropicReq)
+        normalizeOpenaiChatRequestForProvider(transformedBody as Record<string, unknown>, base, modelId)
         upstreamUrl = buildVersionedApiUrl(base, 'chat/completions')
       } else {
         transformedBody = anthropicToOpenaiResponses(anthropicReq)
@@ -723,8 +724,12 @@ function buildDirectTestRequest(
   if (format === 'openai_chat') {
     const body: Record<string, unknown> = {
       model: modelId,
-      max_tokens: 16,
       messages: [{ role: 'user', content: prompt }],
+    }
+    if (usesMaxCompletionTokens(base, modelId)) {
+      body.max_completion_tokens = 128
+    } else {
+      body.max_tokens = 16
     }
     if (supportsThinkingDisableForProvider(base, modelId)) {
       body.thinking = { type: 'disabled' }
@@ -759,11 +764,28 @@ function supportsThinkingDisableForProvider(base: string, modelId: string): bool
   return /deepseek|xiaomimimo/i.test(base) || /^(deepseek-|mimo-)/i.test(modelId)
 }
 
+function usesMaxCompletionTokens(base: string, modelId: string): boolean {
+  return /xiaomimimo|aistudio\.baidu/i.test(base) || /^(mimo-|ernie-)/i.test(modelId)
+}
+
+function normalizeOpenaiChatRequestForProvider(
+  body: Record<string, unknown>,
+  base: string,
+  modelId: string,
+): void {
+  if (!usesMaxCompletionTokens(base, modelId)) return
+  const maxTokens = typeof body.max_tokens === 'number' ? body.max_tokens : undefined
+  if (maxTokens !== undefined && body.max_completion_tokens === undefined) {
+    body.max_completion_tokens = Math.max(maxTokens, 128)
+    delete body.max_tokens
+  }
+}
+
 function buildVersionedApiUrl(base: string, endpoint: string): string {
   const normalizedBase = base.replace(/\/+$/, '')
   const normalizedEndpoint = endpoint.replace(/^\/+/, '')
 
-  if (/\/v1$/i.test(normalizedBase)) {
+  if (/\/v\d+$/i.test(normalizedBase)) {
     return `${normalizedBase}/${normalizedEndpoint}`
   }
   return `${normalizedBase}/v1/${normalizedEndpoint}`
