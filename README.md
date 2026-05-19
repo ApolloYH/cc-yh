@@ -19,7 +19,7 @@
 
 ---
 
-## ✨ 主要能力
+## ✨ 新加功能
 
 - **CLI**：通过 `claude-yh` 启动交互式 TUI，也支持 `-p` 无头模式。
 - **Windows 桌面端**：Tauri + React 桌面应用，集成会话、设置、记忆、Jarvis、定时任务、BrowserControl 和 IM 配置。
